@@ -434,6 +434,7 @@ public:
     basic_block_type b;
     b.t = tag_conditional_jump;
     new (&b.variant_conditional_jump.code) std::function<int(Env&)>(code);
+    new (&b.variant_conditional_jump.targets) std::vector<basic_block_label_type>();
     b.variant_conditional_jump.targets = targets;
     return b;
   }

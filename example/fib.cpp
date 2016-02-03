@@ -57,7 +57,7 @@ int main(int argc, const char * argv[]) {
   int result = -1;
   dsl::interpreter interp;
   dsl::deque& dq = interp.get_deque();
-  dq.push_back<fib>(1, &result);
+  dq.push_back<fib>(2, &result);
   interp.seq(1000);
   std::cout << "result = " << result << std::endl;
   return 0;
