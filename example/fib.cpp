@@ -3,8 +3,6 @@
 
 namespace dsl = pasl::sched::edsl::pcfg;
 
-void* the_cfg;
-
 class fib : public dsl::activation_record {
 public:
   
@@ -44,20 +42,22 @@ public:
     return cfg;
   }
   
+  static
+  cfg_type cfg;
+  
   void run(dsl::deque& dq) {
-    dsl::step(*((cfg_type*)the_cfg), dq);
+    dsl::step(cfg, dq);
   }
   
 };
 
-//fib::cfg_type fib::cfg = fib::get_cfg();
+fib::cfg_type fib::cfg = fib::get_cfg();
 
 int main(int argc, const char * argv[]) {
-  the_cfg = new fib::cfg_type(fib::get_cfg());
   int result = -1;
   dsl::interpreter interp;
   dsl::deque& dq = interp.get_deque();
-  dq.push_back<fib>(2, &result);
+  dq.push_back<fib>(10, &result);
   interp.seq(1000);
   std::cout << "result = " << result << std::endl;
   return 0;
