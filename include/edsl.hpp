@@ -475,7 +475,7 @@ using cfg_type = std::vector<basic_block_type<Env>>;
 class activation_record {
 public:
   
-  basic_block_label_type trampoline;
+  basic_block_label_type trampoline = entry_block_label;
   
   virtual void run(deque&) = 0;
   
