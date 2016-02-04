@@ -1,4 +1,5 @@
 #include <iostream>
+#include "scheduler.hpp"
 #include "edsl.hpp"
 
 namespace dsl = pasl::sched::edsl::pcfg;
@@ -6,11 +7,11 @@ namespace dsl = pasl::sched::edsl::pcfg;
 class fib : public dsl::activation_record {
 public:
   
-  int n; int* dp;
-  int d1; int d2;
+  int n; dsl::dps_cell<int>* dp;
+  dsl::dps_cell<int> d1; dsl::dps_cell<int> d2;
   
   fib() { }
-  fib(int n, int* dp) : n(n), dp(dp) { }
+  fib(int n, dsl::dps_cell<int>* dp) : n(n), dp(dp) { }
   
   using env = fib;
   using cfg_type = dsl::cfg_type<env>;
@@ -22,7 +23,7 @@ public:
     // 0
     cfg.push_back(bty::conditional_jump([] (env& e) {
       if (e.n <= 1) {
-        *(e.dp) = e.n;
+        e.dp->write(e.n);
         return 0;
       }
       return 1;
@@ -37,7 +38,7 @@ public:
     }, 3));
     // 3
     cfg.push_back(bty::unconditional_jump([&] (env& e) {
-      *(e.dp) = e.d1 + e.d2;
+      e.dp->write(e.d1.read() + e.d2.read());
     }, -1));
     return cfg;
   }
@@ -49,16 +50,27 @@ public:
     dsl::step(cfg, dq);
   }
   
+  void copy(activation_record* _destination) {
+    fib& destination = *((fib*)_destination);
+    destination = *this;
+  }
+  
+  void promote(activation_record* _destination) {
+    fib& destination = *((fib*)_destination);
+    d1.forward(destination.d1);
+    d2.forward(destination.d2);
+  }
+  
 };
 
 fib::cfg_type fib::cfg = fib::get_cfg();
 
 int main(int argc, const char * argv[]) {
-  int result = -1;
+  dsl::dps_cell<int> result(-1);
   dsl::interpreter interp;
   dsl::deque& dq = interp.get_deque();
   dq.push_back<fib>(10, &result);
-  interp.seq(1000);
-  std::cout << "result = " << result << std::endl;
+  interp.run(1000);
+  std::cout << "result = " << result.read() << std::endl;
   return 0;
 }

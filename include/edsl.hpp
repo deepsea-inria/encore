@@ -271,6 +271,40 @@ public:
   
 };
   
+template <class Item>
+class dps_cell {
+private:
+  
+  Item item;
+  Item* forwarding_pointer = nullptr;
+  
+public:
+  
+  dps_cell() { }
+  dps_cell(const Item& val) : item(val) { }
+  
+  Item& read() {
+    if (forwarding_pointer != nullptr) {
+      return *forwarding_pointer;
+    }
+    return item;
+  }
+  
+  void write(const Item& val) {
+    if (forwarding_pointer != nullptr) {
+      *forwarding_pointer = val;
+    } else {
+      item = val;
+    }
+  }
+  
+  void forward(dps_cell<Item>& destination) {
+    assert(forwarding_pointer == nullptr);
+    forwarding_pointer = &destination.item;
+  }
+  
+};
+  
 using basic_block_label_type = int;
 
 static constexpr basic_block_label_type entry_block_label = 0;
@@ -480,6 +514,10 @@ public:
   
   virtual void run(deque&) = 0;
   
+  virtual void copy(activation_record*) = 0;
+  
+  virtual void promote(activation_record*) = 0;
+  
 };
   
 template <class Env>
@@ -535,26 +573,27 @@ public:
     return *dq;
   }
   
-  int seq(int fuel) {
-    deque& dq = get_deque();
-    while (fuel > 0 && ! dq.empty()) {
-      activation_record& ar = dq.peek_back<activation_record>();
-      ar.run(dq);
-      fuel--;
-    }
-    if (! dq.empty()) {
-      assert(fuel == 0);
-      // later: promote the oldest frame
-    }
-    return fuel;
-  }
-  
   int nb_strands() {
+    deque& dq = get_deque();
+    if (dq.empty()) {
+      return 0;
+    }
     return 1;
   }
   
   int run(int fuel) {
-    return fuel - 1;
+    deque& dq = get_deque();
+    while (fuel > 0 && ! dq.empty()) {
+      dq.peek_back<activation_record>().run(dq);
+      fuel--;
+    }
+    if (dq.empty()) {
+      
+    } else {
+      assert(fuel == 0);
+      // promote oldest frame
+    }
+    return fuel;
   }
   
   vertex* split(int nb) {

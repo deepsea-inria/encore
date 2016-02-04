@@ -12,12 +12,18 @@ class vertex {
 public:
   
   incounter* in;
+  
   outset* out;
+  
   incounter_handle* release_handle;
   
   virtual int nb_strands() = 0;
+  
   virtual int run(int fuel) = 0;
+  
   virtual vertex* split(int nb) = 0;
+  
+  virtual ~vertex() { }
   
 };
   
