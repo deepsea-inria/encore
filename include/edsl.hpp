@@ -507,6 +507,8 @@ public:
 template <class Env>
 using cfg_type = std::vector<basic_block_type<Env>>;
   
+class interpreter;
+  
 class activation_record {
 public:
   
@@ -514,16 +516,76 @@ public:
   
   virtual void run(deque&) = 0;
   
+  virtual void activate(deque&) = 0;
+  
   virtual void copy(activation_record*) = 0;
   
   virtual void promote(activation_record*) = 0;
   
-};
+  virtual void discharge(deque& dq, interpreter* interp) = 0;
   
+};
+ 
+class interpreter : public vertex {
+public:
+  
+  interpreter()
+  : vertex() { }
+  
+  interpreter(activation_record* arp)
+  : vertex(), tmp(arp) { }
+  
+  std::unique_ptr<deque> dg;
+  
+  std::unique_ptr<activation_record> tmp;
+  
+  deque& get_deque() {
+    deque* dq = dg.get();
+    if (dq == nullptr) {
+      dq = new deque;
+      dg.reset(dq);
+    }
+    return *dq;
+  }
+  
+  int nb_strands() {
+    deque& dq = get_deque();
+    if (dq.empty()) {
+      return 0;
+    }
+    return 1;
+  }
+  
+  int run(int fuel) {
+    deque& dq = get_deque();
+    if (dq.empty()) {
+      activation_record* ar = tmp.get();
+      assert(ar != nullptr);
+      ar->activate(dq);
+    }
+    while (fuel > 0 && ! dq.empty()) {
+      dq.peek_back<activation_record>().run(dq);
+      fuel--;
+    }
+    if (! dq.empty()) {
+      assert(fuel == 0);
+      activation_record& oldest = dq.peek_back<activation_record>();
+      oldest.discharge(dq, this);
+    }
+    return fuel;
+  }
+  
+  vertex* split(int nb) {
+    return nullptr;
+  }
+  
+};
+
 template <class Env>
 void step(cfg_type<Env>& cfg, deque& dq) {
   assert(! dq.empty());
   Env& newest = dq.peek_back<Env>();
+  // note: cfg.at() performs a bounds check
   basic_block_type<Env>& block = cfg.at(newest.trampoline);
   switch (block.t) {
     case tag_unconditional_jump: {
@@ -558,49 +620,61 @@ void step(cfg_type<Env>& cfg, deque& dq) {
     dq.pop_back();
   }
 }
-  
-class interpreter : public vertex {
-public:
-  
-  std::unique_ptr<deque> dg;
-  
-  deque& get_deque() {
-    deque* dq = dg.get();
-    if (dq == nullptr) {
-      dq = new deque;
-      dg.reset(dq);
+
+template <class Env>
+void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
+  assert(! dq.empty());
+  Env& oldest = dq.peek_front<Env>();
+  basic_block_type<Env>& block = cfg.at(oldest.trampoline);
+  switch (block.t) {
+    case tag_unconditional_jump: {
+      assert(false); // todo
+      break;
     }
-    return *dq;
-  }
-  
-  int nb_strands() {
-    deque& dq = get_deque();
-    if (dq.empty()) {
-      return 0;
+    case tag_conditional_jump: {
+      assert(false); // todo
+      break;
     }
-    return 1;
-  }
-  
-  int run(int fuel) {
-    deque& dq = get_deque();
-    while (fuel > 0 && ! dq.empty()) {
-      dq.peek_back<activation_record>().run(dq);
-      fuel--;
+    case tag_fork1: {
+      assert(false); // todo
+      break;
     }
-    if (dq.empty()) {
-      
-    } else {
-      assert(fuel == 0);
-      // promote oldest frame
+    case tag_fork2: {
+      // Create our left branch
+      interpreter* b1 = new interpreter;
+      interp->dg.swap(b1->dg);
+      // Create our right branch
+      interpreter* b2 = new interpreter;
+      Env* ar_b2 = new Env;
+      oldest.copy(ar_b2);
+      basic_block_label_type right_branch_label = block.variant_fork2.next;
+      ar_b2->trampoline = right_branch_label;
+      b2->tmp.reset(ar_b2);
+      // Create our join continuation
+      interpreter* join = interp;
+      Env* ar_join = new Env;
+      oldest.copy(ar_join);
+      oldest.promote(ar_join);
+      basic_block_type<Env>& right_branch = cfg.at(right_branch_label);
+      assert(right_branch.t == tag_fork1);
+      basic_block_label_type join_label = right_branch.variant_fork1.next;
+      ar_join->trampoline = join_label;
+      join->tmp.reset(ar_join);
+      // Commit our changes to the DAG
+      new_edge(b2, join); new_edge(b1, join);
+      release(join); release(b2); release(b1);
+      break;
     }
-    return fuel;
+    case tag_demand: {
+      assert(false); // todo
+      break;
+    }
+    default: {
+      assert(false);
+    }
   }
-  
-  vertex* split(int nb) {
-    return nullptr;
-  }
-  
-};
+  dq.pop_front();
+}
   
 } // end namespace
   

@@ -27,6 +27,15 @@ void scheduler_loop() {
     ready.pop_back();
     if (v->nb_strands() == 0) {
       delete v;
+      /* todo:
+          deal with deallocation of outset; can't simply delete and replace
+          because outset may be used as a future
+       */
+      assert(false);
+    } else {
+      incounter* in = v->in;
+      v->in = new incounter;
+      delete in;
     }
     fuel = v->run(fuel);
     if (fuel == 0) {
@@ -39,6 +48,14 @@ void scheduler_loop() {
   
 void push_vertex(vertex* v) {
   trivial::ready.push_back(v);
+}
+
+void new_edge(vertex* source, vertex* destination) {
+  assert(false); // todo
+}
+  
+void release(vertex* v) {
+  assert(false); // todo
 }
   
 } // end namespace

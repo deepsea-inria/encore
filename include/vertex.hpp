@@ -11,7 +11,7 @@ namespace sched {
 class vertex {
 public:
   
-  incounter* in;
+  incounter* in;  // use uniq_ptr here and possibly for outset?
   
   outset* out;
   

@@ -4,16 +4,19 @@
 
 namespace dsl = pasl::sched::edsl::pcfg;
 
-class fib : public dsl::activation_record {
+class fib_cfg : public dsl::activation_record {
 public:
   
   int n; dsl::dps_cell<int>* dp;
+  
   dsl::dps_cell<int> d1; dsl::dps_cell<int> d2;
   
-  fib() { }
-  fib(int n, dsl::dps_cell<int>* dp) : n(n), dp(dp) { }
+  fib_cfg() { }
   
-  using env = fib;
+  fib_cfg(int n, dsl::dps_cell<int>* dp)
+  : n(n), dp(dp) { }
+  
+  using env = fib_cfg;
   using cfg_type = dsl::cfg_type<env>;
   using bty = dsl::basic_block_type<env>;
   
@@ -30,11 +33,11 @@ public:
     }, { dsl::exit_block_label, 1 }));
     // 1
     cfg.push_back(bty::fork2([&] (env& e, dsl::deque& dq) {
-      dq.push_back<fib>(e.n - 1, &e.d1);
+      dq.push_back<fib_cfg>(e.n - 1, &e.d1);
     }, 2));
     // 2
     cfg.push_back(bty::fork1([] (env& e, dsl::deque& dq) {
-      dq.push_back<fib>(e.n - 2, &e.d2);
+      dq.push_back<fib_cfg>(e.n - 2, &e.d2);
     }, 3));
     // 3
     cfg.push_back(bty::unconditional_jump([&] (env& e) {
@@ -50,26 +53,34 @@ public:
     dsl::step(cfg, dq);
   }
   
+  void activate(dsl::deque& dq) {
+    dq.push_back<env>(*this);
+  }
+  
   void copy(activation_record* _destination) {
-    fib& destination = *((fib*)_destination);
+    fib_cfg& destination = *((fib_cfg*)_destination);
     destination = *this;
   }
   
   void promote(activation_record* _destination) {
-    fib& destination = *((fib*)_destination);
+    fib_cfg& destination = *((fib_cfg*)_destination);
     d1.forward(destination.d1);
     d2.forward(destination.d2);
   }
   
+  void discharge(dsl::deque& dq, dsl::interpreter* interp) {
+    dsl::discharge(cfg, dq, interp);
+  }
+  
 };
 
-fib::cfg_type fib::cfg = fib::get_cfg();
+fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
 int main(int argc, const char * argv[]) {
   dsl::dps_cell<int> result(-1);
   dsl::interpreter interp;
   dsl::deque& dq = interp.get_deque();
-  dq.push_back<fib>(10, &result);
+  dq.push_back<fib_cfg>(10, &result);
   interp.run(1000);
   std::cout << "result = " << result.read() << std::endl;
   return 0;
