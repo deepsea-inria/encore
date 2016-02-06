@@ -58,7 +58,7 @@ private:
         return y;
       }
       Item orig = nullptr;
-      Item next = tagged::create((Item)nullptr, finished_tag);
+      Item next = tagged::tag_with((Item)nullptr, finished_tag);
       if (atomic::compare_exchange(cell, orig, next)) {
         return nullptr;
       }
@@ -125,7 +125,7 @@ public:
     while (true) {
       cell_type* h = head.load();
       cell_type* orig = h;
-      cell_type* next = tagged::create<cell_type>(nullptr, finished_tag);
+      cell_type* next = tagged::tag_with<cell_type>(nullptr, finished_tag);
       if (atomic::compare_exchange(head, orig, next)) {
         assert(h <= start + capacity);
         return std::make_pair(start, h);
@@ -150,7 +150,7 @@ public:
   }
   
   template <class Visit>
-  void finish(const Visit& visit) {
+  void notify(const Visit& visit) {
     auto rng = notify_init();
     notify_rng(rng.first, rng.second, visit);
   }
@@ -336,10 +336,11 @@ public:
     if (s != nullptr) {
       delete s;
     }
+    sched::parallel_deallocate(this);
   }
   
   bool insert(value_type x) {
-    int my_id = data::perworker::my_id();
+    int my_id = data::perworker::get_my_id();
     return insert(x, my_id, [&] (int lo, int hi) {
       std::uniform_int_distribution<int> distribution(lo, hi-1);
       return distribution(rng.mine());
@@ -365,7 +366,7 @@ public:
         break;
       }
     }
-    items.finish(visit);
+    items.notify(visit);
     while (true) {
       node_type* n = blocks.root.load();
       node_type* orig = n;

@@ -16,30 +16,27 @@ static constexpr int default_max_nb_workers = 128;
   
 std::atomic<int> fresh_id(0);
   
+__thread int my_id = -1;
+  
 } // end namespace
+  
+int get_my_id() {
+  if (my_id == -1) {
+    my_id = fresh_id++;
+  }
+  return my_id;
+}
   
 class my_fresh_id {
 public:
   
   int operator()() {
-    return fresh_id++;
+    return get_my_id();
   }
   
 };
   
-class my_encore_id {
-public:
-  
-  // ...
-  
-};
-  
-  // later: make default for My_id the encore built-in one, when it exists
-  
-int my_id() {
-  my_fresh_id id;
-  return id();
-}
+// later: make default for My_id the encore built-in one, when it exists
 
 template <class Item, class My_id=my_fresh_id, int max_nb_workers=default_max_nb_workers>
 class array {

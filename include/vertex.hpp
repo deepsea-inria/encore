@@ -12,15 +12,19 @@ namespace pasl {
 namespace sched {
 
 class vertex {
+public:
+  
+  bool is_future = false;
+  
 private:
   
   std::unique_ptr<incounter> in;
   
-  bool is_future = false;
-  union {
-    outset* out_future = nullptr;
-    std::unique_ptr<outset> out_dflt;
-  };
+  /* later: consider using a proper union type, unless
+   * it's clear that saving one word here would be unimportant
+   */
+  outset* out_future = nullptr; // to use if is_future
+  std::unique_ptr<outset> out_dflt; // to use otherwise
   
 public:
   

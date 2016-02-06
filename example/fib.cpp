@@ -4,6 +4,61 @@
 
 namespace dsl = pasl::sched::edsl::pcfg;
 
+class fib_manual : public pasl::sched::vertex {
+public:
+  
+  enum { entry, join, exit };
+  int trampoline = entry;
+  
+  void yield_with(int target) {
+    trampoline = target;
+  }
+  
+  int n; int* dp;
+  int d1, d2;
+  
+  fib_manual(int n, int* dp)
+  : n(n), dp(dp) { }
+  
+  int nb_strands() {
+    if (trampoline == exit) {
+      return 0;
+    }
+    return 1;
+  }
+  
+  int run(int fuel) {
+    switch (trampoline) {
+      case entry: {
+        if (n <= 1) {
+          *dp = n;
+          yield_with(exit);
+          break;
+        }
+        fib_manual* b1 = new fib_manual(n - 1, &d1);
+        fib_manual* b2 = new fib_manual(n - 2, &d2);
+        yield_with(join);
+        pasl::sched::new_edge(b1, this); pasl::sched::new_edge(b2, this);
+        pasl::sched::release(this); pasl::sched::release(b2); pasl::sched::release(b1);
+        break;
+      }
+      case join: {
+        *dp = d1 + d2;
+        yield_with(exit);
+        break;
+      }
+      default:
+        assert(false);
+    }
+    return fuel - 1;
+  }
+  
+  vertex* split(int nb) {
+    assert(false); // impossible
+  }
+  
+};
+
 class fib_cfg : public dsl::activation_record {
 public:
   

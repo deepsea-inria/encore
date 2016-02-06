@@ -294,6 +294,7 @@ public:
   static void decrement(incounter_handle* h) {
     if (h->decrement()) {
       vertex* v = incounter_handle::get_root_annotation<vertex*>(h);
+      reset_incounter(v);
       schedule(v);
     }
   }

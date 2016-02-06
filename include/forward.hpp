@@ -8,8 +8,12 @@ namespace sched {
     
 class vertex;
 class incounter;
+class outset;
   
 void schedule(vertex* v);
+void parallel_notify(bool, outset*);
+void parallel_deallocate(outset*);
+void reset_incounter(vertex*);
   
 } // end namespace
 } // end namespace
