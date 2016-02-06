@@ -210,7 +210,7 @@ public:
 namespace pcfg {
 
 class deque {
-public:
+private:
   
   static constexpr int capacity_szb = 4096;
   
@@ -223,13 +223,16 @@ public:
   
   std::unique_ptr<char[], Deleter> frames;
   int head;
+  int tail;
   
-  deque() : head(0) {
+public:
+  
+  deque() : head(0), tail(0) {
     frames.reset((char*)malloc(capacity_szb));
   }
   
   bool empty() const {
-    return head == 0;
+    return head == tail;
   }
   
   template <class Frame, class ...Args>
@@ -254,9 +257,7 @@ public:
   
   template <class Frame>
   Frame& peek_front() {
-    assert(false); // todo
-    Frame* tmp = nullptr;
-    return *tmp;
+    return *((Frame*)&frames[tail]);
   }
   
   void pop_back() {
@@ -265,8 +266,10 @@ public:
     head -= sizeof(size_t) + szb;
   }
   
+  template <class Frame>
   void pop_front() {
-    assert(false); // todo
+    size_t szb = sizeof(Frame);
+    tail += sizeof(size_t) + szb;
   }
   
 };
@@ -628,15 +631,28 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
   basic_block_type<Env>& block = cfg.at(oldest.trampoline);
   switch (block.t) {
     case tag_unconditional_jump: {
-      assert(false); // todo
+      // nothing to do here
       break;
     }
     case tag_conditional_jump: {
-      assert(false); // todo
+      // nothing to do here
       break;
     }
     case tag_fork1: {
-      assert(false); // todo
+      // Create our branch
+      interpreter* b = new interpreter;
+      interp->dg.swap(b->dg);
+      // Create our join continuation
+      interpreter* join = interp;
+      Env* ar_join = new Env;
+      oldest.copy(ar_join);
+      oldest.promote(ar_join);
+      basic_block_label_type join_label = block.variant_fork1.next;
+      ar_join->trampoline = join_label;
+      join->tmp.reset(ar_join);
+      // Commit our changes to the DAG
+      new_edge(b, join);
+      release(join); release(b);
       break;
     }
     case tag_fork2: {
@@ -673,7 +689,7 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
       assert(false);
     }
   }
-  dq.pop_front();
+  dq.pop_front<Env>();
 }
   
 } // end namespace

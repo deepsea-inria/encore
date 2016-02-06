@@ -9,9 +9,7 @@ namespace sched {
 class vertex;
 class incounter;
   
-void schedule(vertex* v) {
-  assert(false); // todo
-}
+void schedule(vertex* v);
   
 } // end namespace
 } // end namespace

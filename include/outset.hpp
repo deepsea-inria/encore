@@ -1,10 +1,12 @@
 #include <deque>
+#include <random>
 
 #include "forward.hpp"
 #include "tagged.hpp"
 #include "time.hpp"
 #include "atomic.hpp"
 #include "aligned.hpp"
+#include "perworker.hpp"
 
 #ifndef _PASL_SCHED_OUTSET_H_
 #define _PASL_SCHED_OUTSET_H_
@@ -217,6 +219,8 @@ public:
   
 };
   
+data::perworker::array<std::mt19937> rng;  // random-number generators
+  
 } // end namespace
 
 /*---------------------------------------------------------------------*/
@@ -225,7 +229,7 @@ public:
 class outset {
 private:
   
-  using value_type = vertex*;
+  using value_type = incounter_handle*;
   
   static constexpr int branching_factor = 4;
   static constexpr int block_capacity = 4096;
@@ -278,20 +282,6 @@ private:
     shortcuts.store(new_shortcuts);
   }
   
-public:
-  
-  outset() {
-    shortcuts.store(nullptr);
-  }
-  
-  ~outset() {
-    shortcuts_type* s = tagged::pointer_of(shortcuts.load());
-    shortcuts.store(nullptr);
-    if (s != nullptr) {
-      delete s;
-    }
-  }
-  
   template <class Random_int>
   bool insert(value_type x, int my_id, const Random_int& random_int) {
     if (! items.is_full()) {
@@ -332,6 +322,28 @@ public:
       }
       (*s)[my_id] = &(n->items);
     }
+  }
+  
+public:
+  
+  outset() {
+    shortcuts.store(nullptr);
+  }
+  
+  ~outset() {
+    shortcuts_type* s = tagged::pointer_of(shortcuts.load());
+    shortcuts.store(nullptr);
+    if (s != nullptr) {
+      delete s;
+    }
+  }
+  
+  bool insert(value_type x) {
+    int my_id = data::perworker::my_id();
+    return insert(x, my_id, [&] (int lo, int hi) {
+      std::uniform_int_distribution<int> distribution(lo, hi-1);
+      return distribution(rng.mine());
+    });
   }
   
   node_type* get_root() {
