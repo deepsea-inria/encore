@@ -553,7 +553,8 @@ public:
   
   int nb_strands() {
     deque& dq = get_deque();
-    if (dq.empty()) {
+    activation_record* t = tmp.get();
+    if (dq.empty() && t == nullptr) {
       return 0;
     }
     return 1;
@@ -565,6 +566,7 @@ public:
       activation_record* ar = tmp.get();
       assert(ar != nullptr);
       ar->activate(dq);
+      tmp.reset(nullptr);
     }
     while (fuel > 0 && ! dq.empty()) {
       dq.peek_back<activation_record>().run(dq);
