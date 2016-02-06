@@ -35,6 +35,13 @@ public:
     return capacity;
   }
   
+  template <class Body>
+  void for_each(const Body& f) {
+    for (int i = 0; i < size(); i++) {
+      f(i, at(i));
+    }
+  }
+  
 };
   
 } // end namespace

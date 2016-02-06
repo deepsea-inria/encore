@@ -219,7 +219,7 @@ public:
   
 };
   
-data::perworker::array<std::mt19937> rng;  // random-number generators
+data::perworker::array<std::mt19937> outset_rngs;  // random-number generators
   
 } // end namespace
 
@@ -343,7 +343,7 @@ public:
     int my_id = data::perworker::get_my_id();
     return insert(x, my_id, [&] (int lo, int hi) {
       std::uniform_int_distribution<int> distribution(lo, hi-1);
-      return distribution(rng.mine());
+      return distribution(outset_rngs.mine());
     });
   }
   

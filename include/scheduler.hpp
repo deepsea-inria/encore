@@ -1,6 +1,7 @@
 
 #include <vector>
 #include <deque>
+#include <thread>
 
 #include "vertex.hpp"
 #include "perworker.hpp"
@@ -19,7 +20,7 @@ namespace sched {
 static constexpr int D = 4;
 
 // to control the eagerness of work distribution
-static constexpr int K = 8;
+static constexpr int K = 2*D;
   
 /*---------------------------------------------------------------------*/
 /* Frontier */
@@ -95,6 +96,10 @@ public:
     }
   }
   
+  void swap(frontier& other) {
+    vs.swap(other.vs);
+  }
+  
 };
   
 } // end namespace
@@ -119,6 +124,149 @@ void scheduler_loop() {
 }
   
 } // end namespace
+  
+/*---------------------------------------------------------------------*/
+/* Parallel work-stealing scheduler */
+  
+namespace {
+  
+std::atomic<int> nb_active_workers; // later: user SNZI instead
+  
+data::perworker::array<std::atomic<bool>> status;
+
+static constexpr int no_request = -1;
+  
+data::perworker::array<std::atomic<int>> request;
+  
+frontier* no_response = tagged::tag_with((frontier*)nullptr, 1);
+  
+data::perworker::array<std::atomic<frontier*>> transfer;
+  
+data::perworker::array<std::mt19937> scheduler_rngs;  // random-number generators
+  
+void scheduler_init() {
+  nb_active_workers.store(1);
+  status.for_each([&] (int, std::atomic<bool>& b) {
+    b.store(false);
+  });
+  request.for_each([&] (int, std::atomic<int>& r) {
+    r.store(no_request);
+  });
+  transfer.for_each([&] (int, std::atomic<frontier*>& t) {
+    t.store(no_response);
+  });
+}
+  
+int random_other_worker(int my_id) {
+  int P = data::perworker::get_nb_workers();
+  std::uniform_int_distribution<int> distribution(0, 2*P);
+  int i = distribution(scheduler_rngs[my_id]) & (P - 1);
+  if (i >= my_id) {
+    i++;
+  }
+  return i;
+}
+  
+bool is_finished() {
+  return nb_active_workers.load() == 0;
+}
+  
+// one instance of this function is to be run by each
+// participating worker thread
+void worker_loop(vertex* v) {
+  int my_id = data::perworker::get_my_id();
+  frontier my_ready;
+  int fuel = D;
+  int nb = 0;
+  
+  if (v != nullptr) {
+    my_ready.push(v);
+  }
+  
+  // update the status flag
+  auto update_status = [&] {
+    bool b = (my_ready.nb_strands() > 1);
+    if (status[my_id].load() != b) {
+      status[my_id].store(b);
+    }
+  };
+  
+  // check for an incoming steal request
+  // returns true iff a migration was performed by the call
+  auto communicate = [&] {
+    bool migrated_work = false;
+    int j = request[my_id].load();
+    if (j != no_request) {
+      int sz = my_ready.nb_strands();
+      if (sz > K || (nb > K && sz > 1)) {
+        nb_active_workers++;
+        nb = 0;
+        // transfer half of the local frontier to worker with id j
+        frontier* f = new frontier;
+        my_ready.split(sz / 2, *f);
+        transfer[j].store(f);
+        migrated_work = true;
+      } else {
+        transfer[j].store(nullptr); // reject query
+      }
+    }
+    request[my_id].store(no_request);
+    return migrated_work;
+  };
+  
+  // called by workers when running out of work
+  auto acquire = [&] {
+    nb_active_workers--;
+    while (true) {
+      transfer[my_id].store(no_response);
+      int k = random_other_worker(my_id);
+      int orig = no_request;
+      if (status[k].load() && request[k].compare_exchange_strong(orig, my_id)) {
+        while (transfer[my_id].load() == no_response) {
+          communicate();
+        }
+        frontier* f = transfer[my_id].load();
+        if (f != nullptr) {
+          f->swap(my_ready);
+        }
+        request[my_id].store(no_request);
+        return;
+      }
+      communicate();
+    }
+  };
+  
+  while (true) {
+    if (my_ready.nb_strands() == 0) {
+      if (is_finished()) {
+        return;
+      }
+      fuel = D;
+      acquire();
+    } else {
+      if (communicate()) {
+        fuel = D;
+      }
+      int t = my_ready.run(fuel);
+      nb += fuel - t;
+      fuel = t;
+      update_status();
+    }
+  }
+}
+
+} // end namespace
+  
+void launch(int nb_workers, vertex* v) {
+  scheduler_init();
+  for (int i = 1; i < nb_workers; i++) {
+    std::thread t([] {
+      worker_loop(nullptr);
+    });
+    t.detach();
+  }
+  worker_loop(v);
+}
   
 /*---------------------------------------------------------------------*/
 /* Scheduling primitives */

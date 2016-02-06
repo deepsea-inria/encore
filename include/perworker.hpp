@@ -27,6 +27,10 @@ int get_my_id() {
   return my_id;
 }
   
+int get_nb_workers() {
+  return fresh_id.load();
+}
+  
 class my_fresh_id {
 public:
   
@@ -74,8 +78,9 @@ public:
     return items[i];
   }
   
-  void init(const Item& x) {
-    items.init(x);
+  template <class Body>
+  void for_each(const Body& f) {
+    items.for_each(f);
   }
   
 };
