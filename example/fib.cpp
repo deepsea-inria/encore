@@ -25,7 +25,7 @@ public:
   int d1, d2;
   
   fib_manual(int n, int* dp)
-  : n(n), dp(dp), vertex() { }
+  : vertex(), n(n), dp(dp) { }
   
   int nb_strands() {
     if (trampoline == exit) {
@@ -153,12 +153,20 @@ void test1() {
 void test2() {
   int n = 10;
   int d = -1;
-  release(new fib_manual(n, &d));
+  pasl::sched::release(new fib_manual(n, &d));
   pasl::sched::uniprocessor::scheduler_loop();
   assert(d == fib(n));
 }
 
+void test3() {
+  int n = 3;
+  dsl::dps_cell<int> d(-1);
+  pasl::sched::release(new dsl::interpreter(new fib_cfg(n, &d)));
+  pasl::sched::uniprocessor::scheduler_loop();
+  assert(d.read() == fib(n));
+}
+
 int main(int argc, const char * argv[]) {
-  test2();
+  test3();
   return 0;
 }
