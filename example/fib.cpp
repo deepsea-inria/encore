@@ -151,9 +151,9 @@ void test1() {
 }
 
 void test2() {
-  int n = 3;
+  int n = 10;
   int d = -1;
-  schedule(new fib_manual(n, &d));
+  release(new fib_manual(n, &d));
   pasl::sched::uniprocessor::scheduler_loop();
   assert(d == fib(n));
 }

@@ -347,8 +347,9 @@ public:
   
   static void decrement(incounter_handle* h) {
     if (h->decrement()) {
-      reset_incounter(h->v);
-      schedule(h->v);
+      vertex* v = h->v;
+      reset_incounter(v);
+      schedule(v);
     }
   }
   
