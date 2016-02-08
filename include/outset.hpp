@@ -455,6 +455,9 @@ private:
   
 public:
   
+  outset()
+  : head(nullptr) { }
+  
   node_type* get_root() {
     return nullptr;
   }
