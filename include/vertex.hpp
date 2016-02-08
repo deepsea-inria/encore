@@ -43,7 +43,7 @@ public:
   virtual ~vertex() { }
   
   void reset_incounter() {
-    in.reset(new incounter);
+    in.reset(new incounter(this));
   }
   
   incounter* get_in() {

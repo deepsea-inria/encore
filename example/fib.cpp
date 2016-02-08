@@ -4,6 +4,13 @@
 
 namespace dsl = pasl::sched::edsl::pcfg;
 
+int fib(int n) {
+  if (n <= 1) {
+    return n;
+  }
+  return fib(n - 1) + fib(n - 2);
+}
+
 class fib_manual : public pasl::sched::vertex {
 public:
   
@@ -18,7 +25,7 @@ public:
   int d1, d2;
   
   fib_manual(int n, int* dp)
-  : n(n), dp(dp) { }
+  : n(n), dp(dp), vertex() { }
   
   int nb_strands() {
     if (trampoline == exit) {
@@ -38,8 +45,11 @@ public:
         fib_manual* b1 = new fib_manual(n - 1, &d1);
         fib_manual* b2 = new fib_manual(n - 2, &d2);
         yield_with(join);
-        pasl::sched::new_edge(b1, this); pasl::sched::new_edge(b2, this);
-        pasl::sched::release(this); pasl::sched::release(b2); pasl::sched::release(b1);
+        pasl::sched::new_edge(b1, this);
+        pasl::sched::new_edge(b2, this);
+        pasl::sched::release(this);
+        pasl::sched::release(b2);
+        pasl::sched::release(b1);
         break;
       }
       case join: {
@@ -131,12 +141,25 @@ public:
 
 fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
-int main(int argc, const char * argv[]) {
-  dsl::dps_cell<int> result(-1);
+void test1() {
+  int n = 10;
+  dsl::dps_cell<int> d(-1);
   dsl::interpreter interp;
   dsl::deque& dq = interp.get_deque();
-  dq.push_back<fib_cfg>(10, &result);
+  dq.push_back<fib_cfg>(n, &d);
   interp.run(1000);
-  std::cout << "result = " << result.read() << std::endl;
+  assert(d.read() == fib(n));
+}
+
+void test2() {
+  int n = 3;
+  int d = -1;
+  schedule(new fib_manual(n, &d));
+  pasl::sched::uniprocessor::scheduler_loop();
+  assert(d == fib(n));
+}
+
+int main(int argc, const char * argv[]) {
+  test2();
   return 0;
 }

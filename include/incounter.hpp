@@ -284,6 +284,10 @@ private:
   gsnzi_tree_type t;
   
 public:
+  
+  incounter(vertex* v) {
+    t.set_root_annotation(v);
+  }
 
   incounter_handle* increment(vertex* v) {
     incounter_handle* h = t.get_target_of_value(v);

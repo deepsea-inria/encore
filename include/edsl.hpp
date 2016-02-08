@@ -684,7 +684,7 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
       break;
     }
     case tag_demand: {
-      assert(false); // todo
+      // nothing to do here
       break;
     }
     default: {

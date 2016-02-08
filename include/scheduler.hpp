@@ -28,12 +28,12 @@ static constexpr int K = 2*D;
 namespace {
   
 int vertex_run(int fuel, vertex* v) {
+  assert(v->nb_strands() > 0);
+  fuel = v->run(fuel);
   if (v->nb_strands() == 0) {
     parallel_notify(v->is_future, v->get_out());
     delete v;
     fuel--;
-  } else {
-    fuel = v->run(fuel);
   }
   return fuel;
 }
@@ -288,6 +288,9 @@ void new_edge(vertex* source, vertex* destination) {
 }
   
 void release(vertex* v) {
+  assert(v != nullptr);
+  assert(v->release_handle != nullptr);
+  assert(v->get_in() != nullptr);
   v->get_in()->decrement(v->release_handle);
 }
   
@@ -333,7 +336,7 @@ public:
       case entry: {
         continue_with(header);
         out->notify_nb(fuel, lo, hi, todo, [&] (incounter_handle* h) {
-          h->decrement();
+          incounter::decrement(h);
         });
         break;
       }
@@ -382,7 +385,7 @@ void parallel_notify(bool is_future, outset* out) {
   using outset_tree_node_type = typename outset::node_type;
   using item_iterator = typename outset::item_iterator;
   outset_tree_node_type* root = out->notify_init([&] (incounter_handle* h) {
-    h->decrement();
+    incounter::decrement(h);
   });
   if (root == nullptr) {
     return;
@@ -392,7 +395,7 @@ void parallel_notify(bool is_future, outset* out) {
   item_iterator lo = nullptr;
   item_iterator hi = nullptr;
   out->notify_nb(D, lo, hi, todo, [&] (incounter_handle* h) {
-    h->decrement();
+    incounter::decrement(h);
   });
   auto is_finished = [&] {
     return hi == lo && todo.empty();
@@ -403,7 +406,7 @@ void parallel_notify(bool is_future, outset* out) {
   if (is_future) {
     while (! is_finished()) {
       out->notify_nb(D, lo, hi, todo, [&] (incounter_handle* h) {
-        h->decrement();
+        incounter::decrement(h);
       });
     }
   } else {
