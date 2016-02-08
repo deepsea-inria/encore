@@ -654,7 +654,8 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
       join->tmp.reset(ar_join);
       // Commit our changes to the DAG
       new_edge(b, join);
-      release(join); release(b);
+      release(join);
+      release(b);
       break;
     }
     case tag_fork2: {
@@ -679,8 +680,11 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
       ar_join->trampoline = join_label;
       join->tmp.reset(ar_join);
       // Commit our changes to the DAG
-      new_edge(b2, join); new_edge(b1, join);
-      release(join); release(b2); release(b1);
+      new_edge(b2, join);
+      new_edge(b1, join);
+      release(join);
+      release(b2);
+      release(b1);
       break;
     }
     case tag_demand: {
