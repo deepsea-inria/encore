@@ -16,6 +16,8 @@ public:
   
   bool is_future = false;
   
+  incounter_handle* release_handle = nullptr;
+  
 private:
   
   std::unique_ptr<incounter> in;
@@ -27,8 +29,6 @@ private:
   std::unique_ptr<outset> out_dflt; // to use otherwise
   
 public:
-  
-  incounter_handle* release_handle = nullptr;
   
   vertex() {
     reset_incounter();

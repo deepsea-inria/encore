@@ -276,6 +276,8 @@ using gsnzi_tree_type = gsnzi::tree<snzi_tree_height>;
 /*---------------------------------------------------------------------*/
 /* Incounter */
   
+#if 0
+  
 using incounter_handle = typename gsnzi_tree_type::node_type;
 
 class incounter {
@@ -304,6 +306,55 @@ public:
   }
   
 };
+  
+#else
+ 
+class incounter;
+
+class incounter_handle {
+public:
+  
+  std::atomic<int> counter;
+  vertex* v = nullptr;
+  
+  incounter_handle(vertex* v)
+  : v(v), counter(0) { }
+  
+  void increment() {
+    counter++;
+  }
+  
+  bool decrement() {
+    return --counter == 0;
+  }
+  
+};
+
+class incounter {
+private:
+  
+  incounter_handle h;
+  
+public:
+  
+  incounter(vertex* v)
+  : h(v) { }
+  
+  incounter_handle* increment(vertex*) {
+    h.increment();
+    return &h;
+  }
+  
+  static void decrement(incounter_handle* h) {
+    if (h->decrement()) {
+      reset_incounter(h->v);
+      schedule(h->v);
+    }
+  }
+  
+};
+
+#endif
   
 } // end namespace
 } // end namespace

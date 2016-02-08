@@ -226,6 +226,8 @@ data::perworker::array<std::mt19937> outset_rngs;  // random-number generators
 /*---------------------------------------------------------------------*/
 /* Outset */
   
+#if 0
+  
 class outset {
 private:
   
@@ -430,6 +432,88 @@ public:
   }
   
 };
+  
+#else
+  
+class outset {
+public:
+  
+  using value_type = incounter_handle*;
+  using node_type = int;
+  using item_iterator = int*;
+  
+private:
+  
+  using concurrent_list_type = struct concurrent_list_struct {
+    incounter_handle* h;
+    struct concurrent_list_struct* next;
+  };
+  
+  std::atomic<concurrent_list_type*> head;
+  
+  const int finished_tag = 1;
+  
+public:
+  
+  node_type* get_root() {
+    return nullptr;
+  }
+  
+  bool insert(value_type x) {
+    bool result = true;
+    concurrent_list_type* cell = new concurrent_list_type;
+    cell->h = x;
+    while (true) {
+      concurrent_list_type* orig = head.load();
+      if (tagged::tag_of(orig) == finished_tag) {
+        result = false;
+        delete cell;
+        break;
+      } else {
+        cell->next = orig;
+        if (atomic::compare_exchange(head, orig, cell)) {
+          break;
+        }
+      }
+    }
+    return result;
+  }
+  
+  template <class Visit>
+  node_type* notify_init(const Visit& visit) {
+    concurrent_list_type* todo = nullptr;
+    while (true) {
+      concurrent_list_type* orig = head.load();
+      concurrent_list_type* v = (concurrent_list_type*)nullptr;
+      concurrent_list_type* next = tagged::tag_with(v, finished_tag);
+      if (atomic::compare_exchange(head, orig, next)) {
+        todo = orig;
+        break;
+      }
+    }
+    while (todo != nullptr) {
+      visit(todo->h);
+      concurrent_list_type* next = todo->next;
+      delete todo;
+      todo = next;
+    }
+    return nullptr;
+  }
+  
+  template <class Visit, class Deque>
+  static void notify_nb(const std::size_t nb, item_iterator& lo,
+                        item_iterator& hi, Deque& todo,
+                        const Visit& visit) {
+    
+  }
+  
+  static void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
+    // todo
+  }
+  
+};
+  
+#endif
 
 } // end namespace
 } // end namespace
