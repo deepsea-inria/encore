@@ -45,9 +45,8 @@ public:
         fib_manual* b1 = new fib_manual(n - 1, &d1);
         fib_manual* b2 = new fib_manual(n - 2, &d2);
         yield_with(join);
-        pasl::sched::new_edge(b1, this);
         pasl::sched::new_edge(b2, this);
-        pasl::sched::release(this);
+        pasl::sched::new_edge(b1, this);
         pasl::sched::release(b2);
         pasl::sched::release(b1);
         break;
