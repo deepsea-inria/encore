@@ -654,7 +654,6 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
       join->tmp.reset(ar_join);
       // Commit our changes to the DAG
       new_edge(b, join);
-      release(join);
       release(b);
       break;
     }
@@ -682,7 +681,6 @@ void discharge(cfg_type<Env>& cfg, deque& dq, interpreter* interp) {
       // Commit our changes to the DAG
       new_edge(b2, join);
       new_edge(b1, join);
-      release(join);
       release(b2);
       release(b1);
       break;
