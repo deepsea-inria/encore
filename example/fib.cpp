@@ -2,7 +2,7 @@
 #include "scheduler.hpp"
 #include "edsl.hpp"
 
-namespace dsl = pasl::sched::edsl::pcfg;
+namespace dsl = pasl::edsl::pcfg;
 
 int fib(int n) {
   if (n <= 1) {
@@ -71,13 +71,12 @@ public:
 class fib_cfg : public dsl::activation_record {
 public:
   
-  int n; dsl::dps_cell<int>* dp;
-  
-  dsl::dps_cell<int> d1; dsl::dps_cell<int> d2;
+  int n; int* dp;
+  int d1; int d2;
   
   fib_cfg() { }
   
-  fib_cfg(int n, dsl::dps_cell<int>* dp)
+  fib_cfg(int n, int* dp)
   : n(n), dp(dp) { }
   
   using env = fib_cfg;
@@ -90,22 +89,22 @@ public:
     // 0
     cfg.push_back(bty::conditional_jump([] (env& e) {
       if (e.n <= 1) {
-        e.dp->write(e.n);
+        *e.dp = e.n;
         return 0;
       }
       return 1;
     }, { dsl::exit_block_label, 1 }));
     // 1
-    cfg.push_back(bty::fork2([&] (env& e, dsl::deque& dq) {
-      dq.push_back<fib_cfg>(e.n - 1, &e.d1);
+    cfg.push_back(bty::fork2([&] (env& e, dsl::stack_type st) {
+      return pasl::cactus::push_back<env>(st, e.n - 1, &e.d1);
     }, 2));
     // 2
-    cfg.push_back(bty::fork1([] (env& e, dsl::deque& dq) {
-      dq.push_back<fib_cfg>(e.n - 2, &e.d2);
+    cfg.push_back(bty::fork1([] (env& e, dsl::stack_type st) {
+      return pasl::cactus::push_back<env>(st, e.n - 2, &e.d2);
     }, 3));
     // 3
     cfg.push_back(bty::unconditional_jump([&] (env& e) {
-      e.dp->write(e.d1.read() + e.d2.read());
+      *e.dp = e.d1 + e.d2;
     }, -1));
     return cfg;
   }
@@ -113,27 +112,12 @@ public:
   static
   cfg_type cfg;
   
-  void run(dsl::deque& dq) {
-    dsl::step(cfg, dq);
+  dsl::stack_type run(dsl::stack_type st) {
+    return dsl::step(cfg, st);
   }
   
-  void activate(dsl::deque& dq) {
-    dq.push_back<env>(*this);
-  }
-  
-  void copy(activation_record* _destination) {
-    fib_cfg& destination = *((fib_cfg*)_destination);
-    destination = *this;
-  }
-  
-  void promote(activation_record* _destination) {
-    fib_cfg& destination = *((fib_cfg*)_destination);
-    d1.forward(destination.d1);
-    d2.forward(destination.d2);
-  }
-  
-  void discharge(dsl::deque& dq, dsl::interpreter* interp) {
-    dsl::discharge(cfg, dq, interp);
+  void promote(dsl::stack_type st, dsl::interpreter* interp) {
+     dsl::promote(cfg, st, interp);
   }
   
 };
@@ -142,14 +126,14 @@ fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
 void test1() {
   int n = 10;
-  dsl::dps_cell<int> d(-1);
+  int d = -1;
   dsl::interpreter interp;
-  dsl::deque& dq = interp.get_deque();
-  dq.push_back<fib_cfg>(n, &d);
+  assert(false); // push frame here
   interp.run(1000);
-  assert(d.read() == fib(n));
+  assert(d == fib(n));
 }
 
+/*
 void test2() {
   int n = 10;
   int d = -1;
@@ -164,9 +148,9 @@ void test3() {
   pasl::sched::release(new dsl::interpreter(new fib_cfg(n, &d)));
   pasl::sched::uniprocessor::scheduler_loop();
   assert(d.read() == fib(n));
-}
+} */
 
 int main(int argc, const char * argv[]) {
-  test3();
+//  test3();
   return 0;
 }

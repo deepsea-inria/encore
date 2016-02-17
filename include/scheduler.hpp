@@ -20,7 +20,7 @@ namespace sched {
 static constexpr int D = 2;
 
 // to control the eagerness of work distribution
-static constexpr int K = 2*D;
+static constexpr int K = 2 * D;
   
 /*---------------------------------------------------------------------*/
 /* Frontier */
