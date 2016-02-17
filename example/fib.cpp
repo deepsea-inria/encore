@@ -116,8 +116,8 @@ public:
     return dsl::step(cfg, st);
   }
   
-  void promote(dsl::stack_type st, dsl::interpreter* interp) {
-     dsl::promote(cfg, st, interp);
+  void promote(dsl::interpreter* interp) {
+     dsl::promote(cfg, interp);
   }
   
 };

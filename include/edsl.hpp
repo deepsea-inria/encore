@@ -236,7 +236,7 @@ public:
   
   virtual stack_type run(stack_type) = 0;
   
-  virtual void promote(stack_type, interpreter*) = 0;
+  virtual void promote(interpreter*) = 0;
   
 };
   
@@ -274,7 +274,7 @@ public:
     }
     if (! cactus::empty(stack)) {
       assert(fuel == 0);
-      cactus::peek_back<activation_record>(stack).promote(stack, this);
+      cactus::peek_back<activation_record>(stack).promote(this);
     }
     return fuel;
   }
@@ -332,7 +332,8 @@ stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
 }
 
 template <class Activation_record>
-void promote(cfg_type<Activation_record>& cfg, stack_type stack, interpreter* interp) {
+void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
+  stack_type& stack = interp->stack;
   assert(! cactus::empty(stack));
   Activation_record& oldest = cactus::peek_front<Activation_record>(stack);
   basic_block_type<Activation_record>& block = cfg.at(oldest.trampoline.pred);
@@ -346,34 +347,34 @@ void promote(cfg_type<Activation_record>& cfg, stack_type stack, interpreter* in
       break;
     }
     case tag_fork1: {
-      interpreter* j = interp;
-      interpreter* b = new interpreter;
+      interpreter* join = interp;
+      interpreter* branch = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
-      j->stack = stacks.first;
-      b->stack = stacks.second;
-      new_edge(b, j);
-      release(b);
+      join->stack = stacks.first;
+      branch->stack = stacks.second;
+      new_edge(branch, join);
+      release(branch);
       break;
     }
     case tag_fork2: {
-      interpreter* j = interp;
-      interpreter* b1 = new interpreter;
-      interpreter* b2 = new interpreter;
+      interpreter* join = interp;
+      interpreter* branch1 = new interpreter;
+      interpreter* branch2 = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
-      j->stack = stacks.first;
-      b1->stack = stacks.second;
-      b2->stack = cactus::new_stack();
+      join->stack = stacks.first;
+      branch1->stack = stacks.second;
+      branch2->stack = cactus::new_stack();
       assert(block.variant_fork2.next == tag_fork1);
       basic_block_label_type pred = oldest.trampoline.succ;
-      basic_block_type<Activation_record>& block2 = cfg.at(pred);
-      assert(block2.t == tag_fork1);
+      basic_block_type<Activation_record>& fork1_block = cfg.at(pred);
+      assert(fork1_block.t == tag_fork1);
       oldest.trampoline.pred = pred;
-      oldest.trampoline.succ = block2.variant_fork1.next;
-      b2->stack = block.variant_fork2.code1(oldest, b2->stack);
-      new_edge(b1, j);
-      new_edge(b2, j);
-      release(b2);
-      release(b1);
+      oldest.trampoline.succ = fork1_block.variant_fork1.next;
+      branch2->stack = block.variant_fork2.code1(oldest, branch2->stack);
+      new_edge(branch1, join);
+      new_edge(branch2, join);
+      release(branch2);
+      release(branch1);
       break;
     }
     case tag_demand: {
