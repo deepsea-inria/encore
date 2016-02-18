@@ -44,7 +44,10 @@ private:
     uintptr_t p2 = (uintptr_t)v;
     p2 = p2 & (K - 1);
     p2 = p2 >> (lg_K - lg_B);
-    return (int)p2;
+    int bucket = (int)p2;
+    assert(bucket >= 0);
+    assert(bucket < B);
+    return bucket;
   }
   
   // loop until taking the lock on bucket b
@@ -189,6 +192,7 @@ void* aligned_alloc(size_t alignment, size_t size) {
   
 chunk_type* new_chunk() {
   chunk_type* c = (chunk_type*)aligned_alloc(K, K);
+  new (c) chunk_type();
   c->descriptor.refcount.store(0);
   c->descriptor.predecessor = nullptr;
   c->descriptor.overflow = nullptr;
