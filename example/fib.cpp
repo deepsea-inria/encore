@@ -79,32 +79,32 @@ public:
   fib_cfg(int n, int* dp)
   : n(n), dp(dp) { }
   
-  using env = fib_cfg;
-  using cfg_type = dsl::cfg_type<env>;
-  using bty = dsl::basic_block_type<env>;
+  using ar = fib_cfg;
+  using cfg_type = dsl::cfg_type<ar>;
+  using bb = dsl::basic_block_type<ar>;
   
   static
   cfg_type get_cfg() {
     cfg_type cfg;
     // 0
-    cfg.push_back(bty::conditional_jump([] (env& e) {
-      if (e.n <= 1) {
-        *e.dp = e.n;
+    cfg.push_back(bb::conditional_jump([] (ar& a) {
+      if (a.n <= 1) {
+        *a.dp = a.n;
         return 0;
       }
       return 1;
     }, { dsl::exit_block_label, 1 }));
     // 1
-    cfg.push_back(bty::fork2([&] (env& e, dsl::stack_type st) {
-      return pasl::cactus::push_back<env>(st, e.n - 1, &e.d1);
+    cfg.push_back(bb::fork2([&] (ar& a, dsl::stack_type st) {
+      return pasl::cactus::push_back<ar>(st, a.n - 1, &a.d1);
     }, 2));
     // 2
-    cfg.push_back(bty::fork1([] (env& e, dsl::stack_type st) {
-      return pasl::cactus::push_back<env>(st, e.n - 2, &e.d2);
+    cfg.push_back(bb::fork1([] (ar& a, dsl::stack_type st) {
+      return pasl::cactus::push_back<ar>(st, a.n - 2, &a.d2);
     }, 3));
     // 3
-    cfg.push_back(bty::unconditional_jump([&] (env& e) {
-      *e.dp = e.d1 + e.d2;
+    cfg.push_back(bb::unconditional_jump([&] (ar& a) {
+      *a.dp = a.d1 + a.d2;
     }, -1));
     return cfg;
   }
@@ -112,8 +112,8 @@ public:
   static
   cfg_type cfg;
   
-  dsl::stack_type run(dsl::stack_type st) {
-    return dsl::step(cfg, st);
+  dsl::stack_type run(dsl::stack_type stack) {
+    return dsl::step(cfg, stack);
   }
   
   void promote(dsl::interpreter* interp) {
@@ -124,14 +124,45 @@ public:
 
 fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
-void test1() {
-  int n = 10;
-  int d = -1;
-  dsl::interpreter interp;
-  assert(false); // push frame here
-  interp.run(1000);
-  assert(d == fib(n));
+namespace pasl {
+namespace cactus {
+  
+class test_frame {
+public:
+  static constexpr int stack_szb = pasl::cactus::K - sizeof(pasl::cactus::descriptor_type);
+  static constexpr int target_nb_frames = 3;
+  static constexpr int target_frame_szb = stack_szb / target_nb_frames;
+  static constexpr int nb_ints = target_frame_szb / sizeof(int);
+  
+  char f[target_frame_szb];
+  test_frame() {
+    int* ints = (int*)f;
+    for (int i = 0; i < nb_ints; i++) {
+      ints[i] = 0xdeadbeef;
+    }
+  }
+  void check() {
+    int* ints = (int*)f;
+    for (int i = 0; i < nb_ints; i++) {
+      assert(ints[i] == 0xdeadbeef);
+    }
+  }
+};
+
+void test_stack1() {
+  stack_type stack = new_stack();
+  
+  stack = push_back<test_frame>(stack);
+  peek_back<test_frame>(stack).check();
+  stack = pop_back<test_frame>(stack);
+  assert(empty(stack));
+  
+  delete_stack(stack);
 }
+
+}
+}
+
 
 /*
 void test2() {
@@ -141,16 +172,9 @@ void test2() {
   pasl::sched::uniprocessor::scheduler_loop();
   assert(d == fib(n));
 }
-
-void test3() {
-  int n = 3;
-  dsl::dps_cell<int> d(-1);
-  pasl::sched::release(new dsl::interpreter(new fib_cfg(n, &d)));
-  pasl::sched::uniprocessor::scheduler_loop();
-  assert(d.read() == fib(n));
-} */
+*/
 
 int main(int argc, const char * argv[]) {
-//  test3();
+  pasl::cactus::test_stack1();
   return 0;
 }

@@ -1,4 +1,6 @@
 
+#include <stdlib.h>
+
 #include "atomic.hpp"
 #include "tagged.hpp"
 
@@ -10,13 +12,16 @@ namespace cactus {
 
 namespace {
   
-static constexpr int lg_K = 15;
+static constexpr int lg_K = 10;
 
 // size of a chunk
 static constexpr int K = 1 << lg_K;
   
+static constexpr int lg_B = 4; // must be < lg_K
 // number of buckets to be used by the successor table
-static constexpr int B = 32;
+static constexpr int B = 1 << lg_B;
+// size in bytes of a bucket
+static constexpr int S = 1 << (lg_K - lg_B);
 
 using version_number_type = char*;
   
@@ -31,13 +36,15 @@ private:
     struct node_struct* next;
   };
   
-  static constexpr int locked = 1;
+  static constexpr int tag_locked = 1;
   
   std::atomic<node_type*> table[B];
   
   int bucket_of(version_number_type v) {
-    assert(false); // todo
-    return 0;
+    uintptr_t p2 = (uintptr_t)v;
+    p2 = p2 & (K - 1);
+    p2 = p2 >> (lg_K - lg_B);
+    return (int)p2;
   }
   
   // loop until taking the lock on bucket b
@@ -45,9 +52,9 @@ private:
     node_type* n = nullptr;
     while (true) {
       n = table[b].load();
-      if (tagged::tag_of(n) != locked) {
+      if (tagged::tag_of(n) != tag_locked) {
         node_type* oldv = n;
-        node_type* newv = tagged::tag_with(n, locked);
+        node_type* newv = tagged::tag_with(n, tag_locked);
         if (atomic::compare_exchange(table[b], oldv, newv)) {
           break;
         }
@@ -125,11 +132,11 @@ public:
     if (m == nullptr) {
       // there was no node representing version v
       // so create one and add it to the bucket
-      node_type* nn = new node_type;
-      nn->version = v;
-      nn->chunk = c;
-      nn->next = n;
-      n = nn;
+      node_type* p = new node_type;
+      p->version = v;
+      p->chunk = c;
+      p->next = n;
+      n = p;
     } else {
       m->chunk = c;
     }
@@ -169,8 +176,19 @@ struct stack_struct {
   char* last;
 };
   
+// for some reason, this function is provisioned by c11 standard
+// but not provided by mac os; therefore, i'm implementing it
+// here, for the moment
+void* aligned_alloc(size_t alignment, size_t size) {
+  void* p;
+  if (posix_memalign(&p, alignment, size)) {
+    p = nullptr;
+  }
+  return p;
+}
+  
 chunk_type* new_chunk() {
-  chunk_type* c = nullptr;
+  chunk_type* c = (chunk_type*)aligned_alloc(K, K);
   c->descriptor.refcount.store(0);
   c->descriptor.predecessor = nullptr;
   c->descriptor.overflow = nullptr;
@@ -204,7 +222,7 @@ void increment_refcount(chunk_type* c) {
   
 void decrement_refcount(chunk_type* c) {
   if (--c->descriptor.refcount == 0) {
-    delete c;
+    free(c);
   }
 }
   
