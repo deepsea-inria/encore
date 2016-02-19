@@ -17,7 +17,7 @@ namespace sched {
 /* Scheduling parameters */
   
 // to control the rate of DAG construction
-static constexpr int D = 2;
+static constexpr int D = 2000;
 
 // to control the eagerness of work distribution
 static constexpr int K = 2 * D;

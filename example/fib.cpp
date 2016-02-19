@@ -200,6 +200,16 @@ void test_stack1() {
 }
 }
 
+void test_fib_cfg() {
+  int n = 15;
+  int d = -1;
+  dsl::interpreter* interp = new dsl::interpreter;
+  interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &d);
+  pasl::sched::release(interp);
+  pasl::sched::uniprocessor::scheduler_loop();
+  int m = fib(n);
+  assert(d == m);
+}
 
 /*
 void test2() {
@@ -212,6 +222,7 @@ void test2() {
 */
 
 int main(int argc, const char * argv[]) {
-  pasl::cactus::test_stack1();
+  //pasl::cactus::test_stack1();
+  test_fib_cfg();
   return 0;
 }

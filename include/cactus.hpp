@@ -205,6 +205,17 @@ chunk_type* new_chunk() {
   return c;
 }
   
+void delete_chunk(chunk_type* c) {
+  assert(c->descriptor.successors.empty());
+  chunk_type* overflow = c->descriptor.overflow;
+  c->descriptor.overflow = nullptr;
+  if (overflow != nullptr) {
+    delete_chunk(overflow);
+  }
+  c->~chunk_struct();
+  free(c);
+}
+  
 chunk_type* chunk_of(char* p) {
   uintptr_t p2 = (uintptr_t)p;
   p2 = p2 & ~(K - 1);
@@ -249,9 +260,7 @@ void delete_stack(stack_type s) {
   assert(empty(s));
   chunk_type* c = chunk_of(s.last);
   if ((char*)c == s.first) {
-    assert(c->descriptor.successors.empty());
-    c->~chunk_struct();
-    free(c);
+    delete_chunk(c);
   }
 }
 

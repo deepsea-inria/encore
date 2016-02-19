@@ -238,6 +238,18 @@ public:
   
   virtual void promote(interpreter*) = 0;
   
+  virtual int nb_strands() {
+    if (trampoline.succ == exit_block_label) {
+      return 0;
+    } else {
+      return 1;
+    }
+  }
+  
+  virtual void split(activation_record*) {
+    assert(false); // impossible
+  }
+  
 };
   
 template <class Activation_record, class ...Args>
@@ -263,8 +275,12 @@ public:
   }
   
   int nb_strands() {
-    assert(false); // todo
-    return 1;
+    if (cactus::empty(stack)) {
+      return 0;
+    } else {
+      int n = cactus::peek_front<activation_record>(stack).nb_strands();
+      return std::max(1, n);
+    }
   }
   
   int run(int fuel) {
