@@ -96,11 +96,11 @@ public:
     }, { dsl::exit_block_label, 1 }));
     // 1
     cfg.push_back(bb::fork2([&] (ar& a, dsl::stack_type st) {
-      return pasl::cactus::push_back<ar>(st, a.n - 1, &a.d1);
+      return dsl::procedure_call<ar>(st, a.n - 1, &a.d1);
     }, 2));
     // 2
     cfg.push_back(bb::fork1([] (ar& a, dsl::stack_type st) {
-      return pasl::cactus::push_back<ar>(st, a.n - 2, &a.d2);
+      return dsl::procedure_call<ar>(st, a.n - 2, &a.d2);
     }, 3));
     // 3
     cfg.push_back(bb::unconditional_jump([&] (ar& a) {
@@ -167,15 +167,36 @@ void test_stack1() {
   stack = push_back<test_frame>(stack);
   peek_back<test_frame>(stack).check();
   
-  stack = pop_back<test_frame>(stack);
-  stack = pop_back<test_frame>(stack);
+  auto stacks = cactus::split_front<test_frame>(stack);
+  stack_type stack1 = stacks.first;
+  stack_type stack2 = stacks.second;
   
-  stack = pop_back<test_frame>(stack);
-  stack = pop_back<test_frame>(stack);
-
-  assert(empty(stack));
+  /*
+  stack1 = push_back<test_frame>(stack1);
+  peek_back<test_frame>(stack1).check();
+  stack1 = push_back<test_frame>(stack1);
+  peek_back<test_frame>(stack1).check();
   
-  delete_stack(stack);
+  stack1 = pop_back<test_frame>(stack1);
+  peek_back<test_frame>(stack1).check();
+  stack1 = pop_back<test_frame>(stack1);
+  peek_back<test_frame>(stack1).check();
+  */
+  
+  assert(! empty(stack1));
+  stack1 = pop_back<test_frame>(stack1);
+  assert(empty(stack1));
+  
+  stack2 = pop_back<test_frame>(stack2);
+  peek_back<test_frame>(stack2).check();
+  stack2 = pop_back<test_frame>(stack2);
+  peek_back<test_frame>(stack2).check();
+  
+  stack2 = pop_back<test_frame>(stack2);
+  assert(empty(stack2));
+  
+  delete_stack(stack2);
+  delete_stack(stack1);
 }
 
 }

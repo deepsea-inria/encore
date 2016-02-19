@@ -308,6 +308,7 @@ Activation_record& peek_back(stack_type s) {
   chunk_type* old_chunk = chunk_of(old_last);
   if (old_last == (char*)old_chunk) {
     old_last = old_chunk->descriptor.predecessor;
+    assert(old_last != nullptr);
   }
   char* new_last = old_last - szb_of_frame(((frame_size_type*)old_last)[-1]);
   return *((Activation_record*)new_last);
