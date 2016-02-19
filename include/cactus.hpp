@@ -111,6 +111,15 @@ public:
     }
   }
   
+  bool empty() const {
+    for (int i = 0; i < B; i++) {
+      if (table[i].load() != nullptr) {
+        return false;
+      }
+    }
+    return true;
+  }
+  
   struct chunk_struct* find(version_number_type v) {
     struct chunk_struct* c = nullptr;
     int b = bucket_of(v);
@@ -161,7 +170,6 @@ public:
 using descriptor_type = struct {
   char* predecessor;
   successor_table successors;
-  std::atomic<int> refcount;
   struct chunk_struct* overflow;
 };
   
@@ -192,7 +200,6 @@ void* aligned_alloc(size_t alignment, size_t size) {
 chunk_type* new_chunk() {
   chunk_type* c = (chunk_type*)aligned_alloc(K, K);
   new (c) chunk_struct();
-  c->descriptor.refcount.store(0);
   c->descriptor.predecessor = nullptr;
   c->descriptor.overflow = nullptr;
   return c;
@@ -209,17 +216,6 @@ bool empty(struct stack_struct s) {
   return s.first == s.last;
 }
 
-void increment_refcount(chunk_type* c) {
-  c->descriptor.refcount++;
-}
-  
-void decrement_refcount(chunk_type* c) {
-  if (--c->descriptor.refcount == 0) {
-    c->~chunk_struct();
-    free(c);
-  }
-}
-  
 // type of the field to be used to determine the
 // size in bytes of a given frame
 using frame_size_type = int;
@@ -252,7 +248,9 @@ stack_type new_stack() {
 void delete_stack(stack_type s) {
   assert(empty(s));
   chunk_type* c = chunk_of(s.last);
-  decrement_refcount(c);
+  assert(c->descriptor.successors.empty());
+  c->~chunk_struct();
+  free(c);
 }
 
 template <class Activation_record, class ...Args>
@@ -266,7 +264,6 @@ stack_type push_back(stack_type s, Args... args) {
     chunk_type* succ_chunk = old_chunk->descriptor.overflow;
     if (succ_chunk == nullptr) {
       succ_chunk = new_chunk();
-      increment_refcount(succ_chunk);
     } else {
       old_chunk->descriptor.overflow = nullptr;
     }
@@ -288,13 +285,11 @@ stack_type pop_back(stack_type s) {
   if (old_last == (char*)old_chunk) {
     old_last = old_chunk->descriptor.predecessor;
     if (old_chunk->descriptor.overflow != nullptr) {
-      delete old_chunk->descriptor.overflow;
       old_chunk->descriptor.overflow = nullptr;
     }
     chunk_type* pred_chunk = chunk_of(old_last);
     pred_chunk->descriptor.successors.remove(old_last);
     pred_chunk->descriptor.overflow = old_chunk;
-    decrement_refcount(pred_chunk);
   }
   char* new_last = old_last - szb_of_frame(((frame_size_type*)old_last)[-1]);
   t.last = new_last;
@@ -326,14 +321,12 @@ std::pair<stack_type, stack_type> split_front(stack_type s) {
   char* new_first = old_first + szb_of_frame<Activation_record>();
   chunk_type* old_chunk = chunk_of(old_first);
   chunk_type* s1_succ_chunk = new_chunk();
-  increment_refcount(s1_succ_chunk);
   s1.first = old_first;
   s1.last = (char*)s1_succ_chunk;
   s1_succ_chunk->descriptor.predecessor = new_first;
   chunk_type* s2_chunk = old_chunk->descriptor.successors.find(new_first);
   old_chunk->descriptor.successors.insert(new_first, s1_succ_chunk);
   if (s2_chunk == nullptr) {
-    increment_refcount(old_chunk);
     s2.first = new_first;
   } else {
     s2_chunk->descriptor.predecessor = nullptr;
