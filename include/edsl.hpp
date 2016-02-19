@@ -239,11 +239,8 @@ public:
   virtual void promote(interpreter*) = 0;
   
   virtual int nb_strands() {
-    if (trampoline.succ == exit_block_label) {
-      return 0;
-    } else {
-      return 1;
-    }
+    assert(trampoline.succ != exit_block_label);
+    return 1;
   }
   
   virtual void split(activation_record*) {
@@ -284,9 +281,14 @@ public:
   }
   
   int run(int fuel) {
-    while (fuel > 0 && ! cactus::empty(stack)) {
+    assert(fuel > 0);
+    while (! cactus::empty(stack)) {
+      if (fuel == 0) {
+        break;
+      } else {
+        fuel--;
+      }
       stack = cactus::peek_back<activation_record>(stack).run(stack);
-      fuel--;
     }
     if (! cactus::empty(stack)) {
       assert(fuel == 0);
@@ -380,13 +382,12 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       join->stack = stacks.first;
       branch1->stack = stacks.second;
       branch2->stack = cactus::new_stack();
-      assert(block.variant_fork2.next == tag_fork1);
       basic_block_label_type pred = oldest.trampoline.succ;
       basic_block_type<Activation_record>& fork1_block = cfg.at(pred);
       assert(fork1_block.t == tag_fork1);
       oldest.trampoline.pred = pred;
       oldest.trampoline.succ = fork1_block.variant_fork1.next;
-      branch2->stack = block.variant_fork2.code1(oldest, branch2->stack);
+      branch2->stack = fork1_block.variant_fork1.code(oldest, branch2->stack);
       new_edge(branch1, join);
       new_edge(branch2, join);
       release(branch2);

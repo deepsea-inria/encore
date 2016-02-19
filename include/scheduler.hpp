@@ -17,7 +17,7 @@ namespace sched {
 /* Scheduling parameters */
   
 // to control the rate of DAG construction
-static constexpr int D = 2000;
+static constexpr int D = 8;
 
 // to control the eagerness of work distribution
 static constexpr int K = 2 * D;
@@ -28,12 +28,10 @@ static constexpr int K = 2 * D;
 namespace {
   
 int vertex_run(int fuel, vertex* v) {
-  assert(v->nb_strands() > 0);
   fuel = v->run(fuel);
   if (v->nb_strands() == 0) {
     parallel_notify(v->is_future, v->get_out());
     delete v;
-    fuel--;
   }
   return fuel;
 }
@@ -116,7 +114,9 @@ void scheduler_loop() {
   while (! ready.empty()) {
     vertex* v = ready.back();
     ready.pop_back();
+    assert(fuel >= 0);
     fuel = vertex_run(fuel, v);
+    assert(fuel >= 0);
     if (fuel == 0) {
       fuel = D;
     }

@@ -201,7 +201,7 @@ void test_stack1() {
 }
 
 void test_fib_cfg() {
-  int n = 15;
+  int n = 5;
   int d = -1;
   dsl::interpreter* interp = new dsl::interpreter;
   interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &d);
