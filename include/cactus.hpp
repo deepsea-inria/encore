@@ -248,9 +248,11 @@ stack_type new_stack() {
 void delete_stack(stack_type s) {
   assert(empty(s));
   chunk_type* c = chunk_of(s.last);
-  assert(c->descriptor.successors.empty());
-  c->~chunk_struct();
-  free(c);
+  if ((char*)c == s.first) {
+    assert(c->descriptor.successors.empty());
+    c->~chunk_struct();
+    free(c);
+  }
 }
 
 template <class Activation_record, class ...Args>
@@ -329,6 +331,7 @@ std::pair<stack_type, stack_type> split_front(stack_type s) {
   if (s2_chunk == nullptr) {
     s2.first = new_first;
   } else {
+    old_chunk->descriptor.successors.remove(new_first);
     s2_chunk->descriptor.predecessor = nullptr;
     s2.first = (char*)s2_chunk;
   }

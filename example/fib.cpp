@@ -171,7 +171,6 @@ void test_stack1() {
   stack_type stack1 = stacks.first;
   stack_type stack2 = stacks.second;
   
-  /*
   stack1 = push_back<test_frame>(stack1);
   peek_back<test_frame>(stack1).check();
   stack1 = push_back<test_frame>(stack1);
@@ -181,7 +180,6 @@ void test_stack1() {
   peek_back<test_frame>(stack1).check();
   stack1 = pop_back<test_frame>(stack1);
   peek_back<test_frame>(stack1).check();
-  */
   
   assert(! empty(stack1));
   stack1 = pop_back<test_frame>(stack1);
