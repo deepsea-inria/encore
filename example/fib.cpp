@@ -151,10 +151,28 @@ public:
 
 void test_stack1() {
   stack_type stack = new_stack();
+  chunk_type* c = (chunk_type*)stack.first;
+  char* n = stack.last + sizeof(test_frame) + 4;
+  chunk_type* c2 = chunk_of(n);
+  assert(c2 == c);
+
+  assert(empty(stack));
+  stack = push_back<test_frame>(stack);
+  peek_back<test_frame>(stack).check();
+  stack = push_back<test_frame>(stack);
+  peek_back<test_frame>(stack).check();
   
   stack = push_back<test_frame>(stack);
   peek_back<test_frame>(stack).check();
+  stack = push_back<test_frame>(stack);
+  peek_back<test_frame>(stack).check();
+  
   stack = pop_back<test_frame>(stack);
+  stack = pop_back<test_frame>(stack);
+  
+  stack = pop_back<test_frame>(stack);
+  stack = pop_back<test_frame>(stack);
+
   assert(empty(stack));
   
   delete_stack(stack);

@@ -20,8 +20,6 @@ static constexpr int K = 1 << lg_K;
 static constexpr int lg_B = 4; // must be < lg_K
 // number of buckets to be used by the successor table
 static constexpr int B = 1 << lg_B;
-// size in bytes of a bucket
-static constexpr int S = 1 << (lg_K - lg_B);
 
 using version_number_type = char*;
   
@@ -104,7 +102,7 @@ public:
   
   ~successor_table() {
     for (int i = 0; i < B; i++) {
-      node_type* n = table[i];
+      node_type* n = table[i].load();
       while (n != nullptr) {
         node_type* m = n;
         n = m->next;
@@ -184,6 +182,7 @@ struct stack_struct {
 // here, for the moment
 void* aligned_alloc(size_t alignment, size_t size) {
   void* p;
+  assert(alignment % sizeof(void*) == 0);
   if (posix_memalign(&p, alignment, size)) {
     p = nullptr;
   }
@@ -192,7 +191,7 @@ void* aligned_alloc(size_t alignment, size_t size) {
   
 chunk_type* new_chunk() {
   chunk_type* c = (chunk_type*)aligned_alloc(K, K);
-  new (c) chunk_type();
+  new (c) chunk_struct();
   c->descriptor.refcount.store(0);
   c->descriptor.predecessor = nullptr;
   c->descriptor.overflow = nullptr;
@@ -202,18 +201,8 @@ chunk_type* new_chunk() {
 chunk_type* chunk_of(char* p) {
   uintptr_t p2 = (uintptr_t)p;
   p2 = p2 & ~(K - 1);
-  return (chunk_type*)p2;
-}
-  
-bool pointing_into_chunk_descriptor(char* p) {
-  chunk_type* c = chunk_of(p);
-  char* start_of_descriptor = ((char*)c) + F;
-  return p >= start_of_descriptor;
-}
-  
-bool pointing_into_same_chunk(char* p1, char* p2) {
-  return chunk_of(p1) == chunk_of(p2)
-  && ! (pointing_into_chunk_descriptor(p2));
+  chunk_type* res = (chunk_type*)p2;
+  return res;
 }
 
 bool empty(struct stack_struct s) {
@@ -226,6 +215,7 @@ void increment_refcount(chunk_type* c) {
   
 void decrement_refcount(chunk_type* c) {
   if (--c->descriptor.refcount == 0) {
+    c->~chunk_struct();
     free(c);
   }
 }
@@ -271,7 +261,7 @@ stack_type push_back(stack_type s, Args... args) {
   stack_type t = s;
   char* old_last = s.last;
   char* new_last = old_last + szb_of_frame<Activation_record>();
-  if (! pointing_into_same_chunk(old_last - 1, new_last - 1)) {
+  if (new_last > (char*)chunk_of(old_last) + F) {
     chunk_type* old_chunk = chunk_of(old_last);
     chunk_type* succ_chunk = old_chunk->descriptor.overflow;
     if (succ_chunk == nullptr) {
