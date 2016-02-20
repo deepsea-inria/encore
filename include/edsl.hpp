@@ -294,6 +294,9 @@ public:
       assert(fuel == 0);
       cactus::peek_back<activation_record>(stack).promote(this);
     }
+    if (nb_strands() > 0) {
+      schedule(this);
+    }
     return fuel;
   }
   
@@ -375,6 +378,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       break;
     }
     case tag_fork2: {
+      std::cout << "promoting " << &oldest << " at fib(" << oldest.n << ")" << std::endl;
       interpreter* join = interp;
       interpreter* branch1 = new interpreter;
       interpreter* branch2 = new interpreter;
@@ -388,8 +392,9 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       oldest.trampoline.pred = pred;
       oldest.trampoline.succ = fork1_block.variant_fork1.next;
       branch2->stack = fork1_block.variant_fork1.code(oldest, branch2->stack);
-      new_edge(branch1, join);
+      std::cout << "branch2 = " << branch2 << std::endl;
       new_edge(branch2, join);
+      new_edge(branch1, join);
       release(branch2);
       release(branch1);
       break;

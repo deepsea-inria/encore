@@ -88,6 +88,11 @@ public:
     cfg_type cfg;
     // 0
     cfg.push_back(bb::conditional_jump([] (ar& a) {
+      if (a.n == 2) {
+        std::cout << "hmm" << std::endl;
+        std::cout << "hmm" << std::endl;
+      }
+      std::cout << "start fib(" << a.n << ")" << std::endl;
       if (a.n <= 1) {
         *a.dp = a.n;
         return 0;
@@ -95,7 +100,7 @@ public:
       return 1;
     }, { dsl::exit_block_label, 1 }));
     // 1
-    cfg.push_back(bb::fork2([&] (ar& a, dsl::stack_type st) {
+    cfg.push_back(bb::fork2([] (ar& a, dsl::stack_type st) {
       return dsl::procedure_call<ar>(st, a.n - 1, &a.d1);
     }, 2));
     // 2
@@ -103,7 +108,8 @@ public:
       return dsl::procedure_call<ar>(st, a.n - 2, &a.d2);
     }, 3));
     // 3
-    cfg.push_back(bb::unconditional_jump([&] (ar& a) {
+    cfg.push_back(bb::unconditional_jump([] (ar& a) {
+      std::cout << "end fib(" << a.n << ")" << std::endl;
       *a.dp = a.d1 + a.d2;
     }, -1));
     return cfg;
@@ -201,7 +207,7 @@ void test_stack1() {
 }
 
 void test_fib_cfg() {
-  int n = 5;
+  int n = 4;
   int d = -1;
   dsl::interpreter* interp = new dsl::interpreter;
   interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &d);

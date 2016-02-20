@@ -64,6 +64,10 @@ private:
     return n;
   }
   
+  void unlock_bucket(int b, node_type* n) {
+    table[b].store(n);
+  }
+  
   node_type* find_node_by_version(node_type* n, version_number_type v) {
     node_type* m = n;
     while (m != nullptr) {
@@ -129,7 +133,7 @@ public:
     if (m != nullptr) {
       c = m->chunk;
     }
-    table[b].store(n);
+    unlock_bucket(b, n);
     // bucket b now unlocked
     return c;
   }
@@ -151,7 +155,7 @@ public:
       m->chunk = c;
     }
     // version v updated to chunk c locally
-    table[b].store(n);
+    unlock_bucket(b, n);
     // bucket b now unlocked, update visible globally
   }
   
@@ -161,7 +165,7 @@ public:
     // bucket b now locked
     node_type* m = remove_node_by_version(n, v);
     // version v updated to chunk c locally
-    table[b].store(m);
+    unlock_bucket(b, m);
     // bucket b now unlocked, update visible globally
   }
   

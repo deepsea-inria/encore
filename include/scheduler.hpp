@@ -17,7 +17,7 @@ namespace sched {
 /* Scheduling parameters */
   
 // to control the rate of DAG construction
-static constexpr int D = 8;
+static constexpr int D = 3;
 
 // to control the eagerness of work distribution
 static constexpr int K = 2 * D;
@@ -30,7 +30,7 @@ namespace {
 int vertex_run(int fuel, vertex* v) {
   fuel = v->run(fuel);
   if (v->nb_strands() == 0) {
-    parallel_notify(v->is_future, v->get_out());
+    parallel_notify(v->is_future, v->get_outset());
     delete v;
   }
   return fuel;
@@ -276,22 +276,23 @@ void reset_incounter(vertex* v) {
 }
   
 void schedule(vertex* v) {
+  std::cout << "schedule = " << v << std::endl;
   uniprocessor::ready.push_back(v);
 }
 
 void new_edge(vertex* source, vertex* destination) {
-  incounter_handle* h = destination->get_in()->increment(destination);
-  bool success = source->get_out()->insert(h);
+  incounter_handle* h = destination->get_incounter()->increment(destination);
+  bool success = source->get_outset()->insert(h);
   if (! success) {
-    destination->get_in()->decrement(h);
+    destination->get_incounter()->decrement(h);
   }
 }
   
 void release(vertex* v) {
   assert(v != nullptr);
   assert(v->release_handle != nullptr);
-  assert(v->get_in() != nullptr);
-  v->get_in()->decrement(v->release_handle);
+  assert(v->get_incounter() != nullptr);
+  v->get_incounter()->decrement(v->release_handle);
 }
   
 namespace {

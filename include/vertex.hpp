@@ -32,7 +32,7 @@ public:
   
   vertex() {
     reset_incounter();
-    release_handle = get_in()->increment(this);
+    release_handle = get_incounter()->increment(this);
     if (is_future) {
       out_future = new outset;
     } else {
@@ -46,11 +46,11 @@ public:
     in.reset(new incounter(this));
   }
   
-  incounter* get_in() {
+  incounter* get_incounter() {
     return in.get();
   }
   
-  outset* get_out() {
+  outset* get_outset() {
     if (is_future) {
       return out_future;
     } else {
