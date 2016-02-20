@@ -294,9 +294,6 @@ public:
       assert(fuel == 0);
       cactus::peek_back<activation_record>(stack).promote(this);
     }
-    if (nb_strands() > 0) {
-      schedule(this);
-    }
     return fuel;
   }
   
@@ -360,11 +357,11 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
   basic_block_type<Activation_record>& block = cfg.at(oldest.trampoline.pred);
   switch (block.t) {
     case tag_unconditional_jump: {
-      // nothing to do here
+      schedule(interp);
       break;
     }
     case tag_conditional_jump: {
-      // nothing to do here
+      schedule(interp);
       break;
     }
     case tag_fork1: {
@@ -378,7 +375,6 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       break;
     }
     case tag_fork2: {
-      std::cout << "promoting " << &oldest << " at fib(" << oldest.n << ")" << std::endl;
       interpreter* join = interp;
       interpreter* branch1 = new interpreter;
       interpreter* branch2 = new interpreter;
@@ -392,7 +388,6 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       oldest.trampoline.pred = pred;
       oldest.trampoline.succ = fork1_block.variant_fork1.next;
       branch2->stack = fork1_block.variant_fork1.code(oldest, branch2->stack);
-      std::cout << "branch2 = " << branch2 << std::endl;
       new_edge(branch2, join);
       new_edge(branch1, join);
       release(branch2);
@@ -400,7 +395,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       break;
     }
     case tag_demand: {
-      // nothing to do here
+      assert(false); // todo
       break;
     }
     default: {

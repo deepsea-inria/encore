@@ -88,11 +88,6 @@ public:
     cfg_type cfg;
     // 0
     cfg.push_back(bb::conditional_jump([] (ar& a) {
-      if (a.n == 2) {
-        std::cout << "hmm" << std::endl;
-        std::cout << "hmm" << std::endl;
-      }
-      std::cout << "start fib(" << a.n << ")" << std::endl;
       if (a.n <= 1) {
         *a.dp = a.n;
         return 0;
@@ -109,7 +104,6 @@ public:
     }, 3));
     // 3
     cfg.push_back(bb::unconditional_jump([] (ar& a) {
-      std::cout << "end fib(" << a.n << ")" << std::endl;
       *a.dp = a.d1 + a.d2;
     }, -1));
     return cfg;

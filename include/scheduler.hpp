@@ -276,7 +276,6 @@ void reset_incounter(vertex* v) {
 }
   
 void schedule(vertex* v) {
-  std::cout << "schedule = " << v << std::endl;
   uniprocessor::ready.push_back(v);
 }
 
