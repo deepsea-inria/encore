@@ -29,6 +29,8 @@ int fib_cilk(int n) {
 }
 #endif
 
+int cutoff = 1;
+
 class fib_manual : public encore::sched::vertex {
 public:
   
@@ -55,8 +57,8 @@ public:
   int run(int fuel) {
     switch (trampoline) {
       case entry: {
-        if (n <= 1) {
-          *dp = n;
+        if (n <= cutoff) {
+          *dp = fib(n);
           yield_with(exit);
           break;
         }
@@ -106,8 +108,8 @@ public:
     cfg_type cfg;
     // 0
     cfg.push_back(bb::conditional_jump([] (ar& a) {
-      if (a.n <= 1) {
-        *a.dp = a.n;
+      if (a.n <= cutoff) {
+        *a.dp = fib(a.n);
         return 0;
       }
       return 1;
@@ -147,6 +149,7 @@ namespace cmdline = pasl::util::cmdline;
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
+  cutoff = cmdline::parse_or_default("cutoff", cutoff);
   int result = -1;
   cmdline::dispatcher d;
   d.add("sequential", [&] {
