@@ -2,10 +2,10 @@
 
 #include "time.hpp"
 
-#ifndef _PASL_ATOMIC_H_
-#define _PASL_ATOMIC_H_
+#ifndef _ENCORE_ATOMIC_H_
+#define _ENCORE_ATOMIC_H_
 
-namespace pasl {
+namespace encore {
 namespace atomic {
   
 namespace {
@@ -24,4 +24,4 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_ATOMIC_H_ */
+#endif /*! _ENCORE_ATOMIC_H_ */

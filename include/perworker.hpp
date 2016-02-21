@@ -3,10 +3,10 @@
 
 #include "aligned.hpp"
 
-#ifndef _PASL_PERWORKER_H_
-#define _PASL_PERWORKER_H_
+#ifndef _ENCORE_PERWORKER_H_
+#define _ENCORE_PERWORKER_H_
 
-namespace pasl {
+namespace encore {
 namespace data {
 namespace perworker {
   

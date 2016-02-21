@@ -8,15 +8,15 @@
 #include "tagged.hpp"
 #include "atomic.hpp"
 
-#ifndef _PASL_SCHED_INCOUNTER_H_
-#define _PASL_SCHED_INCOUNTER_H_
+#ifndef _ENCORE_SCHED_INCOUNTER_H_
+#define _ENCORE_SCHED_INCOUNTER_H_
 
 // pre: sizeof(ty) <= align_szb
 #define DECLARE_PADDED_FIELD(ty, name, align_szb)   \
   ty name;                                          \
   char _padding_for_ ## name[align_szb - sizeof(ty)]
 
-namespace pasl {
+namespace encore {
 namespace sched {
 
 namespace gsnzi {
@@ -360,4 +360,4 @@ public:
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_DATA_TAGGED_H_ */
+#endif /*! _ENCORE_DATA_TAGGED_H_ */

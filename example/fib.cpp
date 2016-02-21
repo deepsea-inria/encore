@@ -7,7 +7,7 @@
 
 #include "encore.hpp"
 
-namespace dsl = pasl::edsl::pcfg;
+namespace dsl = encore::edsl::pcfg;
 
 int fib(int n) {
   if (n <= 1) {
@@ -28,7 +28,7 @@ int fib_cilk(int n) {
 }
 #endif
 
-class fib_manual : public pasl::sched::vertex {
+class fib_manual : public encore::sched::vertex {
 public:
   
   enum { entry, join, exit };
@@ -62,10 +62,10 @@ public:
         fib_manual* b1 = new fib_manual(n - 1, &d1);
         fib_manual* b2 = new fib_manual(n - 2, &d2);
         yield_with(join);
-        pasl::sched::new_edge(b2, this);
-        pasl::sched::new_edge(b1, this);
-        pasl::sched::release(b2);
-        pasl::sched::release(b1);
+        encore::sched::new_edge(b2, this);
+        encore::sched::new_edge(b1, this);
+        encore::sched::release(b2);
+        encore::sched::release(b1);
         break;
       }
       case join: {
@@ -144,7 +144,7 @@ fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 namespace cmdline = pasl::util::cmdline;
 
 int main(int argc, char** argv) {
-  pasl::initialize(argc, argv);
+  encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   int result = -1;
   cmdline::dispatcher d;
@@ -152,8 +152,8 @@ int main(int argc, char** argv) {
     result = fib(n);
   });
   d.add("dag", [&] {
-    pasl::sched::release(new fib_manual(n, &result));
-    pasl::sched::uniprocessor::scheduler_loop();
+    encore::sched::release(new fib_manual(n, &result));
+    encore::sched::uniprocessor::scheduler_loop();
   });
 #ifdef USE_CILK_PLUS
   d.add("cilk", [&] {
@@ -163,8 +163,8 @@ int main(int argc, char** argv) {
   d.add("pcfg", [&] {
     dsl::interpreter* interp = new dsl::interpreter;
     interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &result);
-    pasl::sched::release(interp);
-    pasl::sched::uniprocessor::scheduler_loop();
+    encore::sched::release(interp);
+    encore::sched::uniprocessor::scheduler_loop();
   });
   auto start = std::chrono::system_clock::now();
   d.dispatch("algorithm");

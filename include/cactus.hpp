@@ -4,10 +4,10 @@
 #include "atomic.hpp"
 #include "tagged.hpp"
 
-#ifndef _PASL_CACTUS_H_
-#define _PASL_CACTUS_H_
+#ifndef _ENCORE_CACTUS_H_
+#define _ENCORE_CACTUS_H_
 
-namespace pasl {
+namespace encore {
 namespace cactus {
 
 namespace {
@@ -355,4 +355,4 @@ std::pair<stack_type, stack_type> split_front(stack_type s) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_CACTUS_H_ */
+#endif /*! _ENCORE_CACTUS_H_ */

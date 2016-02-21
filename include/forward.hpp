@@ -1,9 +1,9 @@
 #include <assert.h>
 
-#ifndef _PASL_FORWARD_H_
-#define _PASL_FORWARD_H_
+#ifndef _ENCORE_FORWARD_H_
+#define _ENCORE_FORWARD_H_
 
-namespace pasl {
+namespace encore {
 namespace sched {
     
 class vertex;
@@ -18,4 +18,4 @@ void reset_incounter(vertex*);
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_FORWARD_H_ */
+#endif /*! _ENCORE_FORWARD_H_ */

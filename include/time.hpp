@@ -1,7 +1,7 @@
-#ifndef _PASL_TIME_H_
-#define _PASL_TIME_H_
+#ifndef _ENCORE_TIME_H_
+#define _ENCORE_TIME_H_
 
-namespace pasl {
+namespace encore {
 namespace time {
   
 namespace {
@@ -46,4 +46,4 @@ void spin_for(uint64_t nb_cycles) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_TIME_H_ */
+#endif /*! _ENCORE_TIME_H_ */

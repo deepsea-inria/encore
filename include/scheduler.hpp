@@ -7,10 +7,10 @@
 #include "perworker.hpp"
 #include "chunkedseq.hpp"
 
-#ifndef _PASL_SCHED_SCHEDULER_H_
-#define _PASL_SCHED_SCHEDULER_H_
+#ifndef _ENCORE_SCHED_SCHEDULER_H_
+#define _ENCORE_SCHED_SCHEDULER_H_
 
-namespace pasl {
+namespace encore {
 namespace sched {
   
 /*---------------------------------------------------------------------*/
@@ -49,8 +49,8 @@ private:
   };
   
   static constexpr int chunk_capacity = 512;
-  using cache_type = data::cachedmeasure::weight<vertex*, int, size_t, measure_env>;
-  using weighted_seq_type = data::chunkedseq::bootstrapped::stack<vertex*, chunk_capacity, cache_type>;
+  using cache_type = pasl::data::cachedmeasure::weight<vertex*, int, size_t, measure_env>;
+  using weighted_seq_type = pasl::data::chunkedseq::bootstrapped::stack<vertex*, chunk_capacity, cache_type>;
   
   weighted_seq_type vs;
   
@@ -493,4 +493,4 @@ void parallel_deallocate(outset* out) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_SCHED_SCHEDULER_H_ */
+#endif /*! _ENCORE_SCHED_SCHEDULER_H_ */

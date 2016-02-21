@@ -8,10 +8,10 @@
 #include "aligned.hpp"
 #include "perworker.hpp"
 
-#ifndef _PASL_SCHED_OUTSET_H_
-#define _PASL_SCHED_OUTSET_H_
+#ifndef _ENCORE_SCHED_OUTSET_H_
+#define _ENCORE_SCHED_OUTSET_H_
 
-namespace pasl {
+namespace encore {
 namespace sched {
   
 namespace {
@@ -521,4 +521,4 @@ public:
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_SCHED_OUTSET_H_ */
+#endif /*! _ENCORE_SCHED_OUTSET_H_ */

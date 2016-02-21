@@ -3,12 +3,12 @@
 #include "edsl.hpp"
 #include "cmdline.hpp"
 
-#ifndef _PASL_ENCORE_H_
-#define _PASL_ENCORE_H_
+#ifndef _ENCORE_H_
+#define _ENCORE_H_
 
 namespace cmdline = pasl::util::cmdline;
 
-namespace pasl {
+namespace encore {
   
 void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
@@ -18,4 +18,4 @@ void initialize(int argc, char** argv) {
 
 } // end namespace
 
-#endif /*! _PASL_ENCORE_H_ */
+#endif /*! _ENCORE_H_ */

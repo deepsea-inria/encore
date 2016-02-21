@@ -17,10 +17,10 @@
 
 #include <assert.h>
 
-#ifndef _PASL_TAGGED_H_
-#define _PASL_TAGGED_H_
+#ifndef _ENCORE_TAGGED_H_
+#define _ENCORE_TAGGED_H_
 
-namespace pasl {
+namespace encore {
 namespace tagged {
 
 namespace {
@@ -98,4 +98,4 @@ static inline int tag_of(Value v) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_TAGGED_H_ */
+#endif /*! _ENCORE_TAGGED_H_ */

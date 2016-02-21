@@ -2,10 +2,10 @@
 #include <type_traits>
 #include <assert.h>
 
-#ifndef _PASL_ALIGNED_H_
-#define _PASL_ALIGNED_H_
+#ifndef _ENCORE_ALIGNED_H_
+#define _ENCORE_ALIGNED_H_
 
-namespace pasl {
+namespace encore {
 namespace data {
     
 template <class Item, int capacity>
@@ -47,4 +47,4 @@ public:
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_ALIGNED_H_ */
+#endif /*! _ENCORE_ALIGNED_H_ */

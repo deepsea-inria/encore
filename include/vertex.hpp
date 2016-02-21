@@ -5,10 +5,10 @@
 #include "incounter.hpp"
 #include "outset.hpp"
 
-#ifndef _PASL_SCHED_VERTEX_H_
-#define _PASL_SCHED_VERTEX_H_
+#ifndef _ENCORE_SCHED_VERTEX_H_
+#define _ENCORE_SCHED_VERTEX_H_
 
-namespace pasl {
+namespace encore {
 namespace sched {
 
 class vertex {
@@ -69,4 +69,4 @@ public:
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_SCHED_VERTEX_H_ */
+#endif /*! _ENCORE_SCHED_VERTEX_H_ */

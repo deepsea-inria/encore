@@ -7,10 +7,10 @@
 #include "vertex.hpp"
 #include "cactus.hpp"
 
-#ifndef _PASL_SCHED_EDSL_H_
-#define _PASL_SCHED_EDSL_H_
+#ifndef _ENCORE_SCHED_EDSL_H_
+#define _ENCORE_SCHED_EDSL_H_
 
-namespace pasl {
+namespace encore {
 namespace edsl {
   
 /*---------------------------------------------------------------------*/
@@ -409,4 +409,4 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PASL_SCHED_EDSL_H_ */
+#endif /*! _ENCORE_SCHED_EDSL_H_ */
