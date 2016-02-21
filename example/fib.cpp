@@ -1,10 +1,11 @@
 
 #include <iostream>
 #include <chrono>
+#ifdef USE_CILK_PLUS
+#include <cilk/cilk.h>
+#endif
 
-#include "scheduler.hpp"
-#include "edsl.hpp"
-#include "cmdline.hpp"
+#include "encore.hpp"
 
 namespace dsl = pasl::edsl::pcfg;
 
@@ -14,6 +15,18 @@ int fib(int n) {
   }
   return fib(n - 1) + fib(n - 2);
 }
+
+#ifdef USE_CILK_PLUS
+int fib_cilk(int n) {
+  if (n <= 1) {
+    return n;
+  }
+  int d1 = cilk_spawn fib_cilk(n - 1);
+  int d2 = fib_cilk(n - 2);
+  cilk_sync;
+  return d1 + d2;
+}
+#endif
 
 class fib_manual : public pasl::sched::vertex {
 public:
@@ -131,7 +144,7 @@ fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 namespace cmdline = pasl::util::cmdline;
 
 int main(int argc, char** argv) {
-  cmdline::set(argc, argv);
+  pasl::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   int result = -1;
   cmdline::dispatcher d;
@@ -142,6 +155,11 @@ int main(int argc, char** argv) {
     pasl::sched::release(new fib_manual(n, &result));
     pasl::sched::uniprocessor::scheduler_loop();
   });
+#ifdef USE_CILK_PLUS
+  d.add("cilk", [&] {
+    result = fib_cilk(n);
+  });
+#endif
   d.add("pcfg", [&] {
     dsl::interpreter* interp = new dsl::interpreter;
     interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &result);
