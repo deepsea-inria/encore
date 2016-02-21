@@ -3,6 +3,7 @@
 #include <chrono>
 #ifdef USE_CILK_PLUS
 #include <cilk/cilk.h>
+#include <cilk/cilk_api.h>
 #endif
 
 #include "encore.hpp"
