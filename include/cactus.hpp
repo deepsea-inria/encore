@@ -12,7 +12,7 @@ namespace cactus {
 
 namespace {
   
-static constexpr int lg_K = 10;
+static constexpr int lg_K = 12;
 
 // size of a chunk
 static constexpr int K = 1 << lg_K;

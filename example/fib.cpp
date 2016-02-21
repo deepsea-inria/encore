@@ -1,6 +1,10 @@
+
 #include <iostream>
+#include <chrono>
+
 #include "scheduler.hpp"
 #include "edsl.hpp"
+#include "cmdline.hpp"
 
 namespace dsl = pasl::edsl::pcfg;
 
@@ -124,105 +128,31 @@ public:
 
 fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
-namespace pasl {
-namespace cactus {
-  
-class test_frame {
-public:
-  static constexpr int stack_szb = pasl::cactus::K - sizeof(pasl::cactus::descriptor_type);
-  static constexpr int target_nb_frames = 3;
-  static constexpr int target_frame_szb = stack_szb / target_nb_frames;
-  static constexpr int nb_ints = target_frame_szb / sizeof(int);
-  
-  char f[target_frame_szb];
-  test_frame() {
-    int* ints = (int*)f;
-    for (int i = 0; i < nb_ints; i++) {
-      ints[i] = 0xdeadbeef;
-    }
-  }
-  void check() {
-    int* ints = (int*)f;
-    for (int i = 0; i < nb_ints; i++) {
-      assert(ints[i] == 0xdeadbeef);
-    }
-  }
-};
+namespace cmdline = pasl::util::cmdline;
 
-void test_stack1() {
-  stack_type stack = new_stack();
-  chunk_type* c = (chunk_type*)stack.first;
-  char* n = stack.last + sizeof(test_frame) + 4;
-  chunk_type* c2 = chunk_of(n);
-  assert(c2 == c);
-
-  assert(empty(stack));
-  stack = push_back<test_frame>(stack);
-  peek_back<test_frame>(stack).check();
-  stack = push_back<test_frame>(stack);
-  peek_back<test_frame>(stack).check();
-  
-  stack = push_back<test_frame>(stack);
-  peek_back<test_frame>(stack).check();
-  stack = push_back<test_frame>(stack);
-  peek_back<test_frame>(stack).check();
-  
-  auto stacks = cactus::split_front<test_frame>(stack);
-  stack_type stack1 = stacks.first;
-  stack_type stack2 = stacks.second;
-  
-  stack1 = push_back<test_frame>(stack1);
-  peek_back<test_frame>(stack1).check();
-  stack1 = push_back<test_frame>(stack1);
-  peek_back<test_frame>(stack1).check();
-  
-  stack1 = pop_back<test_frame>(stack1);
-  peek_back<test_frame>(stack1).check();
-  stack1 = pop_back<test_frame>(stack1);
-  peek_back<test_frame>(stack1).check();
-  
-  assert(! empty(stack1));
-  stack1 = pop_back<test_frame>(stack1);
-  assert(empty(stack1));
-  
-  stack2 = pop_back<test_frame>(stack2);
-  peek_back<test_frame>(stack2).check();
-  stack2 = pop_back<test_frame>(stack2);
-  peek_back<test_frame>(stack2).check();
-  
-  stack2 = pop_back<test_frame>(stack2);
-  assert(empty(stack2));
-  
-  delete_stack(stack2);
-  delete_stack(stack1);
-}
-
-}
-}
-
-void test_fib_cfg() {
-  int n = 4;
-  int d = -1;
-  dsl::interpreter* interp = new dsl::interpreter;
-  interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &d);
-  pasl::sched::release(interp);
-  pasl::sched::uniprocessor::scheduler_loop();
-  int m = fib(n);
-  assert(d == m);
-}
-
-/*
-void test2() {
-  int n = 10;
-  int d = -1;
-  pasl::sched::release(new fib_manual(n, &d));
-  pasl::sched::uniprocessor::scheduler_loop();
-  assert(d == fib(n));
-}
-*/
-
-int main(int argc, const char * argv[]) {
-  //pasl::cactus::test_stack1();
-  test_fib_cfg();
+int main(int argc, char** argv) {
+  cmdline::set(argc, argv);
+  int n = cmdline::parse<int>("n");
+  int result = -1;
+  cmdline::dispatcher d;
+  d.add("sequential", [&] {
+    result = fib(n);
+  });
+  d.add("dag", [&] {
+    pasl::sched::release(new fib_manual(n, &result));
+    pasl::sched::uniprocessor::scheduler_loop();
+  });
+  d.add("pcfg", [&] {
+    dsl::interpreter* interp = new dsl::interpreter;
+    interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &result);
+    pasl::sched::release(interp);
+    pasl::sched::uniprocessor::scheduler_loop();
+  });
+  auto start = std::chrono::system_clock::now();
+  d.dispatch("algorithm");
+  auto end = std::chrono::system_clock::now();
+  std::chrono::duration<float> diff = end - start;
+  printf ("exectime %.3lf\n", diff.count());
+  assert(result == fib(n));
   return 0;
 }

@@ -17,10 +17,10 @@ namespace sched {
 /* Scheduling parameters */
   
 // to control the rate of DAG construction
-static constexpr int D = 3;
+int D = 2048;
 
 // to control the eagerness of work distribution
-static constexpr int K = 2 * D;
+int K = 2 * D;
   
 /*---------------------------------------------------------------------*/
 /* Frontier */
