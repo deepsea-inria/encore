@@ -307,7 +307,6 @@ template <class Activation_record>
 stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
   assert(! cactus::empty(stack));
   Activation_record& newest = cactus::peek_back<Activation_record>(stack);
-  // note: cfg.at() performs a bounds check
   basic_block_label_type pred = newest.trampoline.succ;
   basic_block_label_type succ;
   basic_block_type<Activation_record>& block = cfg.at(pred);
@@ -354,7 +353,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
   stack_type& stack = interp->stack;
   assert(! cactus::empty(stack));
   Activation_record& oldest = cactus::peek_front<Activation_record>(stack);
-  basic_block_type<Activation_record>& block = cfg.at(oldest.trampoline.pred);
+  basic_block_type<Activation_record>& block = cfg[oldest.trampoline.pred];
   switch (block.t) {
     case tag_unconditional_jump: {
       schedule(interp);
@@ -383,7 +382,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       branch1->stack = stacks.second;
       branch2->stack = cactus::new_stack();
       basic_block_label_type pred = oldest.trampoline.succ;
-      basic_block_type<Activation_record>& fork1_block = cfg.at(pred);
+      basic_block_type<Activation_record>& fork1_block = cfg[pred];
       assert(fork1_block.t == tag_fork1);
       oldest.trampoline.pred = pred;
       oldest.trampoline.succ = fork1_block.variant_fork1.next;
