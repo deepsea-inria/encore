@@ -17,10 +17,12 @@ int fib(int n) {
   return fib(n - 1) + fib(n - 2);
 }
 
+int cutoff = 1;
+
 #ifdef USE_CILK_PLUS
 int fib_cilk(int n) {
-  if (n <= 1) {
-    return n;
+  if (n <= cutoff) {
+    return fib(n);
   }
   int d1 = cilk_spawn fib_cilk(n - 1);
   int d2 = fib_cilk(n - 2);
@@ -28,8 +30,6 @@ int fib_cilk(int n) {
   return d1 + d2;
 }
 #endif
-
-int cutoff = 1;
 
 class fib_manual : public encore::sched::vertex {
 public:
