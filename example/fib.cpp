@@ -156,6 +156,9 @@ int main(int argc, char** argv) {
     encore::sched::uniprocessor::scheduler_loop();
   });
 #ifdef USE_CILK_PLUS
+  int nb_workers = cmdline::parse_or_default("proc", 1);
+  std::string nb_workers_str = std::to_string(nb_workers);
+  __cilkrts_set_param("nworkers", nb_workers_str.c_str());
   d.add("cilk", [&] {
     result = fib_cilk(n);
   });
