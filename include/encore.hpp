@@ -13,7 +13,7 @@ namespace encore {
 void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   sched::D = cmdline::parse_or_default("dag_freq", sched::D);
-  sched::K = cmdline::parse_or_default("sharing_freq", sched::K);
+  sched::K = cmdline::parse_or_default("sharing_freq", 2 * sched::D);
 }
 
 void launch(sched::vertex* v, int nb_workers) {
