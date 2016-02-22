@@ -75,6 +75,12 @@ public:
     items.init(*(l.begin()));
   }
   
+  ~array() {
+    for_each([&] (int, Item& x) {
+      x.~Item();
+    });
+  }
+  
   Item& mine() {
     return items[get_my_id()];
   }
