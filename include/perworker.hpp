@@ -58,10 +58,17 @@ private:
   
 public:
   
-  array() { }
+  array() {
+    for_each([&] (int, Item& x) {
+      new (&x) Item();
+    });
+  }
   
-  array(const Item& x)
-  : items(x) { }
+  array(const Item& x) {
+    for_each([&] (int, Item& y) {
+      new (&y) Item(x);
+    });
+  }
   
   array(std::initializer_list<Item> l) {
     assert(l.size() == 1);

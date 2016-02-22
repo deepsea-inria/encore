@@ -8,8 +8,6 @@
 
 #include "encore.hpp"
 
-namespace dsl = encore::edsl::pcfg;
-
 int fib(int n) {
   if (n <= 1) {
     return n;
@@ -31,7 +29,9 @@ int fib_cilk(int n) {
 }
 #endif
 
-class fib_manual : public encore::sched::vertex {
+namespace sched = encore::sched;
+
+class fib_manual : public sched::vertex {
 public:
   
   enum { entry, join, exit };
@@ -65,10 +65,10 @@ public:
         fib_manual* b1 = new fib_manual(n - 1, &d1);
         fib_manual* b2 = new fib_manual(n - 2, &d2);
         yield_with(join);
-        encore::sched::new_edge(b2, this);
-        encore::sched::new_edge(b1, this);
-        encore::sched::release(b2);
-        encore::sched::release(b1);
+        sched::new_edge(b2, this);
+        sched::new_edge(b1, this);
+        sched::release(b2);
+        sched::release(b1);
         break;
       }
       case join: {
@@ -87,6 +87,8 @@ public:
   }
   
 };
+
+namespace dsl = encore::edsl::pcfg;
 
 class fib_cfg : public dsl::activation_record {
 public:
@@ -146,6 +148,23 @@ fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
 namespace cmdline = pasl::util::cmdline;
 
+#ifdef USE_CILK_PLUS
+void initialize_cilk() {
+  int nb_workers = cmdline::parse_or_default("proc", 1);
+  std::string nb_workers_str = std::to_string(nb_workers);
+  __cilkrts_set_param("nworkers", nb_workers_str.c_str());
+}
+#endif
+
+template <class Function>
+void run_and_report_elapsed_time(const Function& f) {
+  auto start = std::chrono::system_clock::now();
+  f();
+  auto end = std::chrono::system_clock::now();
+  std::chrono::duration<float> diff = end - start;
+  printf ("exectime %.3lf\n", diff.count());
+}
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
@@ -156,13 +175,9 @@ int main(int argc, char** argv) {
     result = fib(n);
   });
   d.add("dag", [&] {
-    encore::sched::release(new fib_manual(n, &result));
-    encore::sched::uniprocessor::scheduler_loop();
+    encore::launch(new fib_manual(n, &result));
   });
 #ifdef USE_CILK_PLUS
-  int nb_workers = cmdline::parse_or_default("proc", 1);
-  std::string nb_workers_str = std::to_string(nb_workers);
-  __cilkrts_set_param("nworkers", nb_workers_str.c_str());
   d.add("cilk", [&] {
     result = fib_cilk(n);
   });
@@ -170,14 +185,11 @@ int main(int argc, char** argv) {
   d.add("pcfg", [&] {
     dsl::interpreter* interp = new dsl::interpreter;
     interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &result);
-    encore::sched::release(interp);
-    encore::sched::uniprocessor::scheduler_loop();
+    encore::launch(interp);
   });
-  auto start = std::chrono::system_clock::now();
-  d.dispatch("algorithm");
-  auto end = std::chrono::system_clock::now();
-  std::chrono::duration<float> diff = end - start;
-  printf ("exectime %.3lf\n", diff.count());
+  run_and_report_elapsed_time([&] {
+    d.dispatch("algorithm");
+  });
   assert(result == fib(n));
   return 0;
 }

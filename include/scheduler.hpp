@@ -7,8 +7,8 @@
 #include "perworker.hpp"
 #include "chunkedseq.hpp"
 
-#ifndef _ENCORE_SCHED_SCHEDULER_H_
-#define _ENCORE_SCHED_SCHEDULER_H_
+#ifndef _ENCORE_SCHEDULER_H_
+#define _ENCORE_SCHEDULER_H_
 
 namespace encore {
 namespace sched {
@@ -130,21 +130,26 @@ void scheduler_loop() {
   
 namespace {
   
+template <class Item>
+using perworker_array = data::perworker::array<Item>;
+  
 std::atomic<int> nb_active_workers; // later: user SNZI instead
   
-data::perworker::array<std::atomic<bool>> status;
+perworker_array<std::atomic<bool>> status;
 
 static constexpr int no_request = -1;
   
-data::perworker::array<std::atomic<int>> request;
+perworker_array<std::atomic<int>> request;
   
 frontier* no_response = tagged::tag_with((frontier*)nullptr, 1);
   
-data::perworker::array<std::atomic<frontier*>> transfer;
+perworker_array<std::atomic<frontier*>> transfer;
   
-data::perworker::array<std::mt19937> scheduler_rngs;  // random-number generators
+perworker_array<std::mt19937> scheduler_rngs;  // random-number generators
   
-void scheduler_init() {
+perworker_array<frontier> frontiers;
+  
+void initialize_scheduler() {
   nb_active_workers.store(1);
   status.for_each([&] (int, std::atomic<bool>& b) {
     b.store(false);
@@ -175,12 +180,13 @@ bool is_finished() {
 // participating worker thread
 void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
-  frontier my_ready;
+  frontier& my_ready = frontiers[my_id];
   int fuel = D;
   int nb = 0;
   
   if (v != nullptr) {
-    my_ready.push(v);
+    release(v);
+    v = nullptr;
   }
   
   // update the status flag
@@ -217,11 +223,11 @@ void worker_loop(vertex* v) {
   // called by workers when running out of work
   auto acquire = [&] {
     nb_active_workers--;
-    while (true) {
+    while (! is_finished()) {
       transfer[my_id].store(no_response);
       int k = random_other_worker(my_id);
       int orig = no_request;
-      if (status[k].load() && request[k].compare_exchange_strong(orig, my_id)) {
+      if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
           communicate();
         }
@@ -236,11 +242,8 @@ void worker_loop(vertex* v) {
     }
   };
   
-  while (true) {
+  while (! is_finished()) {
     if (my_ready.nb_strands() == 0) {
-      if (is_finished()) {
-        return;
-      }
       fuel = D;
       acquire();
     } else {
@@ -257,8 +260,8 @@ void worker_loop(vertex* v) {
 
 } // end namespace
   
-void launch(int nb_workers, vertex* v) {
-  scheduler_init();
+void launch_scheduler(int nb_workers, vertex* v) {
+  initialize_scheduler();
   for (int i = 1; i < nb_workers; i++) {
     std::thread t([] {
       worker_loop(nullptr);
@@ -276,7 +279,7 @@ void reset_incounter(vertex* v) {
 }
   
 void schedule(vertex* v) {
-  uniprocessor::ready.push_back(v);
+  frontiers.mine().push(v);
 }
 
 void new_edge(vertex* source, vertex* destination) {
@@ -493,4 +496,4 @@ void parallel_deallocate(outset* out) {
 } // end namespace
 } // end namespace
 
-#endif /*! _ENCORE_SCHED_SCHEDULER_H_ */
+#endif /*! _ENCORE_SCHEDULER_H_ */

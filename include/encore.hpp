@@ -16,6 +16,14 @@ void initialize(int argc, char** argv) {
   sched::K = cmdline::parse_or_default("sharing_freq", sched::K);
 }
 
+void launch(sched::vertex* v, int nb_workers) {
+  sched::launch_scheduler(nb_workers, v);
+}
+  
+void launch(sched::vertex* v) {
+  launch(v, cmdline::parse_or_default("proc", 1));
+}
+
 } // end namespace
 
 #endif /*! _ENCORE_H_ */

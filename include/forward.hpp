@@ -14,6 +14,7 @@ void schedule(vertex* v);
 void parallel_notify(bool, outset*);
 void parallel_deallocate(outset*);
 void reset_incounter(vertex*);
+void release(vertex* v);
   
 } // end namespace
 } // end namespace
