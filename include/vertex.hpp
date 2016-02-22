@@ -31,7 +31,7 @@ private:
 public:
   
   vertex() {
-    reset_incounter();
+    in.reset(new incounter(this));
     release_handle = get_incounter()->increment(this);
     if (is_future) {
       out_future = new outset;
@@ -41,10 +41,6 @@ public:
   }
   
   virtual ~vertex() { }
-  
-  void reset_incounter() {
-    in.reset(new incounter(this));
-  }
   
   incounter* get_incounter() {
     return in.get();
