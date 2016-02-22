@@ -103,29 +103,6 @@ public:
 } // end namespace
   
 /*---------------------------------------------------------------------*/
-/* Trivial uniprocessor scheduler, just for debugging */
-  
-namespace uniprocessor {
-
-std::vector<vertex*> ready;
-  
-void scheduler_loop() {
-  int fuel = D;
-  while (! ready.empty()) {
-    vertex* v = ready.back();
-    ready.pop_back();
-    assert(fuel >= 0);
-    fuel = vertex_run(fuel, v);
-    assert(fuel >= 0);
-    if (fuel == 0) {
-      fuel = D;
-    }
-  }
-}
-  
-} // end namespace
-  
-/*---------------------------------------------------------------------*/
 /* Parallel work-stealing scheduler */
   
 namespace {
@@ -200,7 +177,6 @@ void worker_loop(vertex* v) {
   // check for an incoming steal request
   // returns true iff a migration was performed by the call
   auto communicate = [&] {
-    bool migrated_work = false;
     int j = request[my_id].load();
     if (j != no_request) {
       int sz = my_ready.nb_strands();
@@ -211,13 +187,11 @@ void worker_loop(vertex* v) {
         frontier* f = new frontier;
         my_ready.split(sz / 2, *f);
         transfer[j].store(f);
-        migrated_work = true;
       } else {
         transfer[j].store(nullptr); // reject query
       }
     }
     request[my_id].store(no_request);
-    return migrated_work;
   };
   
   // called by workers when running out of work
@@ -244,15 +218,17 @@ void worker_loop(vertex* v) {
   
   while (! is_finished()) {
     if (my_ready.nb_strands() == 0) {
-      fuel = D;
       acquire();
     } else {
-      if (communicate()) {
+      communicate();
+      int remaining_fuel = my_ready.run(fuel);
+      assert(fuel - remaining_fuel >= 0);
+      nb += fuel - remaining_fuel;
+      if (remaining_fuel == 0) {
         fuel = D;
+      } else {
+        fuel = remaining_fuel;
       }
-      int t = my_ready.run(fuel);
-      nb += fuel - t;
-      fuel = t;
       update_status();
     }
   }
