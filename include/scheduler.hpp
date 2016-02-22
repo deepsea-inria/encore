@@ -27,15 +27,6 @@ int K = 2 * D;
   
 namespace {
   
-int vertex_run(int fuel, vertex* v) {
-  fuel = v->run(fuel);
-  if (v->nb_strands() == 0) {
-    parallel_notify(v->is_future, v->get_outset());
-    delete v;
-  }
-  return fuel;
-}
-  
 class frontier {
 private:
   
@@ -72,19 +63,27 @@ public:
   int run(int fuel) {
     while (fuel > 0 && ! vs.empty()) {
       vertex* v = vs.pop_back();
-      fuel = vertex_run(fuel, v);
+      fuel = v->run(fuel);
+      if (v->nb_strands() == 0) {
+        parallel_notify(v->is_future, v->get_outset());
+        delete v;
+      }
     }
     return fuel;
   }
   
   void split(int nb, frontier& other) {
+#ifndef NDEBUG
+    int n1 = nb_strands();
+#endif
     vertex* v = nullptr;
     vs.split([&] (int n) { return nb < n; }, v, other.vs);
     int spill = (v->nb_strands() + other.nb_strands()) - nb;
     assert(spill >= 0);
-    assert(! empty());
-    if (spill == 0 || spill == 1) {
+    if (spill == 0) {
       other.vs.push_back(v);
+    } else if (spill == 1) {
+      vs.push_back(v);
     } else {
       vertex* v2 = v->split(spill);
       bool b = v2->release_handle->decrement();
@@ -93,6 +92,11 @@ public:
       assert(v->nb_strands() > 0);
       vs.push_front(v);
     }
+#ifndef NDEBUG
+    int n2 = nb_strands();
+#endif
+    assert(n1 == n2 + nb);
+    assert(other.nb_strands() == nb);
   }
   
   void swap(frontier& other) {
@@ -260,6 +264,11 @@ void reset_incounter(vertex* v) {
 }
   
 void schedule(vertex* v) {
+  if (v->nb_strands() == 0) {
+    parallel_notify(v->is_future, v->get_outset());
+    delete v;
+    return;
+  }
   frontiers.mine().push(v);
 }
 
