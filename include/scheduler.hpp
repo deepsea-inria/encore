@@ -79,10 +79,11 @@ public:
   
   void split(int nb, frontier& other) {
     vertex* v = nullptr;
-    vs.split([&] (int n) { return nb <= n; }, v, other.vs);
+    vs.split([&] (int n) { return nb < n; }, v, other.vs);
     int spill = (v->nb_strands() + other.nb_strands()) - nb;
     assert(spill >= 0);
-    if (spill == 0) {
+    assert(! empty());
+    if (spill == 0 || spill == 1) {
       other.vs.push_back(v);
     } else {
       vertex* v2 = v->split(spill);
@@ -127,7 +128,7 @@ perworker_array<std::mt19937> scheduler_rngs;  // random-number generators
 perworker_array<frontier> frontiers;
   
 void initialize_scheduler() {
-  nb_active_workers.store(1);
+  nb_active_workers.store(0);
   status.for_each([&] (int, std::atomic<bool>& b) {
     b.store(false);
   });
@@ -162,8 +163,11 @@ void worker_loop(vertex* v) {
   int nb = 0;
   
   if (v != nullptr) {
+    // this worker is the leader
     release(v);
     v = nullptr;
+  } else {
+    nb_active_workers++;
   }
   
   // update the status flag
@@ -175,7 +179,6 @@ void worker_loop(vertex* v) {
   };
   
   // check for an incoming steal request
-  // returns true iff a migration was performed by the call
   auto communicate = [&] {
     int j = request[my_id].load();
     if (j != no_request) {
@@ -208,9 +211,10 @@ void worker_loop(vertex* v) {
         frontier* f = transfer[my_id].load();
         if (f != nullptr) {
           f->swap(my_ready);
-        }
-        request[my_id].store(no_request);
-        return;
+          delete f;
+          request[my_id].store(no_request);
+          return;
+        }        
       }
       communicate();
     }
@@ -238,6 +242,7 @@ void worker_loop(vertex* v) {
   
 void launch_scheduler(int nb_workers, vertex* v) {
   initialize_scheduler();
+  nb_active_workers++;
   for (int i = 1; i < nb_workers; i++) {
     std::thread t([] {
       worker_loop(nullptr);
