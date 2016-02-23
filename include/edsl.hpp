@@ -309,7 +309,7 @@ stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
   Activation_record& newest = cactus::peek_back<Activation_record>(stack);
   basic_block_label_type pred = newest.trampoline.succ;
   basic_block_label_type succ;
-  basic_block_type<Activation_record>& block = cfg.at(pred);
+  basic_block_type<Activation_record>& block = cfg[pred];
   switch (block.t) {
     case tag_unconditional_jump: {
       block.variant_unconditional_jump.code(newest);
