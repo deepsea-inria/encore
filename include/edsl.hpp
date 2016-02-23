@@ -28,7 +28,7 @@ static constexpr basic_block_label_type exit_block_label = -1;
 
 using tag = enum {
   tag_unconditional_jump, tag_conditional_jump,
-  tag_fork1, tag_fork2,
+  tag_spawn_join, tag_spawn2_join,
   tag_demand, tag_none
 };
 
@@ -52,14 +52,14 @@ public:
         variant_conditional_jump.targets.~blks();
         break;
       }
-      case tag_fork1: {
+      case tag_spawn_join: {
         using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_fork1.code.~fct();
+        variant_spawn_join.code.~fct();
         break;
       }
-      case tag_fork2: {
+      case tag_spawn2_join: {
         using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_fork2.code1.~fct();
+        variant_spawn2_join.code1.~fct();
         break;
       }
       case tag_demand: {
@@ -84,14 +84,14 @@ public:
         new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>(other.variant_conditional_jump.targets);
         break;
       }
-      case tag_fork1: {
-        new (&variant_fork1.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_fork1.code);
-        variant_fork1.next = other.variant_fork1.next;
+      case tag_spawn_join: {
+        new (&variant_spawn_join.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_spawn_join.code);
+        variant_spawn_join.next = other.variant_spawn_join.next;
         break;
       }
-      case tag_fork2: {
-        new (&variant_fork2.code1) std::function<stack_type(Activation_record&, stack_type)>(other.variant_fork2.code1);
-        variant_fork2.next = other.variant_fork2.next;
+      case tag_spawn2_join: {
+        new (&variant_spawn2_join.code1) std::function<stack_type(Activation_record&, stack_type)>(other.variant_spawn2_join.code1);
+        variant_spawn2_join.next = other.variant_spawn2_join.next;
         break;
       }
       case tag_demand: {
@@ -120,16 +120,16 @@ public:
         variant_conditional_jump.targets = std::move(other.variant_conditional_jump.targets);
         break;
       }
-      case tag_fork1: {
-        new (&variant_fork1.code) std::function<stack_type(Activation_record&, stack_type)>();
-        variant_fork1.code = std::move(other.variant_fork1.code);
-        variant_fork1.next = std::move(other.variant_fork1.next);
+      case tag_spawn_join: {
+        new (&variant_spawn_join.code) std::function<stack_type(Activation_record&, stack_type)>();
+        variant_spawn_join.code = std::move(other.variant_spawn_join.code);
+        variant_spawn_join.next = std::move(other.variant_spawn_join.next);
         break;
       }
-      case tag_fork2: {
-        new (&variant_fork2.code1) std::function<stack_type(Activation_record&, stack_type)>();
-        variant_fork2.code1 = std::move(other.variant_fork2.code1);
-        variant_fork2.next = std::move(other.variant_fork2.next);
+      case tag_spawn2_join: {
+        new (&variant_spawn2_join.code1) std::function<stack_type(Activation_record&, stack_type)>();
+        variant_spawn2_join.code1 = std::move(other.variant_spawn2_join.code1);
+        variant_spawn2_join.next = std::move(other.variant_spawn2_join.next);
         break;
       }
       case tag_demand: {
@@ -158,11 +158,11 @@ public:
     struct {
       std::function<stack_type(Activation_record&, stack_type)> code;
       basic_block_label_type next;
-    } variant_fork1;
+    } variant_spawn_join;
     struct {
       std::function<stack_type(Activation_record&, stack_type)> code1;
-      basic_block_label_type next; // must be the label of a fork1 block
-    } variant_fork2;
+      basic_block_label_type next; // must be the label of a spawn_join block
+    } variant_spawn2_join;
     struct {
       basic_block_label_type next;
     } variant_demand;
@@ -191,22 +191,22 @@ public:
   }
   
   static
-  basic_block_type fork1(std::function<stack_type(Activation_record&, stack_type)> code,
+  basic_block_type spawn_join(std::function<stack_type(Activation_record&, stack_type)> code,
                          basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_fork1;
-    new (&b.variant_fork1.code) std::function<stack_type(Activation_record&, stack_type)>(code);
-    b.variant_fork1.next = next;
+    b.t = tag_spawn_join;
+    new (&b.variant_spawn_join.code) std::function<stack_type(Activation_record&, stack_type)>(code);
+    b.variant_spawn_join.next = next;
     return b;
   }
   
   static
-  basic_block_type fork2(std::function<stack_type(Activation_record&, stack_type)> code1,
+  basic_block_type spawn2_join(std::function<stack_type(Activation_record&, stack_type)> code1,
                          basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_fork2;
-    new (&b.variant_fork2.code1) std::function<stack_type(Activation_record&, stack_type)>(code1);
-    b.variant_fork2.next = next;
+    b.t = tag_spawn2_join;
+    new (&b.variant_spawn2_join.code1) std::function<stack_type(Activation_record&, stack_type)>(code1);
+    b.variant_spawn2_join.next = next;
     return b;
   }
   
@@ -322,14 +322,14 @@ stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
       succ = block.variant_conditional_jump.targets[target];
       break;
     }
-    case tag_fork1: {
-      stack = block.variant_fork1.code(newest, stack);
-      succ = block.variant_fork1.next;
+    case tag_spawn_join: {
+      stack = block.variant_spawn_join.code(newest, stack);
+      succ = block.variant_spawn_join.next;
       break;
     }
-    case tag_fork2: {
-      stack = block.variant_fork2.code1(newest, stack);
-      succ = block.variant_fork2.next;
+    case tag_spawn2_join: {
+      stack = block.variant_spawn2_join.code1(newest, stack);
+      succ = block.variant_spawn2_join.next;
       break;
     }
     case tag_demand: {
@@ -364,7 +364,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       schedule(interp);
       break;
     }
-    case tag_fork1: {
+    case tag_spawn_join: {
       interpreter* join = interp;
       interpreter* branch = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
@@ -375,7 +375,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       stats::on_promotion();
       break;
     }
-    case tag_fork2: {
+    case tag_spawn2_join: {
       interpreter* join = interp;
       interpreter* branch1 = new interpreter;
       interpreter* branch2 = new interpreter;
@@ -384,11 +384,11 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       branch1->stack = stacks.second;
       branch2->stack = cactus::new_stack();
       basic_block_label_type pred = oldest.trampoline.succ;
-      basic_block_type<Activation_record>& fork1_block = cfg[pred];
-      assert(fork1_block.t == tag_fork1);
+      basic_block_type<Activation_record>& spawn_join_block = cfg[pred];
+      assert(spawn_join_block.t == tag_spawn_join);
       oldest.trampoline.pred = pred;
-      oldest.trampoline.succ = fork1_block.variant_fork1.next;
-      branch2->stack = fork1_block.variant_fork1.code(oldest, branch2->stack);
+      oldest.trampoline.succ = spawn_join_block.variant_spawn_join.next;
+      branch2->stack = spawn_join_block.variant_spawn_join.code(oldest, branch2->stack);
       new_edge(branch2, join);
       new_edge(branch1, join);
       release(branch2);

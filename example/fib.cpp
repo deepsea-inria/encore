@@ -117,17 +117,17 @@ public:
       return 1;
     }, { dsl::exit_block_label, 1 }));
     // 1
-    cfg.push_back(bb::fork2([] (ar& a, dsl::stack_type st) {
+    cfg.push_back(bb::spawn2_join([] (ar& a, dsl::stack_type st) {
       return dsl::procedure_call<ar>(st, a.n - 1, &a.d1);
     }, 2));
     // 2
-    cfg.push_back(bb::fork1([] (ar& a, dsl::stack_type st) {
+    cfg.push_back(bb::spawn_join([] (ar& a, dsl::stack_type st) {
       return dsl::procedure_call<ar>(st, a.n - 2, &a.d2);
     }, 3));
     // 3
     cfg.push_back(bb::unconditional_jump([] (ar& a) {
       *a.dp = a.d1 + a.d2;
-    }, -1));
+    }, dsl::exit_block_label));
     return cfg;
   }
   
