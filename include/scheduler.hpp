@@ -6,6 +6,7 @@
 #include "vertex.hpp"
 #include "perworker.hpp"
 #include "chunkedseq.hpp"
+#include "stats.hpp"
 
 #ifndef _ENCORE_SCHEDULER_H_
 #define _ENCORE_SCHEDULER_H_
@@ -217,6 +218,7 @@ void worker_loop(vertex* v) {
           f->swap(my_ready);
           delete f;
           request[my_id].store(no_request);
+          stats::on_steal();
           return;
         }        
       }

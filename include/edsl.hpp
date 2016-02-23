@@ -6,6 +6,7 @@
 
 #include "vertex.hpp"
 #include "cactus.hpp"
+#include "stats.hpp"
 
 #ifndef _ENCORE_SCHED_EDSL_H_
 #define _ENCORE_SCHED_EDSL_H_
@@ -371,6 +372,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       branch->stack = stacks.second;
       new_edge(branch, join);
       release(branch);
+      stats::on_promotion();
       break;
     }
     case tag_fork2: {
@@ -391,6 +393,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       new_edge(branch1, join);
       release(branch2);
       release(branch1);
+      stats::on_promotion();
       break;
     }
     case tag_demand: {

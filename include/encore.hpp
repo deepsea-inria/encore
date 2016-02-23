@@ -18,6 +18,7 @@ void initialize(int argc, char** argv) {
 
 void launch(sched::vertex* v, int nb_workers) {
   sched::launch_scheduler(nb_workers, v);
+  stats::report();
 }
   
 void launch(sched::vertex* v) {
