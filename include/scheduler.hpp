@@ -211,6 +211,9 @@ void worker_loop(vertex* v) {
       int orig = no_request;
       if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
+          if (is_finished()) {
+            break;
+          }
           communicate();
         }
         frontier* f = transfer[my_id].load();
