@@ -131,7 +131,7 @@ public:
     }
   }
   
-  basic_block_type(basic_block_type&& other) {
+  void move_constructor(basic_block_type&& other) {
     t = other.t;
     other.t = tag_none;
     switch (t) {
@@ -192,6 +192,10 @@ public:
     }
   }
   
+  basic_block_type(basic_block_type&& other) {
+    move_constructor(std::move(other));
+  }
+  
   ~basic_block_type() {
     switch (t) {
       case tag_unconditional_jump: {
@@ -245,8 +249,12 @@ public:
     }
   }
   
-  basic_block_type& operator=(basic_block_type const&) = delete;
-  basic_block_type& operator=(basic_block_type&&) = delete;
+  basic_block_type& operator=(basic_block_type const&)  = delete;
+  
+  basic_block_type& operator=(basic_block_type&& other) {
+    move_constructor(std::move(other));
+    return *this;
+  }
 
   static
   basic_block_type unconditional_jump(std::function<void(Activation_record&)> code,

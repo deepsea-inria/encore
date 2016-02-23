@@ -107,27 +107,24 @@ public:
   
   static
   cfg_type get_cfg() {
-    cfg_type cfg;
-    // 0
-    cfg.push_back(bb::conditional_jump([] (ar& a) {
+    enum { entry=0, branch1, branch2, combine, nb_blocks };
+    cfg_type cfg(nb_blocks);
+    cfg[entry] = bb::conditional_jump([] (ar& a) {
       if (a.n <= cutoff) {
         *a.dp = fib(a.n);
         return 0;
       }
       return 1;
-    }, { dsl::exit_block_label, 1 }));
-    // 1
-    cfg.push_back(bb::spawn2_join([] (ar& a, dsl::stack_type st) {
+    }, { dsl::exit_block_label, branch1 });
+    cfg[branch1] = bb::spawn2_join([] (ar& a, dsl::stack_type st) {
       return dsl::procedure_call<ar>(st, a.n - 1, &a.d1);
-    }, 2));
-    // 2
-    cfg.push_back(bb::spawn_join([] (ar& a, dsl::stack_type st) {
+    }, branch2);
+    cfg[branch2] = bb::spawn_join([] (ar& a, dsl::stack_type st) {
       return dsl::procedure_call<ar>(st, a.n - 2, &a.d2);
-    }, 3));
-    // 3
-    cfg.push_back(bb::unconditional_jump([] (ar& a) {
+    }, combine);
+    cfg[combine] = bb::unconditional_jump([] (ar& a) {
       *a.dp = a.d1 + a.d2;
-    }, dsl::exit_block_label));
+    }, dsl::exit_block_label);
     return cfg;
   }
   
