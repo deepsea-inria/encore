@@ -76,6 +76,7 @@ private:
       }
       m = m->next;
     }
+    assert(m == nullptr || m->version == v);
     return m;
   }
   
@@ -93,6 +94,7 @@ private:
       m = a;
       a = t;
     }
+    assert(find_node_by_version(m, v) == nullptr);
     return m;
   }
   
