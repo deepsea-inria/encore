@@ -131,8 +131,8 @@ public:
   static
   cfg_type cfg;
   
-  dsl::stack_type run(dsl::stack_type stack) {
-    return dsl::step(cfg, stack);
+  std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) {
+    return dsl::step(cfg, stack, fuel);
   }
   
   void promote(dsl::interpreter* interp) {

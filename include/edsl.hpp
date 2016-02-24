@@ -25,6 +25,8 @@ using basic_block_label_type = int;
 
 static constexpr basic_block_label_type entry_block_label = 0;
 static constexpr basic_block_label_type exit_block_label = -1;
+  
+static constexpr int suspend_tag = -1;
 
 using tag = enum {
   tag_unconditional_jump, tag_conditional_jump,
@@ -39,90 +41,104 @@ template <class Activation_record>
 class basic_block_type {
 public:
   
+  using unconditional_jump_code_type = std::function<void(Activation_record&)>;
+  using conditional_jump_code_type = std::function<int(Activation_record&)>;
+  using procedure_call_code_type = std::function<stack_type(Activation_record&, stack_type)>;
+  using incounter_getter_code_type = std::function<sched::incounter**(Activation_record&)>;
+  using outset_getter_code_type = std::function<sched::outset**(Activation_record&)>;
+  
   tag t;
   
   union {
     struct {
-      std::function<void(Activation_record&)> code;
+      unconditional_jump_code_type code;
       basic_block_label_type next;
     } variant_unconditional_jump;
     struct {
-      std::function<int(Activation_record&)> code;
+      conditional_jump_code_type code;
       std::vector<basic_block_label_type> targets;
     } variant_conditional_jump;
     struct {
-      std::function<stack_type(Activation_record&, stack_type)> code;
+      procedure_call_code_type code;
       basic_block_label_type next;
     } variant_spawn_join;
     struct {
-      std::function<stack_type(Activation_record&, stack_type)> code1;
+      procedure_call_code_type code1;
       basic_block_label_type next; // must be the label of a spawn_join block
     } variant_spawn2_join;
     struct {
-      std::function<stack_type(Activation_record&, stack_type)> code;
+      procedure_call_code_type code;
     } variant_tail;
     struct {
-      std::function<stack_type(Activation_record&, stack_type)> code;
+      procedure_call_code_type code;
+      incounter_getter_code_type getter;
       basic_block_label_type next;
     } variant_join_plus;
     struct {
-      std::function<stack_type(Activation_record&, stack_type)> code;
+      procedure_call_code_type code;
+      incounter_getter_code_type getter;
       basic_block_label_type next;
     } variant_fork_minus;
     struct {
-      std::function<stack_type(Activation_record&, stack_type)> code;
+      procedure_call_code_type code;
+      outset_getter_code_type getter;
       basic_block_label_type next;
     } variant_fork_plus;
     struct {
+      outset_getter_code_type getter;
       basic_block_label_type next;
     } variant_join_minus;
   };
   
   basic_block_type() : t(tag_none) { }
   
-  basic_block_type(basic_block_type const& other) {
+  void copy_constructor(basic_block_type const& other) {
     t = other.t;
     switch (t) {
       case tag_unconditional_jump: {
-        new (&variant_unconditional_jump.code) std::function<void(Activation_record&)>(other.variant_unconditional_jump.code);
+        new (&variant_unconditional_jump.code) unconditional_jump_code_type(other.variant_unconditional_jump.code);
         variant_unconditional_jump.next = other.variant_unconditional_jump.next;
         break;
       }
       case tag_conditional_jump: {
-        new (&variant_conditional_jump.code) std::function<int(Activation_record&)>(other.variant_conditional_jump.code);
+        new (&variant_conditional_jump.code) conditional_jump_code_type(other.variant_conditional_jump.code);
         new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>(other.variant_conditional_jump.targets);
         break;
       }
       case tag_spawn_join: {
-        new (&variant_spawn_join.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_spawn_join.code);
+        new (&variant_spawn_join.code) procedure_call_code_type(other.variant_spawn_join.code);
         variant_spawn_join.next = other.variant_spawn_join.next;
         break;
       }
       case tag_spawn2_join: {
-        new (&variant_spawn2_join.code1) std::function<stack_type(Activation_record&, stack_type)>(other.variant_spawn2_join.code1);
+        new (&variant_spawn2_join.code1) procedure_call_code_type(other.variant_spawn2_join.code1);
         variant_spawn2_join.next = other.variant_spawn2_join.next;
         break;
       }
       case tag_tail: {
-        new (&variant_tail.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_tail.code);
+        new (&variant_tail.code) procedure_call_code_type(other.variant_tail.code);
         break;
       }
       case tag_join_plus: {
-        new (&variant_join_plus.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_join_plus.code);
+        new (&variant_join_plus.code) procedure_call_code_type(other.variant_join_plus.code);
+        new (&variant_join_plus.getter) incounter_getter_code_type(other.variant_join_plus.getter);
         variant_join_plus.next = other.variant_join_plus.next;
         break;
       }
       case tag_fork_minus: {
-        new (&variant_fork_minus.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_fork_minus.code);
+        new (&variant_fork_minus.code) procedure_call_code_type(other.variant_fork_minus.code);
+        new (&variant_fork_minus.getter) incounter_getter_code_type(other.variant_fork_minus.getter);
         variant_fork_minus.next = other.variant_fork_minus.next;
         break;
       }
       case tag_fork_plus: {
-        new (&variant_fork_plus.code) std::function<stack_type(Activation_record&, stack_type)>(other.variant_fork_plus.code);
+        new (&variant_fork_plus.code) procedure_call_code_type(other.variant_fork_plus.code);
+        new (&variant_fork_plus.getter) outset_getter_code_type(other.variant_fork_plus.getter);
         variant_fork_plus.next = other.variant_fork_plus.next;
         break;
       }
       case tag_join_minus: {
+        new (&variant_join_minus.getter) outset_getter_code_type(other.variant_join_minus.getter);
         variant_join_minus.next = other.variant_join_minus.next;
         break;
       }
@@ -131,59 +147,67 @@ public:
     }
   }
   
+  basic_block_type(basic_block_type const& other) {
+    copy_constructor(other);
+  }
+  
   void move_constructor(basic_block_type&& other) {
     t = other.t;
     other.t = tag_none;
     switch (t) {
       case tag_unconditional_jump: {
-        new (&variant_unconditional_jump.code) std::function<void(Activation_record&)>();
+        new (&variant_unconditional_jump.code) unconditional_jump_code_type();
         variant_unconditional_jump.code = std::move(other.variant_unconditional_jump.code);
         variant_unconditional_jump.next = std::move(other.variant_unconditional_jump.next);
         break;
       }
       case tag_conditional_jump: {
-        new (&variant_conditional_jump.code) std::function<int(Activation_record&)>();
+        new (&variant_conditional_jump.code) conditional_jump_code_type();
         variant_conditional_jump.code = std::move(other.variant_conditional_jump.code);
         new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>();
         variant_conditional_jump.targets = std::move(other.variant_conditional_jump.targets);
         break;
       }
       case tag_spawn_join: {
-        new (&variant_spawn_join.code) std::function<stack_type(Activation_record&, stack_type)>();
+        new (&variant_spawn_join.code) procedure_call_code_type();
         variant_spawn_join.code = std::move(other.variant_spawn_join.code);
         variant_spawn_join.next = std::move(other.variant_spawn_join.next);
         break;
       }
       case tag_spawn2_join: {
-        new (&variant_spawn2_join.code1) std::function<stack_type(Activation_record&, stack_type)>();
+        new (&variant_spawn2_join.code1) procedure_call_code_type();
         variant_spawn2_join.code1 = std::move(other.variant_spawn2_join.code1);
         variant_spawn2_join.next = std::move(other.variant_spawn2_join.next);
         break;
       }
       case tag_tail: {
-        new (&variant_tail.code) std::function<stack_type(Activation_record&, stack_type)>();
+        new (&variant_tail.code) procedure_call_code_type();
         variant_tail.code = std::move(other.variant_tail.code);
         break;
       }
       case tag_join_plus: {
-        new (&variant_join_plus.code) std::function<stack_type(Activation_record&, stack_type)>();
+        new (&variant_join_plus.code) procedure_call_code_type();
         variant_join_plus.code = std::move(other.variant_join_plus.code);
+        variant_join_plus.getter = std::move(other.variant_join_plus.getter);
         variant_join_plus.next = std::move(other.variant_join_plus.next);
         break;
       }
       case tag_fork_minus: {
-        new (&variant_fork_minus.code) std::function<stack_type(Activation_record&, stack_type)>();
+        new (&variant_fork_minus.code) procedure_call_code_type();
         variant_fork_minus.code = std::move(other.variant_fork_minus.code);
+        variant_fork_minus.getter = std::move(other.variant_fork_minus.getter);
         variant_fork_minus.next = std::move(other.variant_fork_minus.next);
         break;
       }
       case tag_fork_plus: {
-        new (&variant_fork_plus.code) std::function<stack_type(Activation_record&, stack_type)>();
+        new (&variant_fork_plus.code) procedure_call_code_type();
         variant_fork_plus.code = std::move(other.variant_fork_plus.code);
+        variant_fork_plus.getter = std::move(other.variant_fork_plus.getter);
         variant_fork_plus.next = std::move(other.variant_fork_plus.next);
         break;
       }
       case tag_join_minus: {
+        variant_join_minus.getter = std::move(other.variant_join_minus.getter);
         variant_join_minus.next = std::move(other.variant_join_minus.next);
         break;
       }
@@ -199,49 +223,44 @@ public:
   ~basic_block_type() {
     switch (t) {
       case tag_unconditional_jump: {
-        using fct = std::function<void(Activation_record&)>;
-        variant_unconditional_jump.code.~fct();
+        variant_unconditional_jump.code.~unconditional_jump_code_type();
         break;
       }
       case tag_conditional_jump: {
-        using fct = std::function<int(Activation_record&)>;
-        variant_conditional_jump.code.~fct();
+        variant_conditional_jump.code.~conditional_jump_code_type();
         using blks = std::vector<basic_block_label_type>;
         variant_conditional_jump.targets.~blks();
         break;
       }
       case tag_spawn_join: {
-        using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_spawn_join.code.~fct();
+        variant_spawn_join.code.~procedure_call_code_type();
         break;
       }
       case tag_spawn2_join: {
-        using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_spawn2_join.code1.~fct();
+        variant_spawn2_join.code1.~procedure_call_code_type();
         break;
       }
       case tag_tail: {
-        using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_tail.code.~fct();
+        variant_tail.code.~procedure_call_code_type();
         break;
       }
       case tag_join_plus: {
-        using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_join_plus.code.~fct();
+        variant_join_plus.getter.~incounter_getter_code_type();
+        variant_join_plus.code.~procedure_call_code_type();
         break;
       }
       case tag_fork_minus: {
-        using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_fork_minus.code.~fct();
+        variant_fork_minus.getter.~incounter_getter_code_type();
+        variant_fork_minus.code.~procedure_call_code_type();
         break;
       }
       case tag_fork_plus: {
-        using fct = std::function<stack_type(Activation_record&, stack_type)>;
-        variant_fork_plus.code.~fct();
+        variant_fork_plus.getter.~outset_getter_code_type();
+        variant_fork_plus.code.~procedure_call_code_type();
         break;
       }
       case tag_join_minus: {
-        // nothing to do here
+        variant_join_minus.getter.~outset_getter_code_type();
         break;
       }
       default:
@@ -249,98 +268,109 @@ public:
     }
   }
   
-  basic_block_type& operator=(basic_block_type const&)  = delete;
+  basic_block_type& operator=(basic_block_type const& other) {
+    copy_constructor(other);
+    return *this;
+  }
   
   basic_block_type& operator=(basic_block_type&& other) {
     move_constructor(std::move(other));
     return *this;
   }
-
+  
   static
-  basic_block_type unconditional_jump(std::function<void(Activation_record&)> code,
+  basic_block_type unconditional_jump(unconditional_jump_code_type code,
                                       basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_unconditional_jump;
-    new (&b.variant_unconditional_jump.code) std::function<void(Activation_record&)>(code);
+    new (&b.variant_unconditional_jump.code) unconditional_jump_code_type(code);
     b.variant_unconditional_jump.next = next;
     return b;
   }
   
   static
-  basic_block_type conditional_jump(std::function<int(Activation_record&)> code,
+  basic_block_type conditional_jump(conditional_jump_code_type code,
                                     std::vector<basic_block_label_type> targets) {
     basic_block_type b;
     b.t = tag_conditional_jump;
-    new (&b.variant_conditional_jump.code) std::function<int(Activation_record&)>(code);
+    new (&b.variant_conditional_jump.code) conditional_jump_code_type(code);
     new (&b.variant_conditional_jump.targets) std::vector<basic_block_label_type>();
     b.variant_conditional_jump.targets = targets;
     return b;
   }
   
   static
-  basic_block_type spawn_join(std::function<stack_type(Activation_record&, stack_type)> code,
+  basic_block_type spawn_join(procedure_call_code_type code,
                               basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_spawn_join;
-    new (&b.variant_spawn_join.code) std::function<stack_type(Activation_record&, stack_type)>(code);
+    new (&b.variant_spawn_join.code) procedure_call_code_type(code);
     b.variant_spawn_join.next = next;
     return b;
   }
   
   static
-  basic_block_type spawn2_join(std::function<stack_type(Activation_record&, stack_type)> code1,
+  basic_block_type spawn2_join(procedure_call_code_type code1,
                                basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_spawn2_join;
-    new (&b.variant_spawn2_join.code1) std::function<stack_type(Activation_record&, stack_type)>(code1);
+    new (&b.variant_spawn2_join.code1) procedure_call_code_type(code1);
     b.variant_spawn2_join.next = next;
     return b;
   }
   
   static
-  basic_block_type tail(std::function<stack_type(Activation_record&, stack_type)> code,
+  basic_block_type tail(procedure_call_code_type code,
                         basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_tail;
-    new (&b.variant_tail.code) std::function<stack_type(Activation_record&, stack_type)>(code);
+    new (&b.variant_tail.code) procedure_call_code_type(code);
     b.variant_tail.next = next;
     return b;
   }
   
   static
-  basic_block_type join_plus(std::function<stack_type(Activation_record&, stack_type)> code,
+  basic_block_type join_plus(procedure_call_code_type code,
+                             incounter_getter_code_type getter,
                              basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_join_plus;
-    new (&b.variant_join_plus.code) std::function<stack_type(Activation_record&, stack_type)>(code);
+    new (&b.variant_join_plus.code) procedure_call_code_type(code);
+    new (&b.variant_join_plus.getter) incounter_getter_code_type(getter);
     b.variant_join_plus.next = next;
     return b;
   }
   
   static
-  basic_block_type fork_minus(std::function<stack_type(Activation_record&, stack_type)> code,
+  basic_block_type fork_minus(procedure_call_code_type code,
+                              incounter_getter_code_type getter,
                               basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_fork_minus;
-    new (&b.variant_fork_minus.code) std::function<stack_type(Activation_record&, stack_type)>(code);
+    new (&b.variant_fork_minus.code) procedure_call_code_type(code);
+    new (&b.variant_fork_minus.getter) incounter_getter_code_type(getter);
     b.variant_fork_minus.next = next;
     return b;
   }
   
   static
-  basic_block_type join_minus(std::function<stack_type(Activation_record&, stack_type)> code,
-                              basic_block_label_type next) {
+  basic_block_type fork_plus(procedure_call_code_type code,
+                             outset_getter_code_type getter,
+                             basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_join_minus;
-    new (&b.variant_join_minus.code) std::function<stack_type(Activation_record&, stack_type)>(code);
-    b.variant_join_minus.next = next;
+    b.t = tag_fork_plus;
+    new (&b.variant_fork_plus.code) procedure_call_code_type(code);
+    new (&b.variant_fork_plus.getter) outset_getter_code_type(getter);
+    b.variant_fork_plus.next = next;
     return b;
   }
   
   static
-  basic_block_type join_minus(basic_block_label_type next) {
+  basic_block_type join_minus(outset_getter_code_type getter,
+                              basic_block_label_type next) {
     basic_block_type b;
     b.t = tag_join_minus;
+    new (&b.variant_join_minus.getter) outset_getter_code_type(getter);
     b.variant_join_minus.next = next;
     return b;
   }
@@ -362,7 +392,7 @@ public:
   
   trampoline_type trampoline = { .pred = entry_block_label, .succ = entry_block_label };
   
-  virtual stack_type run(stack_type) = 0;
+  virtual std::pair<stack_type, int> run(stack_type, int) = 0;
   
   virtual void promote(interpreter*) = 0;
   
@@ -403,22 +433,20 @@ public:
     if (cactus::empty(stack)) {
       return 0;
     } else {
-      int n = cactus::peek_front<activation_record>(stack).nb_strands();
-      return std::max(1, n);
+      return cactus::peek_front<activation_record>(stack).nb_strands();
     }
   }
   
   int run(int fuel) {
-    assert(fuel > 0);
-    while (! cactus::empty(stack)) {
-      if (fuel == 0) {
-        break;
-      } else {
-        fuel--;
-      }
-      stack = cactus::peek_back<activation_record>(stack).run(stack);
+    while (! cactus::empty(stack) && fuel >= 1) {
+      auto result = cactus::peek_back<activation_record>(stack).run(stack, fuel);
+      stack = result.first;
+      fuel = result.second;
     }
-    if (! cactus::empty(stack)) {
+    if (fuel == suspend_tag) {
+      suspend(this);
+      fuel = 0;
+    } else if (! cactus::empty(stack)) {
       assert(fuel == 0);
       cactus::peek_back<activation_record>(stack).promote(this);
     }
@@ -432,12 +460,13 @@ public:
 };
 
 template <class Activation_record>
-stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
+std::pair<stack_type, int> step(cfg_type<Activation_record>& cfg, stack_type stack, int fuel) {
   assert(! cactus::empty(stack));
   Activation_record& newest = cactus::peek_back<Activation_record>(stack);
   basic_block_label_type pred = newest.trampoline.succ;
   basic_block_label_type succ;
   basic_block_type<Activation_record>& block = cfg[pred];
+  fuel--;
   switch (block.t) {
     case tag_unconditional_jump: {
       block.variant_unconditional_jump.code(newest);
@@ -460,23 +489,29 @@ stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
       break;
     }
     case tag_tail: {
-      assert(false); // todo
+      stack = cactus::pop_back<Activation_record>(stack);
+      stack = block.variant_tail.code(newest, stack);
       break;
     }
     case tag_join_plus: {
-      assert(false); // todo
+      *block.variant_join_plus.getter(newest) = nullptr;
+      stack = block.variant_join_plus.code(newest, stack);
+      succ = block.variant_join_plus.next;
       break;
     }
     case tag_fork_minus: {
-      assert(false); // todo
+      stack = block.variant_fork_minus.code(newest, stack);
+      succ = block.variant_fork_minus.next;
       break;
     }
     case tag_fork_plus: {
-      assert(false); // todo
+      *block.variant_fork_plus.getter(newest) = nullptr;
+      stack = block.variant_fork_plus.code(newest, stack);
+      succ = block.variant_fork_plus.next;
       break;
     }
     case tag_join_minus: {
-      assert(false); // todo
+      fuel = suspend_tag;
       break;
     }
     default: {
@@ -489,7 +524,7 @@ stack_type step(cfg_type<Activation_record>& cfg, stack_type stack) {
     newest.trampoline.pred = pred;
     newest.trampoline.succ = succ;
   }
-  return stack;
+  return std::make_pair(stack, fuel);
 }
 
 template <class Activation_record>
@@ -540,23 +575,55 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       break;
     }
     case tag_tail: {
-      assert(false); // todo
+      schedule(interp);
       break;
     }
     case tag_join_plus: {
-      assert(false); // todo
+      interpreter* join = interp;
+      interpreter* branch = new interpreter;
+      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      join->stack = stacks.first;
+      branch->stack = stacks.second;
+      assert(*block.variant_join_plus.getter(oldest) == nullptr);
+      *block.variant_join_plus.getter(oldest) = join->get_incounter();
+      new_edge(branch, join);
+      release(branch);
+      stats::on_promotion();
       break;
     }
     case tag_fork_minus: {
-      assert(false); // todo
+      interpreter* continuation = interp;
+      interpreter* branch = new interpreter;
+      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      continuation->stack = stacks.first;
+      branch->stack = stacks.second;
+      sched::incounter* incounter = *block.variant_fork_minus.getter(oldest);
+      assert(incounter != nullptr);
+      new_edge(branch, incounter);
+      schedule(continuation);
+      release(branch);
+      stats::on_promotion();
       break;
     }
     case tag_fork_plus: {
-      assert(false); // todo
+      interpreter* continuation = interp;
+      interpreter* branch = new interpreter;
+      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      continuation->stack = stacks.first;
+      branch->stack = stacks.second;
+      assert(*block.variant_fork_plus.getter(oldest) == nullptr);
+      *block.variant_fork_plus.getter(oldest) = branch->get_outset();
+      schedule(continuation);
+      release(branch);
+      stats::on_promotion();
       break;
     }
     case tag_join_minus: {
-      assert(false); // todo
+      interpreter* join = interp;
+      sched::outset* outset = *block.variant_join_minus.getter(oldest);
+      assert(outset != nullptr);
+      new_edge(outset, join);
+      stats::on_promotion();
       break;
     }
     default: {

@@ -132,6 +132,8 @@ perworker_array<std::mt19937> scheduler_rngs;  // random-number generators
   
 perworker_array<frontier> frontiers;
   
+perworker_array<std::deque<vertex*>> suspended;
+  
 void initialize_scheduler() {
   nb_active_workers.store(0);
   status.for_each([&] (int, std::atomic<bool>& b) {
@@ -164,6 +166,7 @@ bool is_finished() {
 void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   frontier& my_ready = frontiers[my_id];
+  std::deque<vertex*>& my_suspended = suspended[my_id];
   int fuel = D;
   int nb = 0;
   
@@ -204,6 +207,7 @@ void worker_loop(vertex* v) {
   
   // called by workers when running out of work
   auto acquire = [&] {
+    assert(my_ready.empty() && my_suspended.empty());
     nb_active_workers--;
     while (! is_finished()) {
       transfer[my_id].store(no_response);
@@ -229,20 +233,33 @@ void worker_loop(vertex* v) {
     }
   };
   
+  auto unsuspend = [&] {
+    if (my_suspended.empty()) {
+      return;
+    }
+    vertex* v = my_suspended.front();
+    my_suspended.pop_front();
+    v->run(0);
+  };
+  
   while (! is_finished()) {
-    if (my_ready.nb_strands() == 0) {
-      acquire();
-    } else {
+    if (my_ready.nb_strands() >= 1) {
       communicate();
       int remaining_fuel = my_ready.run(fuel);
       assert(fuel - remaining_fuel >= 0);
       nb += fuel - remaining_fuel;
       if (remaining_fuel == 0) {
+        unsuspend();
         fuel = D;
       } else {
         fuel = remaining_fuel;
       }
       update_status();
+    } else if (my_suspended.size() >= 1) {
+      unsuspend();
+      communicate();
+    } else {
+      acquire();
     }
   }
 }
@@ -272,13 +289,25 @@ void schedule(vertex* v) {
   }
   frontiers.mine().push(v);
 }
+  
+void new_edge(outset* source_outset, incounter* destination_incounter) {
+  incounter_handle* h = destination_incounter->increment(source_outset);
+  bool success = source_outset->insert(h);
+  if (! success) {
+    destination_incounter->decrement(h);
+  }
+}
+  
+void new_edge(vertex* source, incounter* destination_incounter) {
+  new_edge(source->get_outset(), destination_incounter);
+}
+  
+void new_edge(outset* source_outset, vertex* destination) {
+  new_edge(source_outset, destination->get_incounter());
+}
 
 void new_edge(vertex* source, vertex* destination) {
-  incounter_handle* h = destination->get_incounter()->increment(destination);
-  bool success = source->get_outset()->insert(h);
-  if (! success) {
-    destination->get_incounter()->decrement(h);
-  }
+  new_edge(source->get_outset(), destination->get_incounter());
 }
   
 void release(vertex* v) {
@@ -286,6 +315,10 @@ void release(vertex* v) {
   assert(v->release_handle != nullptr);
   assert(v->get_incounter() != nullptr);
   v->get_incounter()->decrement(v->release_handle);
+}
+  
+void suspend(vertex* v) {
+  suspended.mine().push_back(v);
 }
   
 namespace {

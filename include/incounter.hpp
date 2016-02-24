@@ -294,8 +294,9 @@ public:
     t.set_root_annotation(v);
   }
 
-  incounter_handle* increment(vertex* v) {
-    incounter_handle* h = t.get_target_of_value(v);
+  template <class Item>
+  incounter_handle* increment(Item* x) {
+    incounter_handle* h = t.get_target_of_value(x);
     h->increment();
     return h;
   }
@@ -342,7 +343,8 @@ public:
   incounter(vertex* v)
   : h(v) { }
   
-  incounter_handle* increment(vertex*) {
+  template <class Item>
+  incounter_handle* increment(Item*) {
     h.increment();
     return &h;
   }
