@@ -212,7 +212,7 @@ void worker_loop(vertex* v) {
       if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
           if (is_finished()) {
-            break;
+            return;
           }
           communicate();
         }
