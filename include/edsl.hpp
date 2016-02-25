@@ -511,7 +511,11 @@ std::pair<stack_type, int> step(cfg_type<Activation_record>& cfg, stack_type sta
       break;
     }
     case tag_join_minus: {
-      fuel = suspend_tag;
+      sched::outset* outset = *block.variant_join_minus.getter(newest);
+      if (outset != nullptr) {
+        fuel = suspend_tag;
+      }
+      succ = block.variant_join_minus.next;
       break;
     }
     default: {
