@@ -101,7 +101,7 @@ public:
   fib_cfg(int n, int* dp)
   : n(n), dp(dp) { }
   
-  using ar = fib_cfg;
+  using ar = fib_cfg; // activation record
   using cfg_type = dsl::cfg_type<ar>;
   using bb = dsl::basic_block_type<ar>;
   
@@ -117,10 +117,10 @@ public:
       return 1;
     }, { dsl::exit_block_label, branch1 });
     cfg[branch1] = bb::spawn2_join([] (ar& a, dsl::stack_type st) {
-      return dsl::procedure_call<ar>(st, a.n - 1, &a.d1);
+      return dsl::procedure_call<fib_cfg>(st, a.n - 1, &a.d1);
     }, branch2);
     cfg[branch2] = bb::spawn_join([] (ar& a, dsl::stack_type st) {
-      return dsl::procedure_call<ar>(st, a.n - 2, &a.d2);
+      return dsl::procedure_call<fib_cfg>(st, a.n - 2, &a.d2);
     }, combine);
     cfg[combine] = bb::unconditional_jump([] (ar& a) {
       *a.dp = a.d1 + a.d2;
