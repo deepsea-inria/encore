@@ -32,8 +32,8 @@ using tag = enum {
   tag_unconditional_jump, tag_conditional_jump,
   tag_spawn_join, tag_spawn2_join,
   tag_tail,
-  tag_join_plus, tag_fork_minus,
-  tag_fork_plus, tag_join_minus,
+  tag_join_plus, tag_spawn_minus,
+  tag_spawn_plus, tag_join_minus,
   tag_none
 };
 
@@ -78,12 +78,12 @@ public:
       procedure_call_code_type code;
       incounter_getter_code_type getter;
       basic_block_label_type next;
-    } variant_fork_minus;
+    } variant_spawn_minus;
     struct {
       procedure_call_code_type code;
       outset_getter_code_type getter;
       basic_block_label_type next;
-    } variant_fork_plus;
+    } variant_spawn_plus;
     struct {
       outset_getter_code_type getter;
       basic_block_label_type next;
@@ -125,16 +125,16 @@ public:
         variant_join_plus.next = other.variant_join_plus.next;
         break;
       }
-      case tag_fork_minus: {
-        new (&variant_fork_minus.code) procedure_call_code_type(other.variant_fork_minus.code);
-        new (&variant_fork_minus.getter) incounter_getter_code_type(other.variant_fork_minus.getter);
-        variant_fork_minus.next = other.variant_fork_minus.next;
+      case tag_spawn_minus: {
+        new (&variant_spawn_minus.code) procedure_call_code_type(other.variant_spawn_minus.code);
+        new (&variant_spawn_minus.getter) incounter_getter_code_type(other.variant_spawn_minus.getter);
+        variant_spawn_minus.next = other.variant_spawn_minus.next;
         break;
       }
-      case tag_fork_plus: {
-        new (&variant_fork_plus.code) procedure_call_code_type(other.variant_fork_plus.code);
-        new (&variant_fork_plus.getter) outset_getter_code_type(other.variant_fork_plus.getter);
-        variant_fork_plus.next = other.variant_fork_plus.next;
+      case tag_spawn_plus: {
+        new (&variant_spawn_plus.code) procedure_call_code_type(other.variant_spawn_plus.code);
+        new (&variant_spawn_plus.getter) outset_getter_code_type(other.variant_spawn_plus.getter);
+        variant_spawn_plus.next = other.variant_spawn_plus.next;
         break;
       }
       case tag_join_minus: {
@@ -192,18 +192,18 @@ public:
         variant_join_plus.next = std::move(other.variant_join_plus.next);
         break;
       }
-      case tag_fork_minus: {
-        new (&variant_fork_minus.code) procedure_call_code_type();
-        variant_fork_minus.code = std::move(other.variant_fork_minus.code);
-        variant_fork_minus.getter = std::move(other.variant_fork_minus.getter);
-        variant_fork_minus.next = std::move(other.variant_fork_minus.next);
+      case tag_spawn_minus: {
+        new (&variant_spawn_minus.code) procedure_call_code_type();
+        variant_spawn_minus.code = std::move(other.variant_spawn_minus.code);
+        variant_spawn_minus.getter = std::move(other.variant_spawn_minus.getter);
+        variant_spawn_minus.next = std::move(other.variant_spawn_minus.next);
         break;
       }
-      case tag_fork_plus: {
-        new (&variant_fork_plus.code) procedure_call_code_type();
-        variant_fork_plus.code = std::move(other.variant_fork_plus.code);
-        variant_fork_plus.getter = std::move(other.variant_fork_plus.getter);
-        variant_fork_plus.next = std::move(other.variant_fork_plus.next);
+      case tag_spawn_plus: {
+        new (&variant_spawn_plus.code) procedure_call_code_type();
+        variant_spawn_plus.code = std::move(other.variant_spawn_plus.code);
+        variant_spawn_plus.getter = std::move(other.variant_spawn_plus.getter);
+        variant_spawn_plus.next = std::move(other.variant_spawn_plus.next);
         break;
       }
       case tag_join_minus: {
@@ -249,14 +249,14 @@ public:
         variant_join_plus.code.~procedure_call_code_type();
         break;
       }
-      case tag_fork_minus: {
-        variant_fork_minus.getter.~incounter_getter_code_type();
-        variant_fork_minus.code.~procedure_call_code_type();
+      case tag_spawn_minus: {
+        variant_spawn_minus.getter.~incounter_getter_code_type();
+        variant_spawn_minus.code.~procedure_call_code_type();
         break;
       }
-      case tag_fork_plus: {
-        variant_fork_plus.getter.~outset_getter_code_type();
-        variant_fork_plus.code.~procedure_call_code_type();
+      case tag_spawn_plus: {
+        variant_spawn_plus.getter.~outset_getter_code_type();
+        variant_spawn_plus.code.~procedure_call_code_type();
         break;
       }
       case tag_join_minus: {
@@ -342,26 +342,26 @@ public:
   }
   
   static
-  basic_block_type fork_minus(procedure_call_code_type code,
+  basic_block_type spawn_minus(procedure_call_code_type code,
                               incounter_getter_code_type getter,
                               basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_fork_minus;
-    new (&b.variant_fork_minus.code) procedure_call_code_type(code);
-    new (&b.variant_fork_minus.getter) incounter_getter_code_type(getter);
-    b.variant_fork_minus.next = next;
+    b.t = tag_spawn_minus;
+    new (&b.variant_spawn_minus.code) procedure_call_code_type(code);
+    new (&b.variant_spawn_minus.getter) incounter_getter_code_type(getter);
+    b.variant_spawn_minus.next = next;
     return b;
   }
   
   static
-  basic_block_type fork_plus(procedure_call_code_type code,
+  basic_block_type spawn_plus(procedure_call_code_type code,
                              outset_getter_code_type getter,
                              basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_fork_plus;
-    new (&b.variant_fork_plus.code) procedure_call_code_type(code);
-    new (&b.variant_fork_plus.getter) outset_getter_code_type(getter);
-    b.variant_fork_plus.next = next;
+    b.t = tag_spawn_plus;
+    new (&b.variant_spawn_plus.code) procedure_call_code_type(code);
+    new (&b.variant_spawn_plus.getter) outset_getter_code_type(getter);
+    b.variant_spawn_plus.next = next;
     return b;
   }
   
@@ -499,15 +499,15 @@ std::pair<stack_type, int> step(cfg_type<Activation_record>& cfg, stack_type sta
       succ = block.variant_join_plus.next;
       break;
     }
-    case tag_fork_minus: {
-      stack = block.variant_fork_minus.code(newest, stack);
-      succ = block.variant_fork_minus.next;
+    case tag_spawn_minus: {
+      stack = block.variant_spawn_minus.code(newest, stack);
+      succ = block.variant_spawn_minus.next;
       break;
     }
-    case tag_fork_plus: {
-      *block.variant_fork_plus.getter(newest) = nullptr;
-      stack = block.variant_fork_plus.code(newest, stack);
-      succ = block.variant_fork_plus.next;
+    case tag_spawn_plus: {
+      *block.variant_spawn_plus.getter(newest) = nullptr;
+      stack = block.variant_spawn_plus.code(newest, stack);
+      succ = block.variant_spawn_plus.next;
       break;
     }
     case tag_join_minus: {
@@ -591,13 +591,13 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       stats::on_promotion();
       break;
     }
-    case tag_fork_minus: {
+    case tag_spawn_minus: {
       interpreter* continuation = interp;
       interpreter* branch = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
       continuation->stack = stacks.first;
       branch->stack = stacks.second;
-      sched::incounter* incounter = *block.variant_fork_minus.getter(oldest);
+      sched::incounter* incounter = *block.variant_spawn_minus.getter(oldest);
       assert(incounter != nullptr);
       new_edge(branch, incounter);
       schedule(continuation);
@@ -605,14 +605,14 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       stats::on_promotion();
       break;
     }
-    case tag_fork_plus: {
+    case tag_spawn_plus: {
       interpreter* continuation = interp;
       interpreter* branch = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
       continuation->stack = stacks.first;
       branch->stack = stacks.second;
-      assert(*block.variant_fork_plus.getter(oldest) == nullptr);
-      *block.variant_fork_plus.getter(oldest) = branch->get_outset();
+      assert(*block.variant_spawn_plus.getter(oldest) == nullptr);
+      *block.variant_spawn_plus.getter(oldest) = branch->get_outset();
       schedule(continuation);
       release(branch);
       stats::on_promotion();
