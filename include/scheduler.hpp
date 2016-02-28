@@ -256,8 +256,8 @@ void worker_loop(vertex* v) {
       }
       update_status();
     } else if (my_suspended.size() >= 1) {
-      unsuspend();
       communicate();
+      unsuspend();
     } else {
       acquire();
     }

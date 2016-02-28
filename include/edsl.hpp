@@ -92,6 +92,8 @@ public:
   
   basic_block_type() : t(tag_none) { }
   
+private:
+  
   void copy_constructor(basic_block_type const& other) {
     t = other.t;
     switch (t) {
@@ -147,9 +149,13 @@ public:
     }
   }
   
+public:
+  
   basic_block_type(basic_block_type const& other) {
     copy_constructor(other);
   }
+  
+private:
   
   void move_constructor(basic_block_type&& other) {
     t = other.t;
@@ -215,6 +221,8 @@ public:
         break;
     }
   }
+  
+public:
   
   basic_block_type(basic_block_type&& other) {
     move_constructor(std::move(other));
