@@ -28,7 +28,7 @@ static constexpr basic_block_label_type exit_block_label = -1;
   
 static constexpr int suspend_tag = -1;
 
-using tag = enum {
+using basic_block_tag_type = enum {
   tag_unconditional_jump, tag_conditional_jump,
   tag_spawn_join, tag_spawn2_join,
   tag_tail,
@@ -47,7 +47,7 @@ public:
   using incounter_getter_code_type = std::function<sched::incounter**(Activation_record&)>;
   using outset_getter_code_type = std::function<sched::outset**(Activation_record&)>;
   
-  tag t;
+  basic_block_tag_type tag;
   
   union {
     struct {
@@ -90,13 +90,13 @@ public:
     } variant_join_minus;
   };
   
-  basic_block_type() : t(tag_none) { }
+  basic_block_type() : tag(tag_none) { }
   
 private:
   
   void copy_constructor(basic_block_type const& other) {
-    t = other.t;
-    switch (t) {
+    tag = other.t;
+    switch (tag) {
       case tag_unconditional_jump: {
         new (&variant_unconditional_jump.code) unconditional_jump_code_type(other.variant_unconditional_jump.code);
         variant_unconditional_jump.next = other.variant_unconditional_jump.next;
@@ -158,9 +158,9 @@ public:
 private:
   
   void move_constructor(basic_block_type&& other) {
-    t = other.t;
-    other.t = tag_none;
-    switch (t) {
+    tag = other.tag;
+    other.tag = tag_none;
+    switch (tag) {
       case tag_unconditional_jump: {
         new (&variant_unconditional_jump.code) unconditional_jump_code_type();
         variant_unconditional_jump.code = std::move(other.variant_unconditional_jump.code);
@@ -229,7 +229,7 @@ public:
   }
   
   ~basic_block_type() {
-    switch (t) {
+    switch (tag) {
       case tag_unconditional_jump: {
         variant_unconditional_jump.code.~unconditional_jump_code_type();
         break;
@@ -290,7 +290,7 @@ public:
   basic_block_type unconditional_jump(unconditional_jump_code_type code,
                                       basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_unconditional_jump;
+    b.tag = tag_unconditional_jump;
     new (&b.variant_unconditional_jump.code) unconditional_jump_code_type(code);
     b.variant_unconditional_jump.next = next;
     return b;
@@ -300,7 +300,7 @@ public:
   basic_block_type conditional_jump(conditional_jump_code_type code,
                                     std::vector<basic_block_label_type> targets) {
     basic_block_type b;
-    b.t = tag_conditional_jump;
+    b.tag = tag_conditional_jump;
     new (&b.variant_conditional_jump.code) conditional_jump_code_type(code);
     new (&b.variant_conditional_jump.targets) std::vector<basic_block_label_type>();
     b.variant_conditional_jump.targets = targets;
@@ -311,7 +311,7 @@ public:
   basic_block_type spawn_join(procedure_call_code_type code,
                               basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_spawn_join;
+    b.tag = tag_spawn_join;
     new (&b.variant_spawn_join.code) procedure_call_code_type(code);
     b.variant_spawn_join.next = next;
     return b;
@@ -321,7 +321,7 @@ public:
   basic_block_type spawn2_join(procedure_call_code_type code1,
                                basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_spawn2_join;
+    b.tag = tag_spawn2_join;
     new (&b.variant_spawn2_join.code1) procedure_call_code_type(code1);
     b.variant_spawn2_join.next = next;
     return b;
@@ -475,7 +475,7 @@ std::pair<stack_type, int> step(cfg_type<Activation_record>& cfg, stack_type sta
   basic_block_label_type succ;
   basic_block_type<Activation_record>& block = cfg[pred];
   fuel--;
-  switch (block.t) {
+  switch (block.tag) {
     case tag_unconditional_jump: {
       block.variant_unconditional_jump.code(newest);
       succ = block.variant_unconditional_jump.next;
@@ -545,7 +545,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
   assert(! cactus::empty(stack));
   Activation_record& oldest = cactus::peek_front<Activation_record>(stack);
   basic_block_type<Activation_record>& block = cfg[oldest.trampoline.pred];
-  switch (block.t) {
+  switch (block.tag) {
     case tag_unconditional_jump: {
       schedule(interp);
       break;
@@ -575,7 +575,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
       branch2->stack = cactus::new_stack();
       basic_block_label_type pred = oldest.trampoline.succ;
       basic_block_type<Activation_record>& spawn_join_block = cfg[pred];
-      assert(spawn_join_block.t == tag_spawn_join);
+      assert(spawn_join_block.tag == tag_spawn_join);
       oldest.trampoline.pred = pred;
       oldest.trampoline.succ = spawn_join_block.variant_spawn_join.next;
       branch2->stack = spawn_join_block.variant_spawn_join.code(oldest, branch2->stack);

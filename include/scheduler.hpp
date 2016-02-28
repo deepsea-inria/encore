@@ -233,7 +233,7 @@ void worker_loop(vertex* v) {
     }
   };
   
-  auto unsuspend = [&] {
+  auto promote = [&] {
     if (my_suspended.empty()) {
       return;
     }
@@ -249,7 +249,7 @@ void worker_loop(vertex* v) {
       assert(fuel - remaining_fuel >= 0);
       nb += fuel - remaining_fuel;
       if (remaining_fuel == 0) {
-        unsuspend();
+        promote();
         fuel = D;
       } else {
         fuel = remaining_fuel;
@@ -257,7 +257,7 @@ void worker_loop(vertex* v) {
       update_status();
     } else if (my_suspended.size() >= 1) {
       communicate();
-      unsuspend();
+      promote();
     } else {
       acquire();
     }
