@@ -307,10 +307,11 @@ stack_type pop_back(stack_type s) {
     }
     chunk_type* pred_chunk = chunk_of(old_last);
     pred_chunk->descriptor.successors.remove(old_last);
-    if (pred_chunk->descriptor.overflow != nullptr) {
-      delete_chunk(pred_chunk->descriptor.overflow);
+    if (pred_chunk->descriptor.overflow == nullptr) {
+      pred_chunk->descriptor.overflow = old_chunk;
+    } else {
+      delete_chunk(old_chunk);
     }
-    pred_chunk->descriptor.overflow = old_chunk;
   }
   char* new_last = old_last - szb_of_frame(((frame_size_type*)old_last)[-1]);
   t.last = new_last;
