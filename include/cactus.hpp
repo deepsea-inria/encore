@@ -301,7 +301,9 @@ stack_type pop_back(stack_type s) {
   chunk_type* old_chunk = chunk_of(old_last);
   if (old_last == (char*)old_chunk) {
     old_last = old_chunk->descriptor.predecessor;
-    if (old_chunk->descriptor.overflow != nullptr) {
+    chunk_type* overflow_chunk = old_chunk->descriptor.overflow;
+    if (overflow_chunk != nullptr) {
+      delete overflow_chunk;
       old_chunk->descriptor.overflow = nullptr;
     }
     chunk_type* pred_chunk = chunk_of(old_last);
