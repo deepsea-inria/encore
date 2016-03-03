@@ -252,8 +252,6 @@ static constexpr int freelist_min_refill_size = 5;
 // successor
 data::perworker::array<chunk_type*> freelist(nullptr);
   
-  data::perworker::array<int> nbchunks(0);
-  
 void fill_freelist_if_empty() {
   chunk_type*& head = freelist.mine();
   if (head == nullptr) {
@@ -272,7 +270,6 @@ chunk_type* new_chunk() {
   c = head;
   head = chunk_of(c->descriptor.predecessor);
   c->descriptor.predecessor = nullptr;
-  nbchunks.mine()++;
   return c;
 }
 
@@ -282,7 +279,6 @@ void delete_chunk(chunk_type* c) {
   chunk_type*& head = freelist.mine();
   c->descriptor.predecessor = (char*)head;
   head = c;
-  nbchunks.mine()--;
 }
   
 } // end namespace
