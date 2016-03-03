@@ -342,14 +342,15 @@ std::pair<stack_type, stack_type> split_front(stack_type s) {
   s1.last = (char*)s1_succ_chunk;
   s1_succ_chunk->descriptor.predecessor = new_first;
   chunk_type* s2_chunk = old_chunk->descriptor.successors.find(new_first);
-  old_chunk->descriptor.successors.insert(new_first, s1_succ_chunk);
   if (s2_chunk == nullptr) {
     s2.first = new_first;
   } else {
     old_chunk->descriptor.successors.remove(new_first);
+    assert(chunk_of(s2_chunk->descriptor.predecessor) == old_chunk);
     s2_chunk->descriptor.predecessor = nullptr;
     s2.first = (char*)s2_chunk;
   }
+  old_chunk->descriptor.successors.insert(new_first, s1_succ_chunk);
   s2.last = s.last;
   return std::make_pair(s1, s2);
 }
