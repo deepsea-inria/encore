@@ -7,6 +7,7 @@
 #include "perworker.hpp"
 #include "chunkedseq.hpp"
 #include "stats.hpp"
+#include "cactus.hpp"
 
 #ifndef _ENCORE_SCHEDULER_H_
 #define _ENCORE_SCHEDULER_H_
@@ -262,6 +263,8 @@ void worker_loop(vertex* v) {
       acquire();
     }
   }
+  
+  cactus::empty_freelist();
 }
 
 } // end namespace

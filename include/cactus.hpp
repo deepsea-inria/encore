@@ -3,6 +3,7 @@
 
 #include "atomic.hpp"
 #include "tagged.hpp"
+#include "perworker.hpp"
 
 #ifndef _ENCORE_CACTUS_H_
 #define _ENCORE_CACTUS_H_
@@ -176,7 +177,6 @@ public:
 using descriptor_type = struct {
   char* predecessor;
   successor_table successors;
-  struct chunk_struct* overflow;
 };
   
 static constexpr int F = K - sizeof(descriptor_type);
@@ -203,21 +203,15 @@ void* aligned_alloc(size_t alignment, size_t size) {
   return p;
 }
   
-chunk_type* new_chunk() {
+chunk_type* allocate_chunk() {
   chunk_type* c = (chunk_type*)aligned_alloc(K, K);
   new (c) chunk_struct();
   c->descriptor.predecessor = nullptr;
-  c->descriptor.overflow = nullptr;
   return c;
 }
-  
-void delete_chunk(chunk_type* c) {
+
+void deallocate_chunk(chunk_type* c) {
   assert(c->descriptor.successors.empty());
-  chunk_type* overflow = c->descriptor.overflow;
-  c->descriptor.overflow = nullptr;
-  if (overflow != nullptr) {
-    delete_chunk(overflow);
-  }
   c->~chunk_struct();
   free(c);
 }
@@ -250,7 +244,55 @@ frame_size_type szb_of_frame() {
   return szb_of_frame(sizeof(Activation_record));
 }
   
+// number of chunks to add to the freelist at a time
+static constexpr int freelist_min_refill_size = 5;
+  
+// each chunk in the freelist stores in its predecessor
+// field either the null pointer or a pointer to a
+// successor
+data::perworker::array<chunk_type*> freelist(nullptr);
+  
+void fill_freelist_if_empty() {
+  chunk_type*& head = freelist.mine();
+  if (head == nullptr) {
+    for (int i = 0; i < freelist_min_refill_size; i++) {
+      chunk_type* c = allocate_chunk();
+      c->descriptor.predecessor = (char*)head;
+      head = c;
+    }
+  }
+}
+
+chunk_type* new_chunk() {
+  chunk_type* c;
+  fill_freelist_if_empty();
+  chunk_type*& head = freelist.mine();
+  c = head;
+  head = chunk_of(c->descriptor.predecessor);
+  c->descriptor.predecessor = nullptr;
+  return c;
+}
+
+void delete_chunk(chunk_type* c) {
+  assert(c->descriptor.successors.empty());
+  assert(c->descriptor.predecessor == nullptr);
+  chunk_type*& head = freelist.mine();
+  c->descriptor.predecessor = (char*)head;
+  head = c;
+}
+  
 } // end namespace
+
+void empty_freelist() {
+  chunk_type*& head = freelist.mine();
+  chunk_type* c = head;
+  while (c != nullptr) {
+    chunk_type* t = chunk_of(c->descriptor.predecessor);
+    deallocate_chunk(c);
+    c = t;
+  }
+  assert(head != nullptr);
+}
   
 using stack_type = struct stack_struct;
   
@@ -276,14 +318,9 @@ stack_type push_back(stack_type s, Args... args) {
   stack_type t = s;
   char* old_last = s.last;
   char* new_last = old_last + szb_of_frame<Activation_record>();
-  if (new_last > (char*)chunk_of(old_last) + F) {
-    chunk_type* old_chunk = chunk_of(old_last);
-    chunk_type* succ_chunk = old_chunk->descriptor.overflow;
-    if (succ_chunk == nullptr) {
-      succ_chunk = new_chunk();
-    } else {
-      old_chunk->descriptor.overflow = nullptr;
-    }
+  chunk_type* old_chunk = chunk_of(old_last);
+  if (new_last > (char*)old_chunk + F) {
+    chunk_type* succ_chunk = new_chunk();
     old_chunk->descriptor.successors.insert(old_last, succ_chunk);
     succ_chunk->descriptor.predecessor = old_last;
     new_last = (char*)succ_chunk + szb_of_frame<Activation_record>();
@@ -301,17 +338,10 @@ stack_type pop_back(stack_type s) {
   chunk_type* old_chunk = chunk_of(old_last);
   if (old_last == (char*)old_chunk) {
     old_last = old_chunk->descriptor.predecessor;
-    if (old_chunk->descriptor.overflow != nullptr) {
-      delete_chunk(old_chunk->descriptor.overflow);
-      old_chunk->descriptor.overflow = nullptr;
-    }
+    old_chunk->descriptor.predecessor = nullptr;
     chunk_type* pred_chunk = chunk_of(old_last);
     pred_chunk->descriptor.successors.remove(old_last);
-    if (pred_chunk->descriptor.overflow == nullptr) {
-      pred_chunk->descriptor.overflow = old_chunk;
-    } else {
-      delete_chunk(old_chunk);
-    }
+    delete_chunk(old_chunk);
   }
   char* new_last = old_last - szb_of_frame(((frame_size_type*)old_last)[-1]);
   t.last = new_last;
