@@ -301,13 +301,15 @@ stack_type pop_back(stack_type s) {
   chunk_type* old_chunk = chunk_of(old_last);
   if (old_last == (char*)old_chunk) {
     old_last = old_chunk->descriptor.predecessor;
-    chunk_type* overflow_chunk = old_chunk->descriptor.overflow;
-    if (overflow_chunk != nullptr) {
-      delete overflow_chunk;
+    if (old_chunk->descriptor.overflow != nullptr) {
+      delete_chunk(old_chunk->descriptor.overflow);
       old_chunk->descriptor.overflow = nullptr;
     }
     chunk_type* pred_chunk = chunk_of(old_last);
     pred_chunk->descriptor.successors.remove(old_last);
+    if (pred_chunk->descriptor.overflow != nullptr) {
+      delete_chunk(pred_chunk->descriptor.overflow);
+    }
     pred_chunk->descriptor.overflow = old_chunk;
   }
   char* new_last = old_last - szb_of_frame(((frame_size_type*)old_last)[-1]);
