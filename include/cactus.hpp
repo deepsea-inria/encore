@@ -252,6 +252,8 @@ static constexpr int freelist_min_refill_size = 5;
 // successor
 data::perworker::array<chunk_type*> freelist(nullptr);
   
+  data::perworker::array<int> nbchunks(0);
+  
 void fill_freelist_if_empty() {
   chunk_type*& head = freelist.mine();
   if (head == nullptr) {
@@ -270,6 +272,7 @@ chunk_type* new_chunk() {
   c = head;
   head = chunk_of(c->descriptor.predecessor);
   c->descriptor.predecessor = nullptr;
+  nbchunks.mine()++;
   return c;
 }
 
@@ -279,6 +282,7 @@ void delete_chunk(chunk_type* c) {
   chunk_type*& head = freelist.mine();
   c->descriptor.predecessor = (char*)head;
   head = c;
+  nbchunks.mine()--;
 }
   
 } // end namespace
@@ -306,7 +310,7 @@ stack_type new_stack() {
   
 void delete_stack(stack_type s) {
   assert(empty(s));
-  chunk_type* c = chunk_of(s.last);
+  chunk_type* c = chunk_of(s.first);
   if ((char*)c == s.first) {
     delete_chunk(c);
   }
@@ -364,6 +368,18 @@ Activation_record& peek_back(stack_type s) {
 template <class Activation_record>
 Activation_record& peek_front(stack_type s) {
   return *((Activation_record*)s.first);
+}
+
+template <class Activation_record>
+std::pair<stack_type, stack_type> slice_front(stack_type s) {
+  stack_type s1, s2;
+  char* old_first = s.first;
+  char* new_first = old_first + szb_of_frame<Activation_record>();
+  s1.first = old_first;
+  s1.last = new_first;
+  s2.first = new_first;
+  s2.last = s.last;
+  return std::make_pair(s1, s2);
 }
   
 template <class Activation_record>

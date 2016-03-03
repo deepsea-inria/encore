@@ -433,6 +433,9 @@ public:
     stack = cactus::new_stack();
   }
   
+  interpreter(stack_type stack)
+  : stack(stack) { }
+  
   ~interpreter() {
     cactus::delete_stack(stack);
   }
@@ -556,10 +559,9 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn_join: {
       interpreter* join = interp;
-      interpreter* branch = new interpreter;
-      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      auto stacks = cactus::slice_front<Activation_record>(interp->stack);
       join->stack = stacks.first;
-      branch->stack = stacks.second;
+      interpreter* branch = new interpreter(stacks.second);
       new_edge(branch, join);
       release(branch);
       stats::on_promotion();
@@ -567,12 +569,10 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn2_join: {
       interpreter* join = interp;
-      interpreter* branch1 = new interpreter;
-      interpreter* branch2 = new interpreter;
-      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      auto stacks = cactus::slice_front<Activation_record>(interp->stack);
       join->stack = stacks.first;
-      branch1->stack = stacks.second;
-      branch2->stack = cactus::new_stack();
+      interpreter* branch1 = new interpreter(stacks.second);
+      interpreter* branch2 = new interpreter;
       basic_block_label_type pred = oldest.trampoline.succ;
       basic_block_type<Activation_record>& spawn_join_block = cfg[pred];
       assert(spawn_join_block.tag == tag_spawn_join);
@@ -592,10 +592,9 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_join_plus: {
       interpreter* join = interp;
-      interpreter* branch = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
       join->stack = stacks.first;
-      branch->stack = stacks.second;
+      interpreter* branch = new interpreter(stacks.second);
       assert(*block.variant_join_plus.getter(oldest) == nullptr);
       *block.variant_join_plus.getter(oldest) = join->get_incounter();
       new_edge(branch, join);
@@ -605,10 +604,9 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn_minus: {
       interpreter* continuation = interp;
-      interpreter* branch = new interpreter;
-      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      auto stacks = cactus::slice_front<Activation_record>(interp->stack);
       continuation->stack = stacks.first;
-      branch->stack = stacks.second;
+      interpreter* branch = new interpreter(stacks.second);
       sched::incounter* incounter = *block.variant_spawn_minus.getter(oldest);
       assert(incounter != nullptr);
       new_edge(branch, incounter);
@@ -619,10 +617,9 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn_plus: {
       interpreter* continuation = interp;
-      interpreter* branch = new interpreter;
       auto stacks = cactus::split_front<Activation_record>(interp->stack);
       continuation->stack = stacks.first;
-      branch->stack = stacks.second;
+      interpreter* branch = new interpreter(stacks.second);
       assert(*block.variant_spawn_plus.getter(oldest) == nullptr);
       *block.variant_spawn_plus.getter(oldest) = branch->get_outset();
       schedule(continuation);
