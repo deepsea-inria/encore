@@ -90,8 +90,10 @@ public:
 
 namespace dsl = encore::edsl::pcfg;
 
-class fib_cfg : public dsl::activation_record {
+class fib_cfg : public dsl::shared_activation_record {
 public:
+  
+  class private_activation_record : public dsl::private_activation_record { };
   
   int n; int* dp;
   int d1; int d2;
@@ -101,29 +103,30 @@ public:
   fib_cfg(int n, int* dp)
   : n(n), dp(dp) { }
   
-  using ar = fib_cfg; // activation record
-  using cfg_type = dsl::cfg_type<ar>;
-  using bb = dsl::basic_block_type<ar>;
+  using cfg_type = dsl::cfg_type<fib_cfg>;
+  using bb = typename cfg_type::value_type;
+  using sar = fib_cfg;
+  using par = private_activation_record;
   
   static
   cfg_type get_cfg() {
     enum { entry=0, branch1, branch2, combine, nb_blocks };
     cfg_type cfg(nb_blocks);
-    cfg[entry] = bb::conditional_jump([] (ar& a) {
-      if (a.n <= cutoff) {
-        *a.dp = fib(a.n);
+    cfg[entry] = bb::conditional_jump([] (sar& s, par&) {
+      if (s.n <= cutoff) {
+        *s.dp = fib(s.n);
         return 0;
       }
       return 1;
     }, { dsl::exit_block_label, branch1 });
-    cfg[branch1] = bb::spawn2_join([] (ar& a, dsl::stack_type st) {
-      return dsl::procedure_call<fib_cfg>(st, a.n - 1, &a.d1);
+    cfg[branch1] = bb::spawn2_join([] (sar& s, par&, dsl::stack_type st) {
+      return dsl::procedure_call<fib_cfg>(st, s.n - 1, &s.d1);
     }, branch2);
-    cfg[branch2] = bb::spawn_join([] (ar& a, dsl::stack_type st) {
-      return dsl::procedure_call<fib_cfg>(st, a.n - 2, &a.d2);
+    cfg[branch2] = bb::spawn_join([] (sar& s, par&, dsl::stack_type st) {
+      return dsl::procedure_call<fib_cfg>(st, s.n - 2, &s.d2);
     }, combine);
-    cfg[combine] = bb::unconditional_jump([] (ar& a) {
-      *a.dp = a.d1 + a.d2;
+    cfg[combine] = bb::unconditional_jump([] (sar& s, par&) {
+      *s.dp = s.d1 + s.d2;
     }, dsl::exit_block_label);
     return cfg;
   }
@@ -131,11 +134,11 @@ public:
   static
   cfg_type cfg;
   
-  std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) {
+  std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) const {
     return dsl::step(cfg, stack, fuel);
   }
   
-  void promote(dsl::interpreter* interp) {
+  void promote(dsl::interpreter* interp) const {
      dsl::promote(cfg, interp);
   }
   

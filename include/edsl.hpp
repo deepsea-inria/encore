@@ -19,7 +19,7 @@ namespace edsl {
   
 namespace pcfg {
   
-using stack_type = cactus::stack_type;
+using stack_type = std::pair<cactus::stack_type, cactus::stack_type>;
   
 using basic_block_label_type = int;
 
@@ -37,15 +37,18 @@ using basic_block_tag_type = enum {
   tag_none
 };
 
-template <class Activation_record>
+template <class Shared_activation_record, class Private_activation_record>
 class basic_block_type {
 public:
   
-  using unconditional_jump_code_type = std::function<void(Activation_record&)>;
-  using conditional_jump_code_type = std::function<int(Activation_record&)>;
-  using procedure_call_code_type = std::function<stack_type(Activation_record&, stack_type)>;
-  using incounter_getter_code_type = std::function<sched::incounter**(Activation_record&)>;
-  using outset_getter_code_type = std::function<sched::outset**(Activation_record&)>;
+  using sar_type = Shared_activation_record;
+  using par_type = Private_activation_record;
+  
+  using unconditional_jump_code_type = std::function<void(sar_type&, par_type&)>;
+  using conditional_jump_code_type = std::function<int(sar_type&, par_type&)>;
+  using procedure_call_code_type = std::function<stack_type(sar_type&, par_type&, stack_type)>;
+  using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
+  using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
   
   basic_block_tag_type tag;
   
@@ -385,8 +388,14 @@ public:
   
 };
   
-template <class Activation_record>
-using cfg_type = std::vector<basic_block_type<Activation_record>>;
+template <class Shared_activation_record>
+using private_activation_record_of = typename Shared_activation_record::private_activation_record;
+  
+template <class Shared_activation_record>
+using cfg_type = std::vector<basic_block_type<Shared_activation_record, private_activation_record_of<Shared_activation_record>>>;
+  
+/*---------------------------------------------------------------------*/
+/* Parallel control-flow graph interpreter */
   
 using trampoline_type = struct {
   basic_block_label_type pred;
@@ -395,33 +404,74 @@ using trampoline_type = struct {
   
 class interpreter;
   
-class activation_record {
+class shared_activation_record {
+public:
+  
+  virtual std::pair<stack_type, int> run(stack_type, int) const = 0;
+  
+  virtual void promote(interpreter*) const = 0;
+  
+};
+  
+class private_activation_record {
 public:
   
   trampoline_type trampoline = { .pred = entry_block_label, .succ = entry_block_label };
-  
-  virtual std::pair<stack_type, int> run(stack_type, int) = 0;
-  
-  virtual void promote(interpreter*) = 0;
   
   virtual int nb_strands() {
     assert(trampoline.succ != exit_block_label);
     return 1;
   }
   
-  virtual void split(activation_record*) {
+  virtual void split(private_activation_record*) {
     assert(false); // impossible
   }
   
 };
   
-template <class Activation_record, class ...Args>
+stack_type new_stack() {
+  return std::make_pair(cactus::new_stack(), cactus::new_stack());
+}
+
+void delete_stack(stack_type s) {
+  cactus::delete_stack(s.first);
+  cactus::delete_stack(s.second);
+}
+  
+bool empty_stack(stack_type s) {
+  bool r = cactus::empty(s.first);
+  assert(cactus::empty(s.second) == r);
+  return r;
+}
+  
+template <class Shared_activation_record, class ...Args>
 stack_type procedure_call(stack_type s, Args... args) {
-  return cactus::push_back<Activation_record>(s, args...);
+  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  auto ss = cactus::push_back<Shared_activation_record>(s.first, args...);
+  auto ps = cactus::push_back<private_activation_record>(s.second);
+  return std::make_pair(ss, ps);
 }
 
 stack_type procedure_return(stack_type s) {
-  return cactus::pop_back<activation_record>(s);
+  auto ss = cactus::pop_back<shared_activation_record>(s.first);
+  auto ps = cactus::pop_back<private_activation_record>(s.second);
+  return std::make_pair(ss, ps);
+}
+  
+template <class Shared_activation_record>
+std::pair<stack_type, stack_type> procedure_slice(stack_type s) {
+  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  auto ss = cactus::slice_front<Shared_activation_record>(s.first);
+  auto ps = cactus::slice_front<private_activation_record>(s.second);
+  return std::make_pair(std::make_pair(ss.first, ps.first), std::make_pair(ss.second, ps.second));
+}
+  
+template <class Shared_activation_record>
+std::pair<stack_type, stack_type> procedure_fork(stack_type s) {
+  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  auto ss = cactus::fork_front<Shared_activation_record>(s.first);
+  auto ps = cactus::fork_front<private_activation_record>(s.second);
+  return std::make_pair(std::make_pair(ss.first, ps.first), std::make_pair(ss.second, ps.second));
 }
  
 class interpreter : public sched::vertex {
@@ -430,36 +480,36 @@ public:
   stack_type stack;
   
   interpreter() {
-    stack = cactus::new_stack();
+    stack = new_stack();
   }
   
   interpreter(stack_type stack)
   : stack(stack) { }
   
   ~interpreter() {
-    cactus::delete_stack(stack);
+    delete_stack(stack);
   }
   
   int nb_strands() {
-    if (cactus::empty(stack)) {
+    if (empty_stack(stack)) {
       return 0;
     } else {
-      return cactus::peek_front<activation_record>(stack).nb_strands();
+      return cactus::peek_front<private_activation_record>(stack.second).nb_strands();
     }
   }
   
   int run(int fuel) {
-    while (! cactus::empty(stack) && fuel >= 1) {
-      auto result = cactus::peek_back<activation_record>(stack).run(stack, fuel);
+    while (! empty_stack(stack) && fuel >= 1) {
+      auto result = cactus::peek_back<shared_activation_record>(stack.first).run(stack, fuel);
       stack = result.first;
       fuel = result.second;
     }
     if (fuel == suspend_tag) {
       suspend(this);
       fuel = 0;
-    } else if (! cactus::empty(stack)) {
+    } else if (! empty_stack(stack)) {
       assert(fuel == 0);
-      cactus::peek_back<activation_record>(stack).promote(this);
+      cactus::peek_back<shared_activation_record>(stack.first).promote(this);
     }
     return fuel;
   }
@@ -470,59 +520,61 @@ public:
   
 };
 
-template <class Activation_record>
-std::pair<stack_type, int> step(cfg_type<Activation_record>& cfg, stack_type stack, int fuel) {
-  assert(! cactus::empty(stack));
-  Activation_record& newest = cactus::peek_back<Activation_record>(stack);
-  basic_block_label_type pred = newest.trampoline.succ;
+template <class Shared_activation_record>
+std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_type stack, int fuel) {
+  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  assert(! empty_stack(stack));
+  Shared_activation_record& shared_newest = cactus::peek_back<Shared_activation_record>(stack.first);
+  private_activation_record& private_newest = cactus::peek_back<private_activation_record>(stack.second);
+  basic_block_label_type pred = private_newest.trampoline.succ;
   basic_block_label_type succ;
-  basic_block_type<Activation_record>& block = cfg[pred];
+  auto& block = cfg[pred];
   fuel--;
   switch (block.tag) {
     case tag_unconditional_jump: {
-      block.variant_unconditional_jump.code(newest);
+      block.variant_unconditional_jump.code(shared_newest, private_newest);
       succ = block.variant_unconditional_jump.next;
       break;
     }
     case tag_conditional_jump: {
-      int target = block.variant_conditional_jump.code(newest);
+      int target = block.variant_conditional_jump.code(shared_newest, private_newest);
       succ = block.variant_conditional_jump.targets[target];
       break;
     }
     case tag_spawn_join: {
-      stack = block.variant_spawn_join.code(newest, stack);
+      stack = block.variant_spawn_join.code(shared_newest, private_newest, stack);
       succ = block.variant_spawn_join.next;
       break;
     }
     case tag_spawn2_join: {
-      stack = block.variant_spawn2_join.code1(newest, stack);
+      stack = block.variant_spawn2_join.code1(shared_newest, private_newest, stack);
       succ = block.variant_spawn2_join.next;
       break;
     }
     case tag_tail: {
-      stack = cactus::pop_back<Activation_record>(stack);
-      stack = block.variant_tail.code(newest, stack);
+      stack = procedure_return(stack);
+      stack = block.variant_tail.code(shared_newest, private_newest, stack);
       break;
     }
     case tag_join_plus: {
-      *block.variant_join_plus.getter(newest) = nullptr;
-      stack = block.variant_join_plus.code(newest, stack);
+      *block.variant_join_plus.getter(shared_newest, private_newest) = nullptr;
+      stack = block.variant_join_plus.code(shared_newest, private_newest, stack);
       succ = block.variant_join_plus.next;
       break;
     }
     case tag_spawn_minus: {
-      stack = block.variant_spawn_minus.code(newest, stack);
+      stack = block.variant_spawn_minus.code(shared_newest, private_newest, stack);
       succ = block.variant_spawn_minus.next;
       break;
     }
     case tag_spawn_plus: {
-      *block.variant_spawn_plus.getter(newest) = nullptr;
-      stack = block.variant_spawn_plus.code(newest, stack);
+      *block.variant_spawn_plus.getter(shared_newest, private_newest) = nullptr;
+      stack = block.variant_spawn_plus.code(shared_newest, private_newest, stack);
       succ = block.variant_spawn_plus.next;
       break;
     }
     case tag_join_minus: {
-      sched::outset* outset = *block.variant_join_minus.getter(newest);
+      sched::outset* outset = *block.variant_join_minus.getter(shared_newest, private_newest);
       if (outset != nullptr) {
         fuel = suspend_tag;
       }
@@ -536,18 +588,20 @@ std::pair<stack_type, int> step(cfg_type<Activation_record>& cfg, stack_type sta
   if (succ == exit_block_label) {
     stack = procedure_return(stack);
   } else {
-    newest.trampoline.pred = pred;
-    newest.trampoline.succ = succ;
+    private_newest.trampoline.pred = pred;
+    private_newest.trampoline.succ = succ;
   }
   return std::make_pair(stack, fuel);
 }
 
-template <class Activation_record>
-void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
+template <class Shared_activation_record>
+void promote(cfg_type<Shared_activation_record>& cfg, interpreter* interp) {
+  using private_activation_record = private_activation_record_of<Shared_activation_record>;
   stack_type& stack = interp->stack;
-  assert(! cactus::empty(stack));
-  Activation_record& oldest = cactus::peek_front<Activation_record>(stack);
-  basic_block_type<Activation_record>& block = cfg[oldest.trampoline.pred];
+  assert(! empty_stack(stack));
+  Shared_activation_record& shared_oldest = cactus::peek_front<Shared_activation_record>(stack.first);
+  private_activation_record& private_oldest = cactus::peek_front<private_activation_record>(stack.second);
+  auto& block = cfg[private_oldest.trampoline.pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
       schedule(interp);
@@ -559,7 +613,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn_join: {
       interpreter* join = interp;
-      auto stacks = cactus::slice_front<Activation_record>(interp->stack);
+      auto stacks = procedure_slice<Shared_activation_record>(interp->stack);
       join->stack = stacks.first;
       interpreter* branch = new interpreter(stacks.second);
       new_edge(branch, join);
@@ -569,16 +623,16 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn2_join: {
       interpreter* join = interp;
-      auto stacks = cactus::slice_front<Activation_record>(interp->stack);
+      auto stacks = procedure_slice<Shared_activation_record>(interp->stack);
       join->stack = stacks.first;
       interpreter* branch1 = new interpreter(stacks.second);
       interpreter* branch2 = new interpreter;
-      basic_block_label_type pred = oldest.trampoline.succ;
-      basic_block_type<Activation_record>& spawn_join_block = cfg[pred];
+      basic_block_label_type pred = private_oldest.trampoline.succ;
+      auto& spawn_join_block = cfg[pred];
       assert(spawn_join_block.tag == tag_spawn_join);
-      oldest.trampoline.pred = pred;
-      oldest.trampoline.succ = spawn_join_block.variant_spawn_join.next;
-      branch2->stack = spawn_join_block.variant_spawn_join.code(oldest, branch2->stack);
+      private_oldest.trampoline.pred = pred;
+      private_oldest.trampoline.succ = spawn_join_block.variant_spawn_join.next;
+      branch2->stack = spawn_join_block.variant_spawn_join.code(shared_oldest, private_oldest, branch2->stack);
       new_edge(branch2, join);
       new_edge(branch1, join);
       release(branch2);
@@ -592,11 +646,11 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_join_plus: {
       interpreter* join = interp;
-      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      auto stacks = procedure_fork<Shared_activation_record>(interp->stack);
       join->stack = stacks.first;
       interpreter* branch = new interpreter(stacks.second);
-      assert(*block.variant_join_plus.getter(oldest) == nullptr);
-      *block.variant_join_plus.getter(oldest) = join->get_incounter();
+      assert(*block.variant_join_plus.getter(shared_oldest, private_oldest) == nullptr);
+      *block.variant_join_plus.getter(shared_oldest, private_oldest) = join->get_incounter();
       new_edge(branch, join);
       release(branch);
       stats::on_promotion();
@@ -604,10 +658,10 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn_minus: {
       interpreter* continuation = interp;
-      auto stacks = cactus::slice_front<Activation_record>(interp->stack);
+      auto stacks = procedure_slice<Shared_activation_record>(interp->stack);
       continuation->stack = stacks.first;
       interpreter* branch = new interpreter(stacks.second);
-      sched::incounter* incounter = *block.variant_spawn_minus.getter(oldest);
+      sched::incounter* incounter = *block.variant_spawn_minus.getter(shared_oldest, private_oldest);
       assert(incounter != nullptr);
       new_edge(branch, incounter);
       schedule(continuation);
@@ -617,11 +671,11 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_spawn_plus: {
       interpreter* continuation = interp;
-      auto stacks = cactus::split_front<Activation_record>(interp->stack);
+      auto stacks = procedure_fork<Shared_activation_record>(interp->stack);
       continuation->stack = stacks.first;
       interpreter* branch = new interpreter(stacks.second);
-      assert(*block.variant_spawn_plus.getter(oldest) == nullptr);
-      *block.variant_spawn_plus.getter(oldest) = branch->get_outset();
+      assert(*block.variant_spawn_plus.getter(shared_oldest, private_oldest) == nullptr);
+      *block.variant_spawn_plus.getter(shared_oldest, private_oldest) = branch->get_outset();
       schedule(continuation);
       release(branch);
       stats::on_promotion();
@@ -629,7 +683,7 @@ void promote(cfg_type<Activation_record>& cfg, interpreter* interp) {
     }
     case tag_join_minus: {
       interpreter* join = interp;
-      sched::outset* outset = *block.variant_join_minus.getter(oldest);
+      sched::outset* outset = *block.variant_join_minus.getter(shared_oldest, private_oldest);
       assert(outset != nullptr);
       new_edge(outset, join);
       stats::on_promotion();

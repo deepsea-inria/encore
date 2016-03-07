@@ -379,7 +379,7 @@ std::pair<stack_type, stack_type> slice_front(stack_type s) {
 }
   
 template <class Activation_record>
-std::pair<stack_type, stack_type> split_front(stack_type s) {
+std::pair<stack_type, stack_type> fork_front(stack_type s) {
   stack_type s1, s2;
   char* old_first = s.first;
   char* new_first = old_first + szb_of_frame<Activation_record>();
