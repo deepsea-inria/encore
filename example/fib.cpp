@@ -138,8 +138,16 @@ public:
     return dsl::step(cfg, stack, fuel);
   }
   
-  void promote(dsl::interpreter* interp) const {
+  std::pair<dsl::extended_stack_type, int> run(dsl::extended_stack_type stack, int fuel) const {
+    return dsl::step(cfg, stack, fuel);
+  }
+  
+  void promote(dsl::interpreter<dsl::stack_type>* interp) const {
      dsl::promote(cfg, interp);
+  }
+  
+  void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const {
+    dsl::promote(cfg, interp);
   }
   
 };
@@ -183,7 +191,7 @@ int main(int argc, char** argv) {
   });
 #endif
   d.add("pcfg", [&] {
-    dsl::interpreter* interp = new dsl::interpreter;
+    dsl::interpreter<dsl::stack_type>* interp = new dsl::interpreter<dsl::stack_type>;
     interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &result);
     encore::launch(interp);
   });
