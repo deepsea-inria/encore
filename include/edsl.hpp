@@ -512,6 +512,10 @@ extended_stack_type new_stack(shared_activation_record* oldest_shared) {
 }
 
 void delete_stack(extended_stack_type s) {
+  assert(cactus::empty(s.stack.first));
+  assert(! cactus::empty(s.stack.second));
+  cactus::pop_back<private_activation_record>(s.stack.second);
+  assert(cactus::empty(s.stack.second));
   delete_stack(s.stack);
 }
   
