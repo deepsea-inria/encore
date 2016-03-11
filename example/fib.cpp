@@ -120,10 +120,10 @@ public:
       return 1;
     }, { dsl::exit_block_label, branch1 });
     cfg[branch1] = bb::spawn2_join([] (sar& s, par&, dsl::stack_type st) {
-      return dsl::procedure_call<fib_cfg>(st, s.n - 1, &s.d1);
+      return dsl::push_call<fib_cfg>(st, s.n - 1, &s.d1);
     }, branch2);
     cfg[branch2] = bb::spawn_join([] (sar& s, par&, dsl::stack_type st) {
-      return dsl::procedure_call<fib_cfg>(st, s.n - 2, &s.d2);
+      return dsl::push_call<fib_cfg>(st, s.n - 2, &s.d2);
     }, combine);
     cfg[combine] = bb::unconditional_jump([] (sar& s, par&) {
       *s.dp = s.d1 + s.d2;
@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
 #endif
   d.add("pcfg", [&] {
     dsl::interpreter<dsl::stack_type>* interp = new dsl::interpreter<dsl::stack_type>;
-    interp->stack = dsl::procedure_call<fib_cfg>(interp->stack, n, &result);
+    interp->stack = dsl::push_call<fib_cfg>(interp->stack, n, &result);
     encore::launch(interp);
   });
   run_and_report_elapsed_time([&] {

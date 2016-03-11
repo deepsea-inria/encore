@@ -398,8 +398,8 @@ public:
 template <class Shared_activation_record>
 using private_activation_record_of = typename Shared_activation_record::private_activation_record;
   
-template <class Shared_activation_record>
-using cfg_type = std::vector<basic_block_type<Shared_activation_record, private_activation_record_of<Shared_activation_record>>>;
+template <class SAR> // SAR := Shared_activation_record
+using cfg_type = std::vector<basic_block_type<SAR, private_activation_record_of<SAR>>>;
   
 /*---------------------------------------------------------------------*/
 /* Parallel control-flow graph interpreter */
@@ -455,41 +455,41 @@ bool empty_stack(stack_type s) {
 }
   
 template <class Shared_activation_record, class ...Args>
-stack_type procedure_call(stack_type s, Args... args) {
+stack_type push_call(stack_type s, Args... args) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   auto ss = cactus::push_back<Shared_activation_record>(s.first, args...);
   auto ps = cactus::push_back<private_activation_record>(s.second);
   return std::make_pair(ss, ps);
 }
 
-stack_type procedure_return(stack_type s) {
+stack_type pop_call(stack_type s) {
   auto ss = cactus::pop_back<shared_activation_record>(s.first);
   auto ps = cactus::pop_back<private_activation_record>(s.second);
   return std::make_pair(ss, ps);
 }
   
 template <class Shared_activation_record>
-Shared_activation_record& procedure_peek_newest_shared(stack_type s) {
+Shared_activation_record& peek_newest_shared_frame(stack_type s) {
   return cactus::peek_back<Shared_activation_record>(s.first);
 }
   
 template <class Private_activation_record>
-Private_activation_record& procedure_peek_newest_private(stack_type s) {
+Private_activation_record& peek_newest_private_frame(stack_type s) {
   return cactus::peek_back<Private_activation_record>(s.second);
 }
   
 template <class Shared_activation_record>
-Shared_activation_record& procedure_peek_oldest_shared(stack_type s) {
+Shared_activation_record& peek_oldest_shared_frame(stack_type s) {
   return cactus::peek_front<Shared_activation_record>(s.first);
 }
  
 template <class Private_activation_record>
-Private_activation_record& procedure_peek_oldest_private(stack_type s) {
+Private_activation_record& peek_oldest_private_frame(stack_type s) {
   return cactus::peek_front<Private_activation_record>(s.second);
 }
   
 template <class Shared_activation_record>
-std::pair<stack_type, stack_type> procedure_slice(stack_type s) {
+std::pair<stack_type, stack_type> slice_stack(stack_type s) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   auto ss = cactus::slice_front<Shared_activation_record>(s.first);
   auto ps = cactus::slice_front<private_activation_record>(s.second);
@@ -497,7 +497,7 @@ std::pair<stack_type, stack_type> procedure_slice(stack_type s) {
 }
   
 template <class Shared_activation_record>
-std::pair<stack_type, stack_type> procedure_fork(stack_type s) {
+std::pair<stack_type, stack_type> fork_stack(stack_type s) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   auto ss = cactus::fork_front<Shared_activation_record>(s.first);
   auto ps = cactus::fork_front<private_activation_record>(s.second);
@@ -525,18 +525,18 @@ bool empty_stack(extended_stack_type s) {
 }
   
 template <class Shared_activation_record, class ...Args>
-extended_stack_type procedure_call(extended_stack_type s, Args... args) {
-  s.stack = procedure_call<Shared_activation_record>(s.stack, args...);
+extended_stack_type push_call(extended_stack_type s, Args... args) {
+  s.stack = push_call<Shared_activation_record>(s.stack, args...);
   return s;
 }
 
-extended_stack_type procedure_return(extended_stack_type s) {
-  s.stack = procedure_return(s.stack);
+extended_stack_type pop_call(extended_stack_type s) {
+  s.stack = pop_call(s.stack);
   return s;
 }
  
 template <class Shared_activation_record>
-Shared_activation_record& procedure_peek_newest_shared(extended_stack_type s) {
+Shared_activation_record& peek_newest_shared_frame(extended_stack_type s) {
   if (cactus::empty(s.stack.first)) {
     return *((Shared_activation_record*)s.oldest_shared);
   } else {
@@ -545,12 +545,12 @@ Shared_activation_record& procedure_peek_newest_shared(extended_stack_type s) {
 }
   
 template <class Private_activation_record>
-Private_activation_record& procedure_peek_newest_private(extended_stack_type s) {
+Private_activation_record& peek_newest_private_frame(extended_stack_type s) {
   return cactus::peek_back<Private_activation_record>(s.stack.second);
 }
   
 template <class Shared_activation_record>
-Shared_activation_record& procedure_peek_oldest_shared(extended_stack_type s) {
+Shared_activation_record& peek_oldest_shared_frame(extended_stack_type s) {
   if (cactus::empty(s.stack.first)) {
     return *((Shared_activation_record*)s.oldest_shared);
   } else {
@@ -559,12 +559,12 @@ Shared_activation_record& procedure_peek_oldest_shared(extended_stack_type s) {
 }
   
 template <class Private_activation_record>
-Private_activation_record& procedure_peek_oldest_private(extended_stack_type s) {
+Private_activation_record& peek_oldest_private_frame(extended_stack_type s) {
   return cactus::peek_front<Private_activation_record>(s.stack.second);
 }
   
 template <class Shared_activation_record>
-std::pair<extended_stack_type, stack_type> procedure_slice(extended_stack_type s) {
+std::pair<extended_stack_type, stack_type> slice_stack(extended_stack_type s) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   extended_stack_type s1;
   stack_type s2;
@@ -579,7 +579,7 @@ std::pair<extended_stack_type, stack_type> procedure_slice(extended_stack_type s
 }
   
 template <class Shared_activation_record>
-std::pair<extended_stack_type, stack_type> procedure_fork(extended_stack_type s) {
+std::pair<extended_stack_type, stack_type> fork_stack(extended_stack_type s) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   extended_stack_type s1;
   stack_type s2;
@@ -613,13 +613,13 @@ public:
     if (empty_stack(stack)) {
       return 0;
     } else {
-      return procedure_peek_oldest_private<private_activation_record>(stack).nb_strands();
+      return peek_oldest_private_frame<private_activation_record>(stack).nb_strands();
     }
   }
   
   int run(int fuel) {
     while (! empty_stack(stack) && fuel >= 1) {
-      auto result = procedure_peek_newest_shared<shared_activation_record>(stack).run(stack, fuel);
+      auto result = peek_newest_shared_frame<shared_activation_record>(stack).run(stack, fuel);
       stack = result.first;
       fuel = result.second;
     }
@@ -628,7 +628,7 @@ public:
       fuel = 0;
     } else if (! empty_stack(stack)) {
       assert(fuel == 0);
-      procedure_peek_newest_shared<shared_activation_record>(stack).promote(this);
+      peek_newest_shared_frame<shared_activation_record>(stack).promote(this);
     }
     return fuel;
   }
@@ -656,8 +656,8 @@ template <class Shared_activation_record, class Stack>
 std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack, int fuel) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   assert(! empty_stack(stack));
-  Shared_activation_record& shared_newest = procedure_peek_newest_shared<Shared_activation_record>(stack);
-  private_activation_record& private_newest = procedure_peek_newest_private<private_activation_record>(stack);
+  Shared_activation_record& shared_newest = peek_newest_shared_frame<Shared_activation_record>(stack);
+  private_activation_record& private_newest = peek_newest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = private_newest.trampoline.succ;
   basic_block_label_type succ;
   auto& block = cfg[pred];
@@ -684,7 +684,7 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
       break;
     }
     case tag_tail: {
-      stack = procedure_return(stack);
+      stack = pop_call(stack);
       stack = extend_stack_with(block.variant_tail.code, shared_newest, private_newest, stack);
       break;
     }
@@ -718,7 +718,7 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
     }
   }
   if (succ == exit_block_label) {
-    stack = procedure_return(stack);
+    stack = pop_call(stack);
   } else {
     private_newest.trampoline.pred = pred;
     private_newest.trampoline.succ = succ;
@@ -731,8 +731,8 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   Stack& stack = interp->stack;
   assert(! empty_stack(stack));
-  Shared_activation_record& shared_oldest = procedure_peek_oldest_shared<Shared_activation_record>(stack);
-  private_activation_record& private_oldest = procedure_peek_oldest_private<private_activation_record>(stack);
+  Shared_activation_record& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
+  private_activation_record& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
   auto& block = cfg[private_oldest.trampoline.pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
@@ -745,7 +745,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
     case tag_spawn_join: {
       interpreter<Stack>* join = interp;
-      auto stacks = procedure_slice<Shared_activation_record>(interp->stack);
+      auto stacks = slice_stack<Shared_activation_record>(interp->stack);
       join->stack = stacks.first;
       interpreter<stack_type>* branch = new interpreter<stack_type>(stacks.second);
       new_edge(branch, join);
@@ -755,7 +755,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
     case tag_spawn2_join: {
       interpreter<Stack>* join = interp;
-      auto stacks = procedure_slice<Shared_activation_record>(interp->stack);
+      auto stacks = slice_stack<Shared_activation_record>(interp->stack);
       join->stack = stacks.first;
       interpreter<stack_type>* branch1 = new interpreter<stack_type>(stacks.second);
       interpreter<stack_type>* branch2 = new interpreter<stack_type>;
@@ -778,7 +778,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
     case tag_join_plus: {
       interpreter<Stack>* join = interp;
-      auto stacks = procedure_fork<Shared_activation_record>(interp->stack);
+      auto stacks = fork_stack<Shared_activation_record>(interp->stack);
       join->stack = stacks.first;
       interpreter<stack_type>* branch = new interpreter<stack_type>(stacks.second);
       assert(*block.variant_join_plus.getter(shared_oldest, private_oldest) == nullptr);
@@ -790,7 +790,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
     case tag_spawn_minus: {
       interpreter<Stack>* continuation = interp;
-      auto stacks = procedure_slice<Shared_activation_record>(interp->stack);
+      auto stacks = slice_stack<Shared_activation_record>(interp->stack);
       continuation->stack = stacks.first;
       interpreter<stack_type>* branch = new interpreter<stack_type>(stacks.second);
       sched::incounter* incounter = *block.variant_spawn_minus.getter(shared_oldest, private_oldest);
@@ -803,7 +803,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
     case tag_spawn_plus: {
       interpreter<Stack>* continuation = interp;
-      auto stacks = procedure_fork<Shared_activation_record>(interp->stack);
+      auto stacks = fork_stack<Shared_activation_record>(interp->stack);
       continuation->stack = stacks.first;
       interpreter<stack_type>* branch = new interpreter<stack_type>(stacks.second);
       assert(*block.variant_spawn_plus.getter(shared_oldest, private_oldest) == nullptr);
