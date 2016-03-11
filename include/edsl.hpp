@@ -433,8 +433,14 @@ public:
     return 1;
   }
   
-  virtual void split(private_activation_record*) {
+  virtual interpreter<extended_stack_type>* split(interpreter<stack_type>*, int) {
     assert(false); // impossible
+    return nullptr;
+  }
+  
+  virtual interpreter<extended_stack_type>* split(interpreter<extended_stack_type>*, int) {
+    assert(false); // impossible
+    return nullptr;
   }
   
 };
@@ -634,7 +640,7 @@ public:
   }
   
   vertex* split(int nb) {
-    return nullptr;
+    return peek_oldest_private_frame<private_activation_record>(stack).split(this, nb);
   }
   
 };
@@ -656,8 +662,8 @@ template <class Shared_activation_record, class Stack>
 std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack, int fuel) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   assert(! empty_stack(stack));
-  Shared_activation_record& shared_newest = peek_newest_shared_frame<Shared_activation_record>(stack);
-  private_activation_record& private_newest = peek_newest_private_frame<private_activation_record>(stack);
+  auto& shared_newest = peek_newest_shared_frame<Shared_activation_record>(stack);
+  auto& private_newest = peek_newest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = private_newest.trampoline.succ;
   basic_block_label_type succ;
   auto& block = cfg[pred];
@@ -731,8 +737,8 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   Stack& stack = interp->stack;
   assert(! empty_stack(stack));
-  Shared_activation_record& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
-  private_activation_record& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
+  auto& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
+  auto& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
   auto& block = cfg[private_oldest.trampoline.pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
