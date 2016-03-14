@@ -82,7 +82,7 @@ public:
     return fuel - 1;
   }
   
-  vertex* split(int nb) {
+  std::pair<vertex*, vertex*> split(int nb) {
     assert(false); // impossible
   }
   
@@ -164,15 +164,6 @@ void initialize_cilk() {
 }
 #endif
 
-template <class Function>
-void run_and_report_elapsed_time(const Function& f) {
-  auto start = std::chrono::system_clock::now();
-  f();
-  auto end = std::chrono::system_clock::now();
-  std::chrono::duration<float> diff = end - start;
-  printf ("exectime %.3lf\n", diff.count());
-}
-
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
@@ -195,7 +186,7 @@ int main(int argc, char** argv) {
     interp->stack = dsl::push_call<fib_cfg>(interp->stack, n, &result);
     encore::launch(interp);
   });
-  run_and_report_elapsed_time([&] {
+  encore::run_and_report_elapsed_time([&] {
     d.dispatch("algorithm");
   });
   assert(result == fib(n));

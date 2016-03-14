@@ -58,7 +58,7 @@ public:
   
   virtual int run(int fuel) = 0;
   
-  virtual vertex* split(int nb) = 0;
+  virtual std::pair<vertex*, vertex*> split(int nb) = 0;
   
 };
   

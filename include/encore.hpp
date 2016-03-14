@@ -24,6 +24,15 @@ void launch(sched::vertex* v, int nb_workers) {
 void launch(sched::vertex* v) {
   launch(v, cmdline::parse_or_default("proc", 1));
 }
+  
+template <class Function>
+void run_and_report_elapsed_time(const Function& f) {
+  auto start = std::chrono::system_clock::now();
+  f();
+  auto end = std::chrono::system_clock::now();
+  std::chrono::duration<float> diff = end - start;
+  printf ("exectime %.3lf\n", diff.count());
+}
 
 } // end namespace
 

@@ -433,14 +433,16 @@ public:
     return 1;
   }
   
-  virtual interpreter<extended_stack_type>* split(interpreter<stack_type>*, int) {
+  using split_result_type = std::pair<sched::vertex*, sched::vertex*>;
+  
+  virtual split_result_type split(interpreter<stack_type>*, int) {
     assert(false); // impossible
-    return nullptr;
+    return std::make_pair(nullptr, nullptr);
   }
   
-  virtual interpreter<extended_stack_type>* split(interpreter<extended_stack_type>*, int) {
+  virtual split_result_type split(interpreter<extended_stack_type>*, int) {
     assert(false); // impossible
-    return nullptr;
+    return std::make_pair(nullptr, nullptr);
   }
   
 };
@@ -608,6 +610,10 @@ public:
     stack = new_stack();
   }
   
+  interpreter(shared_activation_record* s) {
+    stack = new_stack(s);
+  }
+  
   interpreter(Stack stack)
   : stack(stack) { }
   
@@ -639,7 +645,7 @@ public:
     return fuel;
   }
   
-  vertex* split(int nb) {
+  std::pair<vertex*, vertex*> split(int nb) {
     return peek_oldest_private_frame<private_activation_record>(stack).split(this, nb);
   }
   

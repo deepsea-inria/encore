@@ -87,12 +87,12 @@ public:
     } else if (spill == 1) {
       vs.push_back(v);
     } else {
-      vertex* v2 = v->split(spill);
-      bool b = v2->release_handle->decrement();
-      assert(b);
+      auto vertices = v->split(spill);
+      vertex* v1 = vertices.first;
+      vertex* v2 = vertices.second;
       other.vs.push_back(v2);
-      assert(v->nb_strands() > 0);
-      vs.push_front(v);
+      assert(v1->nb_strands() > 0);
+      vs.push_front(v1);
     }
 #ifndef NDEBUG
     int n2 = nb_strands();
@@ -383,7 +383,7 @@ public:
     return fuel;
   }
   
-  vertex* split(int nb) {
+  std::pair<vertex*, vertex*> split(int nb) {
     vertex* v = nullptr;
     std::deque<outset_tree_node_type*> todo2;
     if (todo.empty()) {
@@ -399,7 +399,7 @@ public:
       todo2.push_back(n);
       v = new parallel_notify_future(out, nullptr, nullptr, todo2);
     }
-    return v;
+    return std::make_pair(this, v);
   }
   
 };
@@ -490,14 +490,14 @@ public:
     return fuel;
   }
   
-  vertex* split(int nb) {
+  std::pair<vertex*, vertex*> split(int nb) {
     assert(todo.size() >= 2);
     assert(nb == 1);
     auto n = todo.front();
     todo.pop_front();
     auto v = new parallel_deallocate_heavy;
     v->todo.push_back(n);
-    return v;
+    return std::make_pair(this, v);
   }
   
 };
