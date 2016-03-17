@@ -23,9 +23,7 @@ public:
     int lo; int hi;
     
     int nb_strands() {
-      if (trampoline.pred == entry) {
-        return 1;
-      } else if (trampoline.pred == dsl::exit_block_label) {
+      if (trampoline.pred == dsl::exit_block_label) {
         return 0;
       }
       return std::max(1, hi - lo);
