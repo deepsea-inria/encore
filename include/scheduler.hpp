@@ -151,7 +151,7 @@ void initialize_scheduler() {
 int random_other_worker(int my_id) {
   int P = data::perworker::get_nb_workers();
   std::uniform_int_distribution<int> distribution(0, 2*P);
-  int i = distribution(scheduler_rngs[my_id]) & (P - 1);
+  int i = distribution(scheduler_rngs[my_id]) % (P - 1);
   if (i >= my_id) {
     i++;
   }
