@@ -21,6 +21,9 @@ public:
     int lo; int hi;
     
     int nb_strands() {
+      if (trampoline.pred == entry) {
+        return 1;
+      }
       return hi - lo;
     }
     
