@@ -23,8 +23,10 @@ public:
     int nb_strands() {
       if (trampoline.pred == entry) {
         return 1;
+      } else if (trampoline.pred == dsl::exit_block_label) {
+        return 0;
       }
-      return hi - lo;
+      return std::max(1, hi - lo);
     }
     
     template <class Stack>
@@ -36,6 +38,7 @@ public:
       auto interp2 = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
       interp2->release_handle->decrement();
       if (oldest_shared.join == nullptr) {
+        oldest_private->trampoline = { .pred=header, .succ=header };
         auto stacks = dsl::slice_stack<incr>(interp->stack);
         interp->stack = stacks.first;
         auto v = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
@@ -43,7 +46,7 @@ public:
         dsl::extended_stack_type& stack1 = v->stack;
         stack1.stack.second = encore::cactus::push_back<private_activation_record>(stack1.stack.second, *this);
         auto& priv1 = dsl::peek_oldest_private_frame<private_activation_record>(stack1);
-        priv1.trampoline = { .pred=dsl::exit_block_label, .succ=dsl::exit_block_label };
+        priv1.trampoline = { .pred=header, .succ=header };
         lo = hi = 0;
         interp1 = v;
         oldest_shared.join = interp;

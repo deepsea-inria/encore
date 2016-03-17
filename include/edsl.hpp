@@ -518,15 +518,14 @@ extended_stack_type new_stack(shared_activation_record* oldest_shared) {
 }
 
 void delete_stack(extended_stack_type s) {
-  assert(cactus::empty(s.stack.first));
-  assert(! cactus::empty(s.stack.second));
-  cactus::pop_back<private_activation_record>(s.stack.second);
-  assert(cactus::empty(s.stack.second));
+  assert(empty_stack(s.stack));
   delete_stack(s.stack);
 }
   
 bool empty_stack(extended_stack_type s) {
-  assert(! cactus::empty(s.stack.second));
+  if (cactus::empty(s.stack.second)) {
+    return true;
+  }
   return cactus::peek_front<private_activation_record>(s.stack.second).nb_strands() == 0;
 }
   
@@ -537,7 +536,12 @@ extended_stack_type push_call(extended_stack_type s, Args... args) {
 }
 
 extended_stack_type pop_call(extended_stack_type s) {
-  s.stack = pop_call(s.stack);
+  if (! cactus::empty(s.stack.first)) {
+    s.stack.first = cactus::pop_back<shared_activation_record>(s.stack.first);
+  } else {
+    s.oldest_shared = nullptr;
+  }
+  s.stack.second = cactus::pop_back<private_activation_record>(s.stack.second);
   return s;
 }
  
