@@ -1,10 +1,6 @@
 
 #include <iostream>
 #include <chrono>
-#ifdef USE_CILK_PLUS
-#include <cilk/cilk.h>
-#include <cilk/cilk_api.h>
-#endif
 
 #include "encore.hpp"
 
@@ -14,6 +10,8 @@ namespace cmdline = pasl::util::cmdline;
 
 class incr : public dsl::shared_activation_record {
 public:
+  
+  encore_pcfg_driver
   
   enum { entry=0, header, body, nb_blocks };
   
@@ -26,21 +24,23 @@ public:
       return hi - lo;
     }
     
-    split_result_type split(dsl::interpreter<dsl::stack_type>* interp, int nb) {
+    template <class Stack>
+    std::pair<sched::vertex*, sched::vertex*> split2(dsl::interpreter<Stack>* interp, int nb) {
       assert(lo + nb <= hi);
-      sched::vertex* interp1 = nullptr;
       incr& oldest_shared = dsl::peek_oldest_shared_frame<incr>(interp->stack);
       auto& oldest_private = *this;
+      sched::vertex* interp1 = nullptr;
+      auto interp2 = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
+      interp2->release_handle->decrement();
       if (oldest_shared.join == nullptr) {
         auto stacks = dsl::slice_stack<incr>(interp->stack);
         interp->stack = stacks.first;
         auto v = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
         v->release_handle->decrement();
         dsl::extended_stack_type& stack1 = v->stack;
-        stack1.stack.second = encore::cactus::push_back<private_activation_record>(stack1.stack.second);
+        stack1.stack.second = encore::cactus::push_back<private_activation_record>(stack1.stack.second, *this);
         auto& priv1 = dsl::peek_oldest_private_frame<private_activation_record>(v->stack);
         priv1.trampoline = { .pred=dsl::exit_block_label, .succ=dsl::exit_block_label };
-        priv1.lo = lo; priv1.hi = hi;
         lo = hi = 0;
         interp1 = v;
         oldest_shared.join = interp;
@@ -49,7 +49,6 @@ public:
       } else {
         interp1 = interp;
       }
-      auto interp2 = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
       dsl::extended_stack_type& stack2 = interp2->stack;
       stack2.stack.second = encore::cactus::push_back<private_activation_record>(stack2.stack.second);
       auto& priv2 = dsl::peek_oldest_private_frame<private_activation_record>(stack2);
@@ -59,13 +58,19 @@ public:
       oldest_private.hi = mid;
       priv2.trampoline = { .pred=header, .succ=header };
       sched::new_edge(interp2, oldest_shared.join);
-      interp2->release_handle->decrement();
       return std::make_pair(interp1, interp2);
     }
+    
+    encore_pcfg_private_shared_driver(split2)
     
   };
   
   int n; int* a; sched::vertex* join;
+  
+  incr(int n, int* a)
+  : n(n), a(a), join(nullptr) { }
+  
+  incr() { }
   
   using cfg_type = dsl::cfg_type<incr>;
   using bb = typename cfg_type::value_type;
@@ -94,35 +99,26 @@ public:
   static
   cfg_type cfg;
   
-  std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) const {
-    return dsl::step(cfg, stack, fuel);
-  }
-  
-  std::pair<dsl::extended_stack_type, int> run(dsl::extended_stack_type stack, int fuel) const {
-    return dsl::step(cfg, stack, fuel);
-  }
-  
-  void promote(dsl::interpreter<dsl::stack_type>* interp) const {
-    dsl::promote(cfg, interp);
-  }
-  
-  void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const {
-    dsl::promote(cfg, interp);
-  }
-  
 };
 
 incr::cfg_type incr::cfg = incr::get_cfg();
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
-  cmdline::dispatcher d;
-  d.add("sequential", [&] {
-  });
-  d.add("dag", [&] {
-  });
+  int n = cmdline::parse<int>("n");
+  int* a = new int[n];
+  const int initial_value = 23;
+  for (int i = 0; i < n; i++) {
+    a[i] = initial_value;
+  }
   encore::run_and_report_elapsed_time([&] {
-    d.dispatch("algorithm");
+    dsl::interpreter<dsl::stack_type>* interp = new dsl::interpreter<dsl::stack_type>;
+    interp->stack = dsl::push_call<incr>(interp->stack, n, a);
+    encore::launch(interp);
   });
+  for (int i = 0; i < n; i++) {
+    assert(a[i] == initial_value + 1);
+  }
+  delete [] a;
   return 0;
 }

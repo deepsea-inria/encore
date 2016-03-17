@@ -398,8 +398,8 @@ public:
 template <class Shared_activation_record>
 using private_activation_record_of = typename Shared_activation_record::private_activation_record;
   
-template <class SAR> // SAR := Shared_activation_record
-using cfg_type = std::vector<basic_block_type<SAR, private_activation_record_of<SAR>>>;
+template <class Sar> // Sar := Shared_activation_record
+using cfg_type = std::vector<basic_block_type<Sar, private_activation_record_of<Sar>>>;
   
 /*---------------------------------------------------------------------*/
 /* Parallel control-flow graph interpreter */
@@ -433,14 +433,12 @@ public:
     return 1;
   }
   
-  using split_result_type = std::pair<sched::vertex*, sched::vertex*>;
-  
-  virtual split_result_type split(interpreter<stack_type>*, int) {
+  virtual std::pair<sched::vertex*, sched::vertex*> split(interpreter<stack_type>*, int) {
     assert(false); // impossible
     return std::make_pair(nullptr, nullptr);
   }
   
-  virtual split_result_type split(interpreter<extended_stack_type>*, int) {
+  virtual std::pair<sched::vertex*, sched::vertex*> split(interpreter<extended_stack_type>*, int) {
     assert(false); // impossible
     return std::make_pair(nullptr, nullptr);
   }
@@ -843,5 +841,37 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   
 } // end namespace
 } // end namespace
+
+/*---------------------------------------------------------------------*/
+/* Macros */
+
+#define encore_pcfg_driver \
+std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) const { \
+  return dsl::step(cfg, stack, fuel); \
+} \
+\
+std::pair<dsl::extended_stack_type, int> run(dsl::extended_stack_type stack, int fuel) const { \
+  return dsl::step(cfg, stack, fuel); \
+} \
+\
+void promote(dsl::interpreter<dsl::stack_type>* interp) const { \
+  dsl::promote(cfg, interp); \
+} \
+\
+void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const { \
+  dsl::promote(cfg, interp); \
+}
+
+#define encore_pcfg_default_private_activation_record \
+class private_activation_record : public dsl::private_activation_record { };
+
+#define encore_pcfg_private_shared_driver(split2) \
+std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::stack_type>* interp, int nb) { \
+  return split2(interp, nb); \
+} \
+\
+std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::extended_stack_type>* interp, int nb) { \
+  return split2(interp, nb); \
+}
 
 #endif /*! _ENCORE_SCHED_EDSL_H_ */

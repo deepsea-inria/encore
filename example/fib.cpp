@@ -93,7 +93,8 @@ namespace dsl = encore::edsl::pcfg;
 class fib_cfg : public dsl::shared_activation_record {
 public:
   
-  class private_activation_record : public dsl::private_activation_record { };
+  encore_pcfg_driver
+  encore_pcfg_default_private_activation_record
   
   int n; int* dp;
   int d1; int d2;
@@ -133,22 +134,6 @@ public:
   
   static
   cfg_type cfg;
-  
-  std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) const {
-    return dsl::step(cfg, stack, fuel);
-  }
-  
-  std::pair<dsl::extended_stack_type, int> run(dsl::extended_stack_type stack, int fuel) const {
-    return dsl::step(cfg, stack, fuel);
-  }
-  
-  void promote(dsl::interpreter<dsl::stack_type>* interp) const {
-     dsl::promote(cfg, interp);
-  }
-  
-  void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const {
-    dsl::promote(cfg, interp);
-  }
   
 };
 
