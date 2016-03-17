@@ -291,7 +291,6 @@ void empty_freelist() {
     deallocate_chunk(c);
     c = t;
   }
-  assert(head != nullptr);
 }
   
 using stack_type = struct stack_struct;
