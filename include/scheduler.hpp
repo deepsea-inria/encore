@@ -181,7 +181,7 @@ void worker_loop(vertex* v) {
   
   // update the status flag
   auto update_status = [&] {
-    bool b = (my_ready.nb_strands() > 1);
+    bool b = (my_ready.nb_strands() >= 2);
     if (status[my_id].load() != b) {
       status[my_id].store(b);
     }

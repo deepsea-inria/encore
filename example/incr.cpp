@@ -31,7 +31,7 @@ public:
     std::pair<sched::vertex*, sched::vertex*> split2(dsl::interpreter<Stack>* interp, int nb) {
       assert(lo + nb <= hi);
       incr& oldest_shared = dsl::peek_oldest_shared_frame<incr>(interp->stack);
-      auto& oldest_private = *this;
+      auto* oldest_private = this;
       sched::vertex* interp1 = nullptr;
       auto interp2 = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
       interp2->release_handle->decrement();
@@ -42,23 +42,23 @@ public:
         v->release_handle->decrement();
         dsl::extended_stack_type& stack1 = v->stack;
         stack1.stack.second = encore::cactus::push_back<private_activation_record>(stack1.stack.second, *this);
-        auto& priv1 = dsl::peek_oldest_private_frame<private_activation_record>(v->stack);
+        auto& priv1 = dsl::peek_oldest_private_frame<private_activation_record>(stack1);
         priv1.trampoline = { .pred=dsl::exit_block_label, .succ=dsl::exit_block_label };
         lo = hi = 0;
         interp1 = v;
         oldest_shared.join = interp;
         sched::new_edge(interp1, oldest_shared.join);
-        oldest_private = priv1;
+        oldest_private = &priv1;
       } else {
         interp1 = interp;
       }
       dsl::extended_stack_type& stack2 = interp2->stack;
       stack2.stack.second = encore::cactus::push_back<private_activation_record>(stack2.stack.second);
       auto& priv2 = dsl::peek_oldest_private_frame<private_activation_record>(stack2);
-      int mid = oldest_private.lo + nb;
+      int mid = oldest_private->lo + nb;
       priv2.lo = mid;
-      priv2.hi = oldest_private.hi;
-      oldest_private.hi = mid;
+      priv2.hi = oldest_private->hi;
+      oldest_private->hi = mid;
       priv2.trampoline = { .pred=header, .succ=header };
       sched::new_edge(interp2, oldest_shared.join);
       return std::make_pair(interp1, interp2);
