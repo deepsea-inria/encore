@@ -8,6 +8,8 @@ namespace sched = encore::sched;
 namespace dsl = encore::edsl::pcfg;
 namespace cmdline = pasl::util::cmdline;
 
+int cutoff = 1;
+
 class incr : public dsl::shared_activation_record {
 public:
   
@@ -96,8 +98,11 @@ public:
     cfg[body] = bb::unconditional_jump([] (sar& s, par& p) {
       int* a = s.a;
       int i = p.lo;
-      a[i]++;
-      p.lo++;
+      int n = std::min(p.hi, i + cutoff);
+      for (; i < n; i++) {
+        a[i]++;
+      }
+      p.lo = n;
     }, header);
     return cfg;
   }
@@ -112,6 +117,7 @@ incr::cfg_type incr::cfg = incr::get_cfg();
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
+  cutoff = cmdline::parse_or_default("cutoff", cutoff);
   int* a = new int[n];
   const int initial_value = 23;
   for (int i = 0; i < n; i++) {
