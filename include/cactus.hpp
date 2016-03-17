@@ -332,6 +332,7 @@ stack_type push_back(stack_type s, Args... args) {
 
 template <class Activation_record>
 stack_type pop_back(stack_type s) {
+  assert(! empty(s));
   stack_type t = s;
   char* old_last = s.last;
   chunk_type* old_chunk = chunk_of(old_last);
@@ -350,6 +351,7 @@ stack_type pop_back(stack_type s) {
   
 template <class Activation_record>
 Activation_record& peek_back(stack_type s) {
+  assert(! empty(s));
   char* old_last = s.last;
   chunk_type* old_chunk = chunk_of(old_last);
   if (old_last == (char*)old_chunk) {
@@ -362,11 +364,13 @@ Activation_record& peek_back(stack_type s) {
   
 template <class Activation_record>
 Activation_record& peek_front(stack_type s) {
+  assert(! empty(s));
   return *((Activation_record*)s.first);
 }
 
 template <class Activation_record>
 std::pair<stack_type, stack_type> slice_front(stack_type s) {
+  assert(! empty(s));
   stack_type s1, s2;
   char* old_first = s.first;
   char* new_first = old_first + szb_of_frame<Activation_record>();
@@ -379,6 +383,7 @@ std::pair<stack_type, stack_type> slice_front(stack_type s) {
   
 template <class Activation_record>
 std::pair<stack_type, stack_type> fork_front(stack_type s) {
+  assert(! empty(s));
   stack_type s1, s2;
   char* old_first = s.first;
   char* new_first = old_first + szb_of_frame<Activation_record>();
