@@ -632,11 +632,13 @@ public:
   }
   
   int run(int fuel) {
-    while (! empty_stack(stack) && fuel >= 1) {
-      auto result = peek_newest_shared_frame<shared_activation_record>(stack).run(stack, fuel);
-      stack = result.first;
+    Stack s = stack;
+    while (! empty_stack(s) && fuel >= 1) {
+      auto result = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
+      s = result.first;
       fuel = result.second;
     }
+    stack = s;
     if (fuel == suspend_tag) {
       suspend(this);
       fuel = 0;
