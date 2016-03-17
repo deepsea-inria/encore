@@ -536,10 +536,10 @@ extended_stack_type push_call(extended_stack_type s, Args... args) {
 }
 
 extended_stack_type pop_call(extended_stack_type s) {
-  if (! cactus::empty(s.stack.first)) {
-    s.stack.first = cactus::pop_back<shared_activation_record>(s.stack.first);
-  } else {
+  if (cactus::empty(s.stack.first)) {
     s.oldest_shared = nullptr;
+  } else {
+    s.stack.first = cactus::pop_back<shared_activation_record>(s.stack.first);
   }
   s.stack.second = cactus::pop_back<private_activation_record>(s.stack.second);
   return s;
