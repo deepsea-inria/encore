@@ -670,6 +670,7 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
   auto& private_newest = peek_newest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = private_newest.trampoline.succ;
   basic_block_label_type succ;
+  assert(pred >= 0 && pred < cfg.size());
   auto& block = cfg[pred];
   fuel--;
   switch (block.tag) {
@@ -743,6 +744,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   assert(! empty_stack(stack));
   auto& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
   auto& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
+  assert(private_oldest.trampoline.pred >= 0 && private_oldest.trampoline.pred < cfg.size());
   auto& block = cfg[private_oldest.trampoline.pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
