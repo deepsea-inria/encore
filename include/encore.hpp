@@ -25,6 +25,13 @@ void launch(sched::vertex* v) {
   launch(v, cmdline::parse_or_default("proc", 1));
 }
   
+template <class Shared_activation_record, class ...Args>
+void launch_interpreter(Args... args) {
+  auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
+  interp->stack = edsl::pcfg::push_call<Shared_activation_record>(interp->stack, args...);
+  launch(interp);
+}
+  
 template <class Function>
 void run_and_report_elapsed_time(const Function& f) {
   auto start = std::chrono::system_clock::now();

@@ -122,9 +122,7 @@ int main(int argc, char** argv) {
     a[i] = initial_value;
   }
   encore::run_and_report_elapsed_time([&] {
-    dsl::interpreter<dsl::stack_type>* interp = new dsl::interpreter<dsl::stack_type>;
-    interp->stack = dsl::push_call<incr>(interp->stack, n, a);
-    encore::launch(interp);
+    encore::launch_interpreter<incr>(n, a);
   });
   for (int i = 0; i < n; i++) {
     assert(a[i] == initial_value + 1);

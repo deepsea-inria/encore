@@ -167,9 +167,7 @@ int main(int argc, char** argv) {
   });
 #endif
   d.add("pcfg", [&] {
-    dsl::interpreter<dsl::stack_type>* interp = new dsl::interpreter<dsl::stack_type>;
-    interp->stack = dsl::push_call<fib_cfg>(interp->stack, n, &result);
-    encore::launch(interp);
+    encore::launch_interpreter<fib_cfg>(n, &result);
   });
   encore::run_and_report_elapsed_time([&] {
     d.dispatch("algorithm");
