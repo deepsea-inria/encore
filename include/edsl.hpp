@@ -105,7 +105,7 @@ public:
 private:
   
   void copy_constructor(basic_block_type const& other) {
-    tag = other.t;
+    tag = other.tag;
     switch (tag) {
       case tag_unconditional_jump: {
         new (&variant_unconditional_jump.code) unconditional_jump_code_type(other.variant_unconditional_jump.code);
@@ -846,6 +846,424 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
   }
 }
+  
+} // end namespace
+  
+/*---------------------------------------------------------------------*/
+/* Dag Calculus */
+
+namespace dc {
+  
+using stmt_tag_type = enum {
+  tag_stmt, tag_stmts, tag_cond, tag_exit,
+  tag_sequential_loop, tag_parallel_loop,
+  tag_spawn_join, tag_spawn2_join,
+  tag_join_plus, tag_spawn_minus,
+  tag_spawn_plus, tag_join_minus,
+  tag_none
+};
+  
+template <class Shared_activation_record, class Private_activation_record>
+class stmt_type {
+public:
+
+  using sar_type = Shared_activation_record;
+  using par_type = Private_activation_record;
+  
+  using unconditional_jump_code_type = std::function<void(sar_type&, par_type&)>;
+  using predicate_code_type = std::function<bool(sar_type&, par_type&)>;
+  using procedure_call_code_type = std::function<pcfg::stack_type(sar_type&, par_type&, pcfg::stack_type)>;
+  using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
+  using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
+  using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
+  
+  stmt_tag_type tag;
+  
+  union {
+    struct {
+      unconditional_jump_code_type code;
+    } variant_stmt;
+    struct {
+      std::vector<stmt_type> stmts;
+    } variant_stmts;
+    struct {
+      conds_type conds;
+      std::unique_ptr<stmt_type> otherwise;
+    } variant_cond;
+    struct {
+      // nothing to put here
+    } variant_exit;
+    struct {
+      predicate_code_type predicate;
+      std::unique_ptr<stmt_type> body;
+    } variant_sequential_loop;
+    struct {
+      // todo
+    } variant_parallel_loop;
+    struct {
+      procedure_call_code_type code;
+    } variant_spawn_join;
+    struct {
+      procedure_call_code_type code1;
+      procedure_call_code_type code2;
+    } variant_spawn2_join;
+    struct {
+      procedure_call_code_type code;
+      incounter_getter_code_type getter;
+    } variant_join_plus;
+    struct {
+      procedure_call_code_type code;
+      incounter_getter_code_type getter;
+    } variant_spawn_minus;
+    struct {
+      procedure_call_code_type code;
+      outset_getter_code_type getter;
+    } variant_spawn_plus;
+    struct {
+      outset_getter_code_type getter;
+    } variant_join_minus;
+  };
+  
+  stmt_type() : tag(tag_none) { }
+  
+private:
+  
+  void copy_constructor(stmt_type const& other) {
+    tag = other.tag;
+    switch (tag) {
+      case tag_stmt: {
+        new (&variant_stmt.code) unconditional_jump_code_type(other.variant_stmt.code);
+        break;
+      }
+      case tag_stmts: {
+        new (&variant_stmts.stmts) std::vector<stmt_type>(other.variant_stmts.stmts);
+        break;
+      }
+      case tag_cond: {
+        new (&variant_cond.conds) conds_type(other.variant_cond.conds);
+        new (&variant_cond.otherwise) std::unique_ptr<stmt_type>(other.variant_cond.otherwise);
+        break;
+      }
+      case tag_exit: {
+        // nothing to put here
+        break;
+      }
+      case tag_sequential_loop: {
+        new (&variant_sequential_loop.predicate) predicate_code_type(other.variant_sequential_loop.predicate);
+        new (&variant_sequential_loop.body) std::unique_ptr<stmt_type>(other.variant_sequential_loop.body);
+        break;
+      }
+      case tag_parallel_loop: {
+        // todo
+        assert(false);
+        break;
+      }
+      case tag_spawn_join: {
+        new (&variant_spawn_join.code) procedure_call_code_type(other.variant_spawn_join.code);
+        break;
+      }
+      case tag_spawn2_join: {
+        new (&variant_spawn2_join.code1) procedure_call_code_type(other.variant_spawn2_join.code1);
+        new (&variant_spawn2_join.code2) procedure_call_code_type(other.variant_spawn2_join.code2);
+        break;
+      }
+      case tag_join_plus: {
+        new (&variant_join_plus.code) procedure_call_code_type(other.variant_join_plus.code);
+        new (&variant_join_plus.getter) incounter_getter_code_type(other.variant_join_plus.getter);
+        break;
+      }
+      case tag_spawn_minus: {
+        new (&variant_spawn_minus.code) procedure_call_code_type(other.variant_spawn_minus.code);
+        new (&variant_spawn_minus.getter) incounter_getter_code_type(other.spawn_minus.getter);
+        break;
+      }
+      case tag_spawn_plus: {
+        new (&variant_spawn_plus.code) procedure_call_code_type(other.variant_spawn_plus.code);
+        new (&variant_spawn_plus.getter) outset_getter_code_type(other.variant_spawn_plus.getter);
+        break;
+      }
+      case tag_join_minus: {
+        new (&variant_join_minus.getter) outset_getter_code_type(other.variant_join_minus.getter);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  
+public:
+  
+  stmt_type(stmt_type const& other) {
+    copy_constructor(other);
+  }
+  
+private:
+  
+  void move_constructor(stmt_type&& other) {
+    tag = other.tag;
+    other.tag = tag_none;
+    switch (tag) {
+      case tag_stmt: {
+        new (&variant_stmt.code) unconditional_jump_code_type;
+        variant_stmt.code = std::move(other.variant_stmt.code);
+        break;
+      }
+      case tag_stmts: {
+        new (&variant_stmts.stmts) std::vector<stmt_type>;
+        variant_stmts.stmts = std::move(other.variant_stmts.stmts);
+        break;
+      }
+      case tag_cond: {
+        new (&variant_cond.conds) conds_type;
+        variant_cond.conds = std::move(other.variant_cond.conds);
+        new (&variant_cond.otherwise) std::unique_ptr<stmt_type>;
+        variant_cond.otherwise = std::move(other.variant_cond.otherwise);
+        break;
+      }
+      case tag_exit: {
+        // nothing to put here
+        break;
+      }
+      case tag_sequential_loop: {
+        new (&variant_sequential_loop.predicate) predicate_code_type;
+        variant_sequential_loop.predicate = std::move(other.variant_sequential_loop.predicate);
+        new (&variant_sequential_loop.body) std::unique_ptr<stmt_type>;
+        variant_sequential_loop.body = std::move(other.variant_sequential_loop.body);
+        break;
+      }
+      case tag_parallel_loop: {
+        // todo
+        assert(false);
+        break;
+      }
+      case tag_spawn_join: {
+        new (&variant_spawn_join.code) procedure_call_code_type;
+        variant_spawn_join.code = std::move(other.variant_spawn_join.code);
+        break;
+      }
+      case tag_spawn2_join: {
+        new (&variant_spawn2_join.code1) procedure_call_code_type;
+        variant_spawn2_join.code1 = std::move(other.variant_spawn2_join.code1);
+        new (&variant_spawn2_join.code2) procedure_call_code_type;
+        variant_spawn2_join.code2 = std::move(other.variant_spawn2_join.code2);
+        break;
+      }
+      case tag_join_plus: {
+        new (&variant_join_plus.code) procedure_call_code_type;
+        variant_join_plus.code = std::move(other.variant_join_plus.code);
+        new (&variant_join_plus.getter) incounter_getter_code_type;
+        variant_join_plus.getter = std::move(other.variant_join_plus.getter);
+        break;
+      }
+      case tag_spawn_minus: {
+        new (&variant_spawn_minus.code) procedure_call_code_type;
+        variant_spawn_minus.code = std::move(other.variant_spawn_minus.code);
+        new (&variant_spawn_minus.getter) incounter_getter_code_type;
+        variant_spawn_minus.getter = std::move(other.variant_spawn_minus.getter);
+        break;
+      }
+      case tag_spawn_plus: {
+        new (&variant_spawn_plus.code) procedure_call_code_type;
+        variant_spawn_plus.code = std::move(other.variant_spawn_plus.code);
+        new (&variant_spawn_plus.getter) outset_getter_code_type;
+        variant_spawn_plus.getter = std::move(other.variant_spawn_plus.getter);
+        break;
+      }
+      case tag_join_minus: {
+        new (&variant_join_minus.getter) outset_getter_code_type;
+        variant_join_minus.getter = std::move(other.variant_join_minus.getter);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  
+public:
+  
+  stmt_type(stmt_type&& other) {
+    move_constructor(other);
+  }
+  
+  ~stmt_type() {
+    switch (tag) {
+      case tag_stmt: {
+        variant_stmt.code.~unconditional_jump_code_type();
+        break;
+      }
+      case tag_stmts: {
+        using st = std::vector<stmt_type>;
+        variant_stmts.stmts.~st();
+        break;
+      }
+      case tag_cond: {
+        variant_cond.conds.~cond_type();
+        using st = std::unique_ptr<stmt_type>;
+        variant_cond.otherwise.~st();
+        break;
+      }
+      case tag_exit: {
+        // nothing to put here
+        break;
+      }
+      case tag_sequential_loop: {
+        variant_sequential_loop.predicate.~predicate_code_type();
+        using st = std::unique_ptr<stmt_type>;
+        variant_sequential_loop.body.~st();
+        break;
+      }
+      case tag_parallel_loop: {
+        assert(false); // todo
+        break;
+      }
+      case tag_spawn_join: {
+        variant_spawn_join.code.~procedure_call_code_type();
+        break;
+      }
+      case tag_spawn2_join: {
+        variant_spawn2_join.code1.~procedure_call_code_type();
+        variant_spawn2_join.code2.~procedure_call_code_type();
+        break;
+      }
+      case tag_join_plus: {
+        variant_join_plus.code.~procedure_call_code_type();
+        variant_join_plus.getter.~incounter_getter_code_type();
+        break;
+      }
+      case tag_spawn_minus: {
+        variant_spawn_minus.code.~procedure_call_code_type();
+        variant_spawn_minus.getter.~incounter_getter_code_type();
+        break;
+      }
+      case tag_spawn_plus: {
+        variant_spawn_plus.code.~procedure_call_code_type();
+        variant_spawn_plus.getter.~outset_getter_code_type();
+        break;
+      }
+      case tag_join_minus: {
+        variant_join_minus.getter.~outset_getter_code_type();
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  
+  stmt_type& operator=(stmt_type const& other) {
+    copy_constructor(other);
+    return *this;
+  }
+  
+  stmt_type& operator=(stmt_type&& other) {
+    move_constructor(std::move(other));
+    return *this;
+  }
+  
+  static
+  stmt_type stmt(unconditional_jump_code_type code) {
+    stmt_type s;
+    s.tag = tag_stmt;
+    new (&s.variant_stmt.code) unconditional_jump_code_type(code);
+    return s;
+  }
+  
+  static
+  stmt_type stmts(std::vector<stmt_type> stmts) {
+    stmt_type s;
+    s.tag = tag_stmts;
+    new (&s.variant_stmts.stmts) std::vector<stmt_type>(stmts);
+    return s;
+  }
+  
+  static
+  stmt_type cond(conds_type conds, stmt_type body) {
+    stmt_type s;
+    s.tag = tag_cond;
+    new (&s.variant_cond.conds) conds_type(conds);
+    new (&s.variant_cond.body) std::unique_ptr<stmt_type>(body);
+    return s;
+  }
+  
+  static
+  stmt_type exit() {
+    stmt_type s;
+    s.tag = tag_exit;
+    return s;
+  }
+  
+  static
+  stmt_type sequential_loop(predicate_code_type predicate, stmt_type body) {
+    stmt_type s;
+    s.tag = tag_sequential_loop;
+    new (&s.variant_sequential_loop.predicate) predicate_code_type(predicate);
+    new (&s.variant_sequential_loop.body) std::unique_ptr<stmt_type>(body);
+    return s;
+  }
+  
+  static
+  stmt_type parallel_loop() {
+    stmt_type s;
+    s.tag = tag_parallel_loop;
+    assert(false); // todo
+    return s;
+  }
+  
+  static
+  stmt_type spawn_join(procedure_call_code_type code) {
+    stmt_type s;
+    s.tag = tag_spawn_join;
+    new (&s.variant_spawn_join) procedure_call_code_type(code);
+    return s;
+  }
+  
+  static
+  stmt_type spawn2_join(procedure_call_code_type code1, procedure_call_code_type code2) {
+    stmt_type s;
+    s.tag = tag_spawn2_join;
+    new (&s.variant_spawn2_join.code1) procedure_call_code_type(code1);
+    new (&s.variant_spawn2_join.code2) procedure_call_code_type(code2);
+    return s;
+  }
+  
+  static
+  stmt_type join_plus(procedure_call_code_type code, incounter_getter_code_type getter) {
+    stmt_type s;
+    s.tag = tag_join_plus;
+    new (&s.variant_join_plus.code) procedure_call_code_type(code);
+    new (&s.variant_join_plus.getter) incounter_getter_code_type(getter);
+    return s;
+  }
+  
+  static
+  stmt_type spawn_minus(procedure_call_code_type code, incounter_getter_code_type getter) {
+    stmt_type s;
+    s.tag = tag_spawn_minus;
+    new (&s.variant_spawn_minus.code) procedure_call_code_type(code);
+    new (&s.variant_spawn_minus.getter) incounter_getter_code_type(getter);
+    return s;
+  }
+  
+  static
+  stmt_type spawn_plus(procedure_call_code_type code, outset_getter_code_type getter) {
+    stmt_type s;
+    s.tag = tag_spawn_plus;
+    new (&s.variant_spawn_plus.code) procedure_call_code_type(code);
+    new (&s.variant_spawn_plus.getter) outset_getter_code_type(getter);
+    return s;
+  }
+  
+  static
+  stmt_type join_minus(outset_getter_code_type getter) {
+    stmt_type s;
+    s.tag = tag_join_minus;
+    new (&s.variant_join_minus.getter) outset_getter_code_type(getter);
+    return s;
+  }
+  
+};
   
 } // end namespace
   
