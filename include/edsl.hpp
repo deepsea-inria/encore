@@ -1268,6 +1268,11 @@ public:
     return s;
   }
   
+  static
+  stmt_type mk_if(predicate_code_type pred, stmt_type branch1, stmt_type branch2) {
+    return cond({ std::make_pair(pred, branch1) }, branch2);
+  }
+  
 };
   
 template <class Shared_activation_record, class Private_activation_record>

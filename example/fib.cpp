@@ -161,12 +161,11 @@ public:
   
   static
   cfg_type get_cfg() {
-    dc t =
-    dc::cond({ std::make_pair([] (sar& s, par&) { return s.n <= cutoff; },
-                              dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); })) },
-             dc::stmts({ dc::spawn2_join([] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 1, &s.d1); },
-                                         [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 2, &s.d2); }) }));
-    return encore::edsl::dc::linearize<sar, par>::transform(t);
+    return encore::edsl::dc::linearize<sar, par>::transform(
+      dc::mk_if([] (sar& s, par&) { return s.n <= cutoff; },
+        dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
+        dc::spawn2_join([] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 1, &s.d1); },
+                        [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 2, &s.d2); }) ) );
   }
   
   static
