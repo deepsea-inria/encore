@@ -1297,15 +1297,6 @@ private:
       assert(result.find(label) == result.end());
       result.insert(std::make_pair(label, block));
     };
-    auto add_stmts = [&] (std::vector<stmt_type>& stmts, std::vector<lt>& entries, lt exit) {
-      int i = 0;
-      for (auto& s : stmts) {
-        lt entry = entries.at(i);
-        lt exit2 = (i + 1 == entries.size()) ? exit : entries.at(i + 1);
-        result = transform(s, entry, exit2, result);
-        i++;
-      }
-    };
     switch (stmt.tag) {
       case tag_stmt: {
         add_block(entry, bbt::unconditional_jump(stmt.variant_stmt.code, exit));
@@ -1316,7 +1307,13 @@ private:
         for (int i = 0; i < stmt.variant_stmts.stmts.size(); i++) {
           entries.push_back(new_label());
         }
-        add_stmts(stmt.variant_stmts.stmts, entries, exit);
+        int i = 0;
+        for (auto& s : stmt.variant_stmts.stmts) {
+          lt entry = entries.at(i);
+          lt exit2 = (i + 1 == entries.size()) ? exit : entries.at(i + 1);
+          result = transform(s, entry, exit2, result);
+          i++;
+        }
         break;
       }
       case tag_cond: {
@@ -1332,7 +1329,11 @@ private:
           i++;
         }
         auto otherwise_label = new_label();
-        add_stmts(stmts, entries, otherwise_label);
+        i = 0;
+        for (auto& s : stmts) {
+          result = transform(s, entries.at(i), exit, result);
+          i++;
+        }
         entries.push_back(otherwise_label);
         result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, result);
         auto selector = [=] (sar& s, par& p) {
