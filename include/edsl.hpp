@@ -1,6 +1,7 @@
 
 #include <functional>
 #include <vector>
+#include <map>
 #include <algorithm>
 #include <memory>
 
@@ -352,7 +353,7 @@ public:
                              incounter_getter_code_type getter,
                              basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_join_plus;
+    b.tag = tag_join_plus;
     new (&b.variant_join_plus.code) procedure_call_code_type(code);
     new (&b.variant_join_plus.getter) incounter_getter_code_type(getter);
     b.variant_join_plus.next = next;
@@ -361,10 +362,10 @@ public:
   
   static
   basic_block_type spawn_minus(procedure_call_code_type code,
-                              incounter_getter_code_type getter,
-                              basic_block_label_type next) {
+                               incounter_getter_code_type getter,
+                               basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_spawn_minus;
+    b.tag = tag_spawn_minus;
     new (&b.variant_spawn_minus.code) procedure_call_code_type(code);
     new (&b.variant_spawn_minus.getter) incounter_getter_code_type(getter);
     b.variant_spawn_minus.next = next;
@@ -373,10 +374,10 @@ public:
   
   static
   basic_block_type spawn_plus(procedure_call_code_type code,
-                             outset_getter_code_type getter,
-                             basic_block_label_type next) {
+                              outset_getter_code_type getter,
+                              basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_spawn_plus;
+    b.tag = tag_spawn_plus;
     new (&b.variant_spawn_plus.code) procedure_call_code_type(code);
     new (&b.variant_spawn_plus.getter) outset_getter_code_type(getter);
     b.variant_spawn_plus.next = next;
@@ -387,7 +388,7 @@ public:
   basic_block_type join_minus(outset_getter_code_type getter,
                               basic_block_label_type next) {
     basic_block_type b;
-    b.t = tag_join_minus;
+    b.tag = tag_join_minus;
     new (&b.variant_join_minus.getter) outset_getter_code_type(getter);
     b.variant_join_minus.next = next;
     return b;
@@ -941,7 +942,9 @@ private:
       }
       case tag_cond: {
         new (&variant_cond.conds) conds_type(other.variant_cond.conds);
-        new (&variant_cond.otherwise) std::unique_ptr<stmt_type>(other.variant_cond.otherwise);
+        auto p = new stmt_type;
+        p->copy_constructor(*other.variant_cond.otherwise);
+        new (&variant_cond.otherwise) std::unique_ptr<stmt_type>(p);
         break;
       }
       case tag_exit: {
@@ -950,7 +953,9 @@ private:
       }
       case tag_sequential_loop: {
         new (&variant_sequential_loop.predicate) predicate_code_type(other.variant_sequential_loop.predicate);
-        new (&variant_sequential_loop.body) std::unique_ptr<stmt_type>(other.variant_sequential_loop.body);
+        auto p = new stmt_type;
+        p->copy_constructor(*other.variant_sequential_loop.body);
+        new (&variant_sequential_loop.body) std::unique_ptr<stmt_type>(p);
         break;
       }
       case tag_parallel_loop: {
@@ -974,7 +979,7 @@ private:
       }
       case tag_spawn_minus: {
         new (&variant_spawn_minus.code) procedure_call_code_type(other.variant_spawn_minus.code);
-        new (&variant_spawn_minus.getter) incounter_getter_code_type(other.spawn_minus.getter);
+        new (&variant_spawn_minus.getter) incounter_getter_code_type(other.variant_spawn_minus.getter);
         break;
       }
       case tag_spawn_plus: {
@@ -1084,7 +1089,7 @@ private:
 public:
   
   stmt_type(stmt_type&& other) {
-    move_constructor(other);
+    move_constructor(std::move(other));
   }
   
   ~stmt_type() {
@@ -1099,7 +1104,7 @@ public:
         break;
       }
       case tag_cond: {
-        variant_cond.conds.~cond_type();
+        variant_cond.conds.~conds_type();
         using st = std::unique_ptr<stmt_type>;
         variant_cond.otherwise.~st();
         break;
@@ -1179,11 +1184,11 @@ public:
   }
   
   static
-  stmt_type cond(conds_type conds, stmt_type body) {
+  stmt_type cond(conds_type conds, stmt_type otherwise) {
     stmt_type s;
     s.tag = tag_cond;
     new (&s.variant_cond.conds) conds_type(conds);
-    new (&s.variant_cond.body) std::unique_ptr<stmt_type>(body);
+    new (&s.variant_cond.otherwise) std::unique_ptr<stmt_type>(new stmt_type(otherwise));
     return s;
   }
   
@@ -1264,6 +1269,156 @@ public:
   }
   
 };
+  
+template <class Shared_activation_record, class Private_activation_record>
+class linearize {
+private:
+
+  using sar = Shared_activation_record;
+  using par = Private_activation_record;
+  using stmt_type = stmt_type<sar, par>;
+  
+  using basic_block_label_type = pcfg::basic_block_label_type;
+  using basic_block_type = pcfg::basic_block_type<sar, par>;
+  using bbt = basic_block_type;
+  using lt = basic_block_label_type;
+  using block_map_type = std::map<basic_block_label_type, basic_block_type>;
+  
+  static
+  lt next_block_label;
+  
+  static
+  block_map_type transform(stmt_type stmt, lt entry, lt exit, block_map_type blocks) {
+    auto result = blocks;
+    auto new_label = [&] {
+      return next_block_label++;
+    };
+    auto add_block = [&] (lt label, bbt block) {
+      assert(result.find(label) == result.end());
+      result.insert(std::make_pair(label, block));
+    };
+    auto add_stmts = [&] (std::vector<stmt_type>& stmts, std::vector<lt>& entries, lt exit) {
+      int i = 0;
+      for (auto& s : stmts) {
+        lt entry = entries.at(i);
+        lt exit2 = (i + 1 == entries.size()) ? exit : entries.at(i + 1);
+        result = transform(s, entry, exit2, result);
+        i++;
+      }
+    };
+    switch (stmt.tag) {
+      case tag_stmt: {
+        add_block(entry, bbt::unconditional_jump(stmt.variant_stmt.code, exit));
+        break;
+      }
+      case tag_stmts: {
+        std::vector<lt> entries;
+        for (int i = 0; i < stmt.variant_stmts.stmts.size(); i++) {
+          entries.push_back(new_label());
+        }
+        add_stmts(stmt.variant_stmts.stmts, entries, exit);
+        break;
+      }
+      case tag_cond: {
+        auto nb_branches = stmt.variant_cond.conds.size();
+        std::vector<typename stmt_type::predicate_code_type> predicates(nb_branches);
+        std::vector<lt> entries(nb_branches);
+        std::vector<stmt_type> stmts(nb_branches);
+        int i = 0;
+        for (auto& c : stmt.variant_cond.conds) {
+          predicates[i] = c.first;
+          stmts[i] = c.second;
+          entries[i] = new_label();
+          i++;
+        }
+        auto otherwise_label = new_label();
+        add_stmts(stmts, entries, otherwise_label);
+        entries.push_back(otherwise_label);
+        result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, result);
+        auto selector = [=] (sar& s, par& p) {
+          int i = 0;
+          for (auto& pred : predicates) {
+            if (pred(s, p)) {
+              break;
+            }
+            i++;
+          }
+          return i;
+        };
+        add_block(entry, bbt::conditional_jump(selector, entries));
+        break;
+      }
+      case tag_exit: {
+        add_block(entry, bbt::unconditional_jump([] (sar&, par&) { }, pcfg::exit_block_label));
+        break;
+      }
+      case tag_sequential_loop: {
+        auto header_label = entry;
+        auto body_label = new_label();
+        auto selector = [=] (sar& s, par& p) {
+          return stmt.variant_sequential_loop.predicate(s, p) ? 0 : 1;
+        };
+        std::vector<lt> targets = { body_label, exit };
+        add_block(header_label, bbt::conditional_jump(selector, targets));
+        result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, result);
+        break;
+      }
+      case tag_parallel_loop: {
+        assert(false); // todo
+        break;
+      }
+      case tag_spawn_join: {
+        add_block(entry, bbt::spawn_join(stmt.variant_spawn_join.code, exit));
+        break;
+      }
+      case tag_spawn2_join: {
+        auto branch1_label = entry;
+        auto branch2_label = new_label();
+        add_block(branch1_label, bbt::spawn2_join(stmt.variant_spawn2_join.code1, branch2_label));
+        add_block(branch2_label, bbt::spawn_join(stmt.variant_spawn2_join.code2, exit));
+        break;
+      }
+      case tag_join_plus: {
+        add_block(entry, bbt::join_plus(stmt.variant_join_plus.code, stmt.variant_join_plus.getter, exit));
+        break;
+      }
+      case tag_spawn_minus: {
+        add_block(entry, bbt::spawn_minus(stmt.variant_spawn_minus.code, stmt.variant_spawn_minus.getter, exit));
+        break;
+      }
+      case tag_spawn_plus: {
+        add_block(entry, bbt::spawn_plus(stmt.variant_spawn_plus.code, stmt.variant_spawn_plus.getter, exit));
+        break;
+      }
+      case tag_join_minus: {
+        add_block(entry, bbt::join_minus(stmt.variant_join_minus.getter, exit));
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    return result;
+  }
+  
+public:
+  
+  static
+  pcfg::cfg_type<Shared_activation_record> transform(stmt_type stmt) {
+    lt entry = pcfg::entry_block_label;
+    lt exit = pcfg::exit_block_label;
+    block_map_type map = transform(stmt, entry, exit, { });
+    pcfg::cfg_type<Shared_activation_record> blocks(map.size());
+    for (int i = 0; i < blocks.size(); i++) {
+      blocks[i] = map[i];
+    }
+    return blocks;
+  }
+  
+};
+  
+template <class Sar, class Par>
+typename linearize<Sar, Par>::linearize::lt linearize<Sar, Par>::next_block_label = pcfg::entry_block_label + 1;
   
 } // end namespace
   

@@ -139,6 +139,43 @@ public:
 
 fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
 
+class fib_dc : public dsl::shared_activation_record {
+public:
+  
+  encore_pcfg_driver
+  encore_pcfg_default_private_activation_record
+  
+  int n; int* dp;
+  int d1; int d2;
+  
+  fib_dc() { }
+  
+  fib_dc(int n, int* dp)
+  : n(n), dp(dp) { }
+  
+  using cfg_type = dsl::cfg_type<fib_dc>;
+  using sar = fib_dc;
+  using par = private_activation_record;
+  using dc = encore::edsl::dc::stmt_type<sar, par>;
+  using stt = dsl::stack_type;
+  
+  static
+  cfg_type get_cfg() {
+    dc t =
+    dc::cond({ std::make_pair([] (sar& s, par&) { return s.n <= cutoff; },
+                              dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); })) },
+             dc::stmts({ dc::spawn2_join([] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 1, &s.d1); },
+                                         [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 2, &s.d2); }) }));
+    return encore::edsl::dc::linearize<sar, par>::transform(t);
+  }
+  
+  static
+  cfg_type cfg;
+  
+};
+
+fib_dc::cfg_type fib_dc::cfg = fib_dc::get_cfg();
+
 namespace cmdline = pasl::util::cmdline;
 
 #ifdef USE_CILK_PLUS
@@ -168,6 +205,9 @@ int main(int argc, char** argv) {
 #endif
   d.add("pcfg", [&] {
     encore::launch_interpreter<fib_cfg>(n, &result);
+  });
+  d.add("dc", [&] {
+    encore::launch_interpreter<fib_dc>(n, &result);
   });
   encore::run_and_report_elapsed_time([&] {
     d.dispatch("algorithm");
