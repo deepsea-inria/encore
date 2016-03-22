@@ -164,8 +164,11 @@ public:
     return encore::edsl::dc::linearize<sar, par>::transform(
       dc::mk_if([] (sar& s, par&) { return s.n <= cutoff; },
         dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
-        dc::spawn2_join([] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 1, &s.d1); },
-                        [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 2, &s.d2); }) ) );
+        dc::spawn2_join(
+          [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 1, &s.d1); },
+          [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 2, &s.d2); })
+      )
+    );
   }
   
   static
