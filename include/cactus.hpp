@@ -34,7 +34,7 @@ using stack_type = struct stack_struct {
   
 using descriptor_type = struct {
   
-  enum { empty_tag=1, frame_tag=2, overflow_tag=3, initial_tag=4 } tag;
+  enum { empty_tag, frame_tag, overflow_tag, initial_tag } tag;
   
   union {
     
