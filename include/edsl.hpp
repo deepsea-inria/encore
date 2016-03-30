@@ -580,9 +580,7 @@ std::pair<extended_stack_type, stack_type> slice_stack(extended_stack_type s) {
   extended_stack_type s1;
   stack_type s2;
   s1.oldest_shared = s.oldest_shared;
-  s1.stack.first = s.stack.first;
-  assert(false);
-//  s1.stack.first.last = s1.stack.first.first;
+  s1.stack.first = cactus::new_stack();
   auto private_stacks = cactus::slice_front<private_activation_record>(s.stack.second);
   s1.stack.second = private_stacks.first;
   s2.first = s.stack.first;
