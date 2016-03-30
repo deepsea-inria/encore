@@ -1479,7 +1479,7 @@ static stt ecall(stt s, Args... args) { \
 static \
 cfg_type cfg; \
 
-#define encore_dc_declare(edsl, name, sar, par, get_dc) \
+#define encore_dc_declare(edsl, name, sar, par, dc, get_dc) \
 encore_pcfg_default_private_activation_record(edsl::pcfg) \
 encore_pcfg_declare(edsl, name, sar, par, _bb0123) \
 using dc = edsl::dc::stmt_type<sar, par>; \

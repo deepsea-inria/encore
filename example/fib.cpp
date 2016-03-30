@@ -140,7 +140,7 @@ public:
   fib_dc(int n, int* dp)
   : n(n), dp(dp) { }
 
-  encore_dc_declare(encore::edsl, fib_dc, sar, par, get_dc)
+  encore_dc_declare(encore::edsl, fib_dc, sar, par, dc, get_dc)
   
   static
   dc get_dc() {
