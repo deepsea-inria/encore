@@ -88,13 +88,8 @@ public:
   
 };
 
-namespace dsl = encore::edsl::pcfg;
-
-class fib_cfg : public dsl::shared_activation_record {
+class fib_cfg : public encore::edsl::pcfg::shared_activation_record {
 public:
-  
-  encore_pcfg_driver
-  encore_pcfg_default_private_activation_record
   
   int n; int* dp;
   int d1; int d2;
@@ -104,10 +99,8 @@ public:
   fib_cfg(int n, int* dp)
   : n(n), dp(dp) { }
   
-  using cfg_type = dsl::cfg_type<fib_cfg>;
-  using bb = typename cfg_type::value_type;
-  using sar = fib_cfg;
-  using par = private_activation_record;
+  encore_pcfg_default_private_activation_record(encore::edsl::pcfg)
+  encore_pcfg_declare(encore::edsl, fib_cfg, sar, par, bb)
   
   static
   cfg_type get_cfg() {
@@ -119,31 +112,25 @@ public:
         return 0;
       }
       return 1;
-    }, { dsl::exit_block_label, branch1 });
-    cfg[branch1] = bb::spawn2_join([] (sar& s, par&, dsl::stack_type st) {
-      return dsl::push_call<fib_cfg>(st, s.n - 1, &s.d1);
+    }, { encore::edsl::pcfg::exit_block_label, branch1 });
+    cfg[branch1] = bb::spawn2_join([] (sar& s, par&, stt st) {
+      return ecall<fib_cfg>(st, s.n - 1, &s.d1);
     }, branch2);
-    cfg[branch2] = bb::spawn_join([] (sar& s, par&, dsl::stack_type st) {
-      return dsl::push_call<fib_cfg>(st, s.n - 2, &s.d2);
+    cfg[branch2] = bb::spawn_join([] (sar& s, par&, stt st) {
+      return ecall<fib_cfg>(st, s.n - 2, &s.d2);
     }, combine);
     cfg[combine] = bb::unconditional_jump([] (sar& s, par&) {
       *s.dp = s.d1 + s.d2;
-    }, dsl::exit_block_label);
+    }, encore::edsl::pcfg::exit_block_label);
     return cfg;
   }
   
-  static
-  cfg_type cfg;
-  
 };
 
-fib_cfg::cfg_type fib_cfg::cfg = fib_cfg::get_cfg();
+encore_pcfg_allocate(fib_cfg, get_cfg)
 
-class fib_dc : public dsl::shared_activation_record {
+class fib_dc : public encore::edsl::pcfg::shared_activation_record {
 public:
-  
-  encore_pcfg_driver
-  encore_pcfg_default_private_activation_record
   
   int n; int* dp;
   int d1; int d2;
@@ -152,31 +139,25 @@ public:
   
   fib_dc(int n, int* dp)
   : n(n), dp(dp) { }
-  
-  using cfg_type = dsl::cfg_type<fib_dc>;
-  using sar = fib_dc;
-  using par = private_activation_record;
-  using dc = encore::edsl::dc::stmt_type<sar, par>;
-  using stt = dsl::stack_type;
+
+  encore_dc_declare(encore::edsl, fib_dc, sar, par, get_dc)
   
   static
-  cfg_type get_cfg() {
-    return encore::edsl::dc::linearize<sar, par>::transform(
-      dc::mk_if([] (sar& s, par&) { return s.n <= cutoff; },
-        dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
-        dc::spawn2_join(
-          [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 1, &s.d1); },
-          [] (sar& s, par&, stt st) { return dsl::push_call<fib_dc>(st, s.n - 2, &s.d2); })
-      )
-    );
+  dc get_dc() {
+    return dc::mk_if([] (sar& s, par&) { return s.n <= cutoff; },
+                     dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
+                     dc::spawn2_join(
+                                     [] (sar& s, par&, stt st) {
+                                         return ecall<fib_dc>(st, s.n - 1, &s.d1); },
+                                     [] (sar& s, par&, stt st) {
+                                         return ecall<fib_dc>(st, s.n - 2, &s.d2); })
+                     );
   }
-  
-  static
-  cfg_type cfg;
+
   
 };
 
-fib_dc::cfg_type fib_dc::cfg = fib_dc::get_cfg();
+encore_pcfg_allocate(fib_dc, get_cfg)
 
 namespace cmdline = pasl::util::cmdline;
 

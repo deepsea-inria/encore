@@ -1433,7 +1433,7 @@ typename linearize<Sar, Par>::linearize::lt linearize<Sar, Par>::next_block_labe
 /*---------------------------------------------------------------------*/
 /* Macros */
 
-#define encore_pcfg_driver \
+#define encore_pcfg_driver(dsl) \
 std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) const { \
   return dsl::step(cfg, stack, fuel); \
 } \
@@ -1450,10 +1450,10 @@ void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const { \
   dsl::promote(cfg, interp); \
 }
 
-#define encore_pcfg_default_private_activation_record \
+#define encore_pcfg_default_private_activation_record(dsl) \
 class private_activation_record : public dsl::private_activation_record { };
 
-#define encore_pcfg_private_shared_driver(split2) \
+#define encore_pcfg_private_shared_driver(dsl, split2) \
 std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::stack_type>* interp, int nb) { \
   return split2(interp, nb); \
 } \
@@ -1461,5 +1461,35 @@ std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::stack_type
 std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::extended_stack_type>* interp, int nb) { \
   return split2(interp, nb); \
 }
+
+#define encore_pcfg_declare(edsl, name, sar, par, bb) \
+encore_pcfg_driver(edsl::pcfg) \
+\
+using cfg_type = edsl::pcfg::cfg_type<name>; \
+using sar = name; \
+using par = private_activation_record; \
+using stt = edsl::pcfg::stack_type; \
+using bb = typename cfg_type::value_type; \
+\
+template <class Activation_record, class ...Args> \
+static stt ecall(stt s, Args... args) { \
+  return edsl::pcfg::push_call<Activation_record>(s, args...); \
+} \
+\
+static \
+cfg_type cfg; \
+
+#define encore_dc_declare(edsl, name, sar, par, get_dc) \
+encore_pcfg_default_private_activation_record(edsl::pcfg) \
+encore_pcfg_declare(edsl, name, sar, par, _bb0123) \
+using dc = edsl::dc::stmt_type<sar, par>; \
+\
+static \
+cfg_type get_cfg() { \
+  return edsl::dc::linearize<sar, par>::transform(get_dc()); \
+} \
+
+#define encore_pcfg_allocate(name, get_cfg) \
+name::cfg_type name::cfg = name::get_cfg(); \
 
 #endif /*! _ENCORE_SCHED_EDSL_H_ */

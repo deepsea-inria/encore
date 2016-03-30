@@ -5,47 +5,44 @@
 #include "encore.hpp"
 
 namespace sched = encore::sched;
-namespace dsl = encore::edsl::pcfg;
 namespace cmdline = pasl::util::cmdline;
 
 int cutoff = 1;
 
-class incr : public dsl::shared_activation_record {
+class incr : public encore::edsl::pcfg::shared_activation_record {
 public:
-  
-  encore_pcfg_driver
   
   enum { entry=0, header, body, nb_blocks };
   
-  class private_activation_record : public dsl::private_activation_record {
+  class private_activation_record : public encore::edsl::pcfg::private_activation_record {
   public:
     
     int lo; int hi;
     
     int nb_strands() {
-      if (trampoline.pred == dsl::exit_block_label) {
+      if (trampoline.pred == encore::edsl::pcfg::exit_block_label) {
         return 0;
       }
       return std::max(1, hi - lo);
     }
     
     template <class Stack>
-    std::pair<sched::vertex*, sched::vertex*> split2(dsl::interpreter<Stack>* interp, int nb) {
+    std::pair<sched::vertex*, sched::vertex*> split2(encore::edsl::pcfg::interpreter<Stack>* interp, int nb) {
       assert(lo + nb <= hi);
-      incr& oldest_shared = dsl::peek_oldest_shared_frame<incr>(interp->stack);
+      incr& oldest_shared = encore::edsl::pcfg::peek_oldest_shared_frame<incr>(interp->stack);
       auto* oldest_private = this;
       sched::vertex* interp1 = nullptr;
-      auto interp2 = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
+      auto interp2 = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(&oldest_shared);
       interp2->release_handle->decrement();
       if (oldest_shared.join == nullptr) {
         oldest_private->trampoline = { .pred=header, .succ=header };
-        auto stacks = dsl::slice_stack<incr>(interp->stack);
+        auto stacks = encore::edsl::pcfg::slice_stack<incr>(interp->stack);
         interp->stack = stacks.first;
-        auto v = new dsl::interpreter<dsl::extended_stack_type>(&oldest_shared);
+        auto v = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(&oldest_shared);
         v->release_handle->decrement();
-        dsl::extended_stack_type& stack1 = v->stack;
+        encore::edsl::pcfg::extended_stack_type& stack1 = v->stack;
         stack1.stack.second = encore::cactus::push_back<private_activation_record>(stack1.stack.second, *this);
-        auto& priv1 = dsl::peek_oldest_private_frame<private_activation_record>(stack1);
+        auto& priv1 = encore::edsl::pcfg::peek_oldest_private_frame<private_activation_record>(stack1);
         priv1.trampoline = { .pred=header, .succ=header };
         lo = hi = 0;
         interp1 = v;
@@ -55,9 +52,9 @@ public:
       } else {
         interp1 = interp;
       }
-      dsl::extended_stack_type& stack2 = interp2->stack;
+      encore::edsl::pcfg::extended_stack_type& stack2 = interp2->stack;
       stack2.stack.second = encore::cactus::push_back<private_activation_record>(stack2.stack.second);
-      auto& priv2 = dsl::peek_oldest_private_frame<private_activation_record>(stack2);
+      auto& priv2 = encore::edsl::pcfg::peek_oldest_private_frame<private_activation_record>(stack2);
       int mid = oldest_private->lo + nb;
       priv2.lo = mid;
       priv2.hi = oldest_private->hi;
@@ -67,7 +64,7 @@ public:
       return std::make_pair(interp1, interp2);
     }
     
-    encore_pcfg_private_shared_driver(split2)
+    encore_pcfg_private_shared_driver(encore::edsl::pcfg, split2)
     
   };
   
@@ -78,10 +75,7 @@ public:
   
   incr() { }
   
-  using cfg_type = dsl::cfg_type<incr>;
-  using bb = typename cfg_type::value_type;
-  using sar = incr;
-  using par = private_activation_record;
+  encore_pcfg_declare(encore::edsl, incr, sar, par, bb)
   
   static
   cfg_type get_cfg() {
@@ -92,7 +86,7 @@ public:
     }, header);
     cfg[header] = bb::conditional_jump([] (sar& s, par& p) {
       return (p.hi == p.lo) ? 1 : 0;
-    }, { body, dsl::exit_block_label });
+    }, { body, encore::edsl::pcfg::exit_block_label });
     cfg[body] = bb::unconditional_jump([] (sar& s, par& p) {
       int* a = s.a;
       int i = p.lo;
@@ -105,12 +99,9 @@ public:
     return cfg;
   }
   
-  static
-  cfg_type cfg;
-  
 };
 
-incr::cfg_type incr::cfg = incr::get_cfg();
+encore_pcfg_allocate(incr, get_cfg)
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
