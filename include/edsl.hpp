@@ -948,7 +948,7 @@ public:
       interp->stack = stacks.first;
       interp1 = new interpreter<extended_stack_type>(oldest_shared);
       extended_stack_type& stack1 = interp1->stack;
-      stack1.stack.second = encore::cactus::push_back<par>(stack1.stack.second, *oldest_private);
+      stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
       par& private1 = peek_oldest_private_frame<par>(stack1);
       private1.lo = lo;
       private1.hi = mid;
@@ -969,7 +969,7 @@ public:
     }
     interp2 = new interpreter<extended_stack_type>(oldest_shared);
     extended_stack_type& stack2 = interp2->stack;
-    stack2.stack.second = encore::cactus::push_back<par>(stack2.stack.second, *oldest_private);
+    stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
     par& private2 = peek_oldest_private_frame<par>(stack2);
     private2.lo = mid;
     private2.hi = hi;
