@@ -1,7 +1,6 @@
 
 #include <iostream>
 #include <chrono>
-#include <array>
 
 #include "encore.hpp"
 

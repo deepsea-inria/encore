@@ -4,6 +4,7 @@
 #include <map>
 #include <algorithm>
 #include <memory>
+#include <array>
 
 #include "vertex.hpp"
 #include "cactus.hpp"
