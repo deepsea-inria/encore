@@ -920,7 +920,7 @@ public:
   }
   
   int nb_strands() {
-    if (trampoline.pred == encore::edsl::pcfg::exit_block_label) {
+    if (trampoline.pred == exit_block_label) {
       return 0;
     }
     auto d = get_at(get_oldest());
@@ -931,11 +931,11 @@ public:
   }
   
   template <class Stack>
-  std::pair<sched::vertex*, sched::vertex*> split2(encore::edsl::pcfg::interpreter<Stack>* interp, int nb) {
-    encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>* interp1 = nullptr;
-    encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>* interp2 = nullptr;
-    sar* oldest_shared = &encore::edsl::pcfg::peek_oldest_shared_frame<sar>(interp->stack);
-    par* oldest_private = &encore::edsl::pcfg::peek_oldest_private_frame<par>(interp->stack);
+  std::pair<sched::vertex*, sched::vertex*> split2(interpreter<Stack>* interp, int nb) {
+    interpreter<extended_stack_type>* interp1 = nullptr;
+    interpreter<extended_stack_type>* interp2 = nullptr;
+    sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
+    par* oldest_private = &peek_oldest_private_frame<par>(interp->stack);
     loop_address_type address = oldest_private->get_oldest();
     parallel_for_descriptor& descriptor = *oldest_private->get_at(address);
     sched::vertex* join = descriptor.join;
@@ -944,12 +944,12 @@ public:
     int mid = *descriptor.lo + nb;
     if (join == nullptr) {
       join = interp;
-      auto stacks = encore::edsl::pcfg::slice_stack<sar>(interp->stack);
+      auto stacks = slice_stack<sar>(interp->stack);
       interp->stack = stacks.first;
-      interp1 = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(oldest_shared);
-      encore::edsl::pcfg::extended_stack_type& stack1 = interp1->stack;
+      interp1 = new interpreter<extended_stack_type>(oldest_shared);
+      extended_stack_type& stack1 = interp1->stack;
       stack1.stack.second = encore::cactus::push_back<par>(stack1.stack.second, *oldest_private);
-      par& private1 = encore::edsl::pcfg::peek_oldest_private_frame<par>(stack1);
+      par& private1 = peek_oldest_private_frame<par>(stack1);
       private1.lo = lo;
       private1.hi = mid;
       private1.trampoline = descriptor.entry;
@@ -965,12 +965,12 @@ public:
       interp1->release_handle->decrement();
     } else {
       *descriptor.hi = mid;
-      interp1 = (encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>*)interp;
+      interp1 = (interpreter<extended_stack_type>*)interp;
     }
-    interp2 = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(oldest_shared);
-    encore::edsl::pcfg::extended_stack_type& stack2 = interp2->stack;
+    interp2 = new interpreter<extended_stack_type>(oldest_shared);
+    extended_stack_type& stack2 = interp2->stack;
     stack2.stack.second = encore::cactus::push_back<par>(stack2.stack.second, *oldest_private);
-    par& private2 = encore::edsl::pcfg::peek_oldest_private_frame<par>(stack2);
+    par& private2 = peek_oldest_private_frame<par>(stack2);
     private2.lo = mid;
     private2.hi = hi;
     private2.trampoline = descriptor.entry;
