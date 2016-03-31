@@ -1,77 +1,54 @@
 
 #include <iostream>
 #include <chrono>
+#include <array>
 
 #include "encore.hpp"
 
 namespace sched = encore::sched;
 namespace cmdline = pasl::util::cmdline;
+namespace dsl = encore::edsl;
 
 int cutoff = 1;
 
-class incr : public encore::edsl::pcfg::shared_activation_record {
+class incr : public dsl::pcfg::shared_activation_record {
 public:
   
-  enum { entry=0, header, body, nb_blocks };
+  enum { entry, header, body, exit, nb_blocks };
   
-  class private_activation_record : public encore::edsl::pcfg::private_activation_record {
+  enum { loop_nest_0, nb_loop_nests };
+  
+  enum { loop_0, nb_loops };
+  
+  class private_activation_record
+  : public dsl::pcfg::parallel_for_private_activation_record<incr,
+           private_activation_record, nb_loop_nests, nb_loops> {
   public:
     
     int lo; int hi;
     
-    int nb_strands() {
-      if (trampoline.pred == encore::edsl::pcfg::exit_block_label) {
-        return 0;
-      }
-      return std::max(1, hi - lo);
+    private_activation_record() {
+      tables[loop_nest_0].nb = 1;
+      dsl::pcfg::trampoline_type entry = { .pred=header, .succ=header };
+      dsl::pcfg::trampoline_type eexit = { .pred=exit, .succ=exit };
+      dsl::pcfg::parallel_for_descriptor d(lo, hi, entry, eexit);
+      tables[loop_nest_0].descriptors[loop_0] = d;
     }
     
-    template <class Stack>
-    std::pair<sched::vertex*, sched::vertex*> split2(encore::edsl::pcfg::interpreter<Stack>* interp, int nb) {
-      assert(lo + nb <= hi);
-      incr& oldest_shared = encore::edsl::pcfg::peek_oldest_shared_frame<incr>(interp->stack);
-      auto* oldest_private = this;
-      sched::vertex* interp1 = nullptr;
-      auto interp2 = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(&oldest_shared);
-      interp2->release_handle->decrement();
-      if (oldest_shared.join == nullptr) {
-        oldest_private->trampoline = { .pred=header, .succ=header };
-        auto stacks = encore::edsl::pcfg::slice_stack<incr>(interp->stack);
-        interp->stack = stacks.first;
-        auto v = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(&oldest_shared);
-        v->release_handle->decrement();
-        encore::edsl::pcfg::extended_stack_type& stack1 = v->stack;
-        stack1.stack.second = encore::cactus::push_back<private_activation_record>(stack1.stack.second, *this);
-        auto& priv1 = encore::edsl::pcfg::peek_oldest_private_frame<private_activation_record>(stack1);
-        priv1.trampoline = { .pred=header, .succ=header };
-        lo = hi = 0;
-        interp1 = v;
-        oldest_shared.join = interp;
-        sched::new_edge(interp1, oldest_shared.join);
-        oldest_private = &priv1;
-      } else {
-        interp1 = interp;
-      }
-      encore::edsl::pcfg::extended_stack_type& stack2 = interp2->stack;
-      stack2.stack.second = encore::cactus::push_back<private_activation_record>(stack2.stack.second);
-      auto& priv2 = encore::edsl::pcfg::peek_oldest_private_frame<private_activation_record>(stack2);
-      int mid = oldest_private->lo + nb;
-      priv2.lo = mid;
-      priv2.hi = oldest_private->hi;
-      oldest_private->hi = mid;
-      priv2.trampoline = { .pred=header, .succ=header };
-      sched::new_edge(interp2, oldest_shared.join);
-      return std::make_pair(interp1, interp2);
+    loop_nest_id_type my_loop_nest_id() {
+      return loop_nest_0;
     }
     
-    encore_pcfg_private_shared_driver(encore::edsl::pcfg, split2)
+    loop_id_type my_loop_id() {
+      return loop_0;
+    }
     
   };
   
-  int n; int* a; sched::vertex* join;
+  int n; int* a;
   
   incr(int n, int* a)
-  : n(n), a(a), join(nullptr) { }
+  : n(n), a(a) { }
   
   incr() { }
   
@@ -86,7 +63,7 @@ public:
     }, header);
     cfg[header] = bb::conditional_jump([] (sar& s, par& p) {
       return (p.hi == p.lo) ? 1 : 0;
-    }, { body, encore::edsl::pcfg::exit_block_label });
+    }, { body, exit });
     cfg[body] = bb::unconditional_jump([] (sar& s, par& p) {
       int* a = s.a;
       int i = p.lo;
@@ -96,6 +73,9 @@ public:
       }
       p.lo = n;
     }, header);
+    cfg[exit] = bb::unconditional_jump([] (sar&, par& p) {
+      // nothing to do here
+    }, encore::edsl::pcfg::exit_block_label);
     return cfg;
   }
   

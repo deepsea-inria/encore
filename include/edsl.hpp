@@ -847,6 +847,152 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   }
 }
   
+class parallel_for_descriptor {
+public:
+  
+  parallel_for_descriptor()
+  : lo(nullptr), hi(nullptr), join(nullptr) { }
+  
+  parallel_for_descriptor(int& lo, int& hi, trampoline_type entry, trampoline_type exit)
+  : lo(&lo), hi(&hi), join(nullptr), entry(entry), exit(exit) { }
+  
+  int* lo;
+  
+  int* hi;
+  
+  sched::vertex* join;
+  
+  trampoline_type entry;
+  
+  trampoline_type exit;
+  
+};
+
+template <class Sar, class Par, int nb_loop_nests, int nb_loops>
+class parallel_for_private_activation_record : public private_activation_record {
+public:
+  
+  using sar = Sar;
+  using par = Par;
+  
+  using loop_nest_id_type = int;
+  
+  using loop_id_type = int;
+  
+  using loop_address_type = std::pair<loop_nest_id_type, loop_id_type>;
+  
+  using loop_descriptor_table_type = struct {
+    int nb;
+    std::array<parallel_for_descriptor, nb_loops> descriptors;
+  };
+  
+  std::array<loop_descriptor_table_type, nb_loop_nests> tables;
+  
+  virtual loop_nest_id_type my_loop_nest_id() = 0;
+  
+  virtual loop_id_type my_loop_id() = 0;
+  
+  loop_address_type my_loop_address() {
+    return std::make_pair(my_loop_nest_id(), my_loop_id());
+  }
+  
+  loop_address_type get_oldest() {
+    loop_address_type a;
+    loop_nest_id_type n = my_loop_nest_id();
+    auto& t = tables[n];
+    for (int i = 0; i < t.nb; i++) {
+      if (*t.descriptors[i].hi - *t.descriptors[i].lo >= 2) {
+        a = std::make_pair(n, (loop_id_type)i);
+        break;
+      }
+    }
+    return a;
+  }
+  
+  parallel_for_descriptor* get_at(loop_address_type a) {
+    return &tables[a.first].descriptors[a.second];
+  }
+  
+  sched::vertex* get_join() {
+    loop_nest_id_type n = my_loop_nest_id();
+    loop_id_type l = my_loop_id();
+    return tables[n].descriptors[l].join;
+  }
+  
+  int nb_strands() {
+    if (trampoline.pred == encore::edsl::pcfg::exit_block_label) {
+      return 0;
+    }
+    auto d = get_at(get_oldest());
+    if (d == nullptr) {
+      return 1;
+    }
+    return std::max(1, *d->hi - *d->lo);
+  }
+  
+  template <class Stack>
+  std::pair<sched::vertex*, sched::vertex*> split2(encore::edsl::pcfg::interpreter<Stack>* interp, int nb) {
+    encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>* interp1 = nullptr;
+    encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>* interp2 = nullptr;
+    sar* oldest_shared = &encore::edsl::pcfg::peek_oldest_shared_frame<sar>(interp->stack);
+    par* oldest_private = &encore::edsl::pcfg::peek_oldest_private_frame<par>(interp->stack);
+    loop_address_type address = oldest_private->get_oldest();
+    parallel_for_descriptor& descriptor = *oldest_private->get_at(address);
+    sched::vertex* join = descriptor.join;
+    int lo = *descriptor.lo;
+    int hi = *descriptor.hi;
+    int mid = *descriptor.lo + nb;
+    if (join == nullptr) {
+      join = interp;
+      auto stacks = encore::edsl::pcfg::slice_stack<sar>(interp->stack);
+      interp->stack = stacks.first;
+      interp1 = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(oldest_shared);
+      encore::edsl::pcfg::extended_stack_type& stack1 = interp1->stack;
+      stack1.stack.second = encore::cactus::push_back<par>(stack1.stack.second, *oldest_private);
+      par& private1 = encore::edsl::pcfg::peek_oldest_private_frame<par>(stack1);
+      private1.lo = lo;
+      private1.hi = mid;
+      private1.trampoline = descriptor.entry;
+      parallel_for_descriptor& descriptor1 = *private1.get_at(address);
+      descriptor1.join = join;
+      descriptor1.lo = &private1.lo;
+      descriptor1.hi = &private1.hi;
+      oldest_private->trampoline = descriptor.exit;
+      descriptor.join = nullptr;
+      *descriptor.lo = -1;
+      *descriptor.hi = -1;
+      sched::new_edge(interp1, join);
+      interp1->release_handle->decrement();
+    } else {
+      *descriptor.hi = mid;
+      interp1 = (encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>*)interp;
+    }
+    interp2 = new encore::edsl::pcfg::interpreter<encore::edsl::pcfg::extended_stack_type>(oldest_shared);
+    encore::edsl::pcfg::extended_stack_type& stack2 = interp2->stack;
+    stack2.stack.second = encore::cactus::push_back<par>(stack2.stack.second, *oldest_private);
+    par& private2 = encore::edsl::pcfg::peek_oldest_private_frame<par>(stack2);
+    private2.lo = mid;
+    private2.hi = hi;
+    private2.trampoline = descriptor.entry;
+    parallel_for_descriptor& descriptor2 = *private2.get_at(address);
+    descriptor2.join = join;
+    descriptor2.lo = &private2.lo;
+    descriptor2.hi = &private2.hi;
+    sched::new_edge(interp2, join);
+    interp2->release_handle->decrement();
+    return std::make_pair(interp1, interp2);
+  }
+  
+  std::pair<sched::vertex*, sched::vertex*> split(interpreter<stack_type>* interp, int nb) {
+    return split2(interp, nb);
+  }
+  
+  std::pair<sched::vertex*, sched::vertex*> split(interpreter<extended_stack_type>* interp, int nb) {
+    return split2(interp, nb);
+  }
+  
+};
+  
 } // end namespace
   
 /*---------------------------------------------------------------------*/
@@ -1452,15 +1598,6 @@ void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const { \
 
 #define encore_pcfg_default_private_activation_record(dsl) \
 class private_activation_record : public dsl::private_activation_record { };
-
-#define encore_pcfg_private_shared_driver(dsl, split2) \
-std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::stack_type>* interp, int nb) { \
-  return split2(interp, nb); \
-} \
-\
-std::pair<sched::vertex*, sched::vertex*> split(dsl::interpreter<dsl::extended_stack_type>* interp, int nb) { \
-  return split2(interp, nb); \
-}
 
 #define encore_pcfg_declare(edsl, name, sar, par, bb) \
 encore_pcfg_driver(edsl::pcfg) \
