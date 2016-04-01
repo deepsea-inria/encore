@@ -206,6 +206,7 @@ private:
       case tag_join_plus: {
         new (&variant_join_plus.code) procedure_call_code_type();
         variant_join_plus.code = std::move(other.variant_join_plus.code);
+        new (&variant_join_plus.getter) incounter_getter_code_type();
         variant_join_plus.getter = std::move(other.variant_join_plus.getter);
         variant_join_plus.next = std::move(other.variant_join_plus.next);
         break;
@@ -213,6 +214,7 @@ private:
       case tag_spawn_minus: {
         new (&variant_spawn_minus.code) procedure_call_code_type();
         variant_spawn_minus.code = std::move(other.variant_spawn_minus.code);
+        new (&variant_spawn_minus.getter) outset_getter_code_type();
         variant_spawn_minus.getter = std::move(other.variant_spawn_minus.getter);
         variant_spawn_minus.next = std::move(other.variant_spawn_minus.next);
         break;
@@ -220,11 +222,13 @@ private:
       case tag_spawn_plus: {
         new (&variant_spawn_plus.code) procedure_call_code_type();
         variant_spawn_plus.code = std::move(other.variant_spawn_plus.code);
+        new (&variant_spawn_plus.getter) outset_getter_code_type();
         variant_spawn_plus.getter = std::move(other.variant_spawn_plus.getter);
         variant_spawn_plus.next = std::move(other.variant_spawn_plus.next);
         break;
       }
       case tag_join_minus: {
+        new (&variant_join_minus.getter) outset_getter_code_type();
         variant_join_minus.getter = std::move(other.variant_join_minus.getter);
         variant_join_minus.next = std::move(other.variant_join_minus.next);
         break;
@@ -1350,7 +1354,7 @@ public:
     stmt_type s;
     s.tag = tag_sequential_loop;
     new (&s.variant_sequential_loop.predicate) predicate_code_type(predicate);
-    new (&s.variant_sequential_loop.body) std::unique_ptr<stmt_type>(body);
+    new (&s.variant_sequential_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
     return s;
   }
   
@@ -1417,6 +1421,11 @@ public:
   static
   stmt_type mk_if(predicate_code_type pred, stmt_type branch1, stmt_type branch2) {
     return cond({ std::make_pair(pred, branch1) }, branch2);
+  }
+  
+  static
+  stmt_type mk_if(predicate_code_type pred, stmt_type branch1) {
+    return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
   
 };
