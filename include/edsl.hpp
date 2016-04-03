@@ -10,8 +10,8 @@
 #include "cactus.hpp"
 #include "stats.hpp"
 
-#ifndef _ENCORE_SCHED_EDSL_H_
-#define _ENCORE_SCHED_EDSL_H_
+#ifndef _ENCORE_EDSL_H_
+#define _ENCORE_EDSL_H_
 
 namespace encore {
 namespace edsl {
@@ -401,19 +401,92 @@ public:
   
 };
   
-template <class Shared_activation_record>
-using private_activation_record_of = typename Shared_activation_record::private_activation_record;
-  
-template <class Sar> // Sar := Shared_activation_record
-using cfg_type = std::vector<basic_block_type<Sar, private_activation_record_of<Sar>>>;
-  
-/*---------------------------------------------------------------------*/
-/* Parallel control-flow graph interpreter */
-  
 using trampoline_type = struct {
   basic_block_label_type pred;
   basic_block_label_type succ;
 };
+  
+class parallel_for_descriptor {
+public:
+  
+  parallel_for_descriptor()
+  : lo(nullptr), hi(nullptr), join(nullptr) { }
+  
+  parallel_for_descriptor(int& lo, int& hi)
+  : lo(&lo), hi(&hi), join(nullptr) { }
+  
+  int* lo;
+  
+  int* hi;
+  
+  sched::vertex* join = nullptr;
+  
+};
+
+using parallel_loop_id_type = int;
+
+template <class Private_activation_record>
+class parallel_loop_descriptor_type {
+public:
+  
+  using par = Private_activation_record;
+  
+  trampoline_type entry;
+  
+  trampoline_type exit;
+  
+  // parents is ordered from oldest to youngest
+  std::vector<parallel_loop_id_type> parents;
+  
+  std::function<void(par&, parallel_for_descriptor&)> initializer;
+  
+};
+  
+template <class Shared_activation_record>
+using private_activation_record_of = typename Shared_activation_record::private_activation_record;
+  
+template <class Shared_activation_record>
+class cfg_type {
+public:
+  
+  using sar = Shared_activation_record;
+  using par = private_activation_record_of<sar>;
+  
+  using basic_block_type = basic_block_type<sar, par>;
+  
+  cfg_type() { }
+  
+  cfg_type(size_t nb_blocks)
+  : basic_blocks(nb_blocks) { }
+  
+  cfg_type(size_t nb_blocks, size_t nb_loops)
+  : basic_blocks(nb_blocks), loop_descriptors(nb_loops), loop_of(nb_blocks) { }
+  
+  std::vector<basic_block_type> basic_blocks;
+  
+  std::vector<parallel_loop_descriptor_type<par>> loop_descriptors;
+  
+  // to map from basic_block_id to parallel_loop_id
+  // loop_of[i] yields the id of the parallel loop that is
+  // closes to the basic block labeled i
+  std::vector<parallel_loop_id_type> loop_of;
+  
+  size_t nb_basic_blocks() const {
+    return basic_blocks.size();
+  }
+  
+  size_t nb_loops() const {
+    return loop_descriptors.size();
+  }
+  
+  basic_block_type& operator[](size_t i) {
+    return basic_blocks[i];
+  }
+  
+};
+  
+/*---------------------------------------------------------------------*/
+/* Parallel control-flow graph interpreter */
   
 template <class Stack>
 class interpreter;
@@ -683,8 +756,8 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
   auto& private_newest = peek_newest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = private_newest.trampoline.succ;
   basic_block_label_type succ;
-  assert(pred >= 0 && pred < cfg.size());
-  auto& block = cfg[pred];
+  assert(pred >= 0 && pred < cfg.nb_basic_blocks());
+  auto& block = cfg.basic_blocks[pred];
   fuel--;
   switch (block.tag) {
     case tag_unconditional_jump: {
@@ -757,8 +830,9 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   assert(! empty_stack(stack));
   auto& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
   auto& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
-  assert(private_oldest.trampoline.pred >= 0 && private_oldest.trampoline.pred < cfg.size());
-  auto& block = cfg[private_oldest.trampoline.pred];
+  assert(private_oldest.trampoline.pred >= 0);
+  assert(private_oldest.trampoline.pred < cfg.nb_basic_blocks());
+  auto& block = cfg.basic_blocks[private_oldest.trampoline.pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
       schedule(interp);
@@ -785,7 +859,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
       interpreter<stack_type>* branch1 = new interpreter<stack_type>(stacks.second);
       interpreter<stack_type>* branch2 = new interpreter<stack_type>;
       basic_block_label_type pred = private_oldest.trampoline.succ;
-      auto& spawn_join_block = cfg[pred];
+      auto& spawn_join_block = cfg.basic_blocks[pred];
       assert(spawn_join_block.tag == tag_spawn_join);
       private_oldest.trampoline.pred = pred;
       private_oldest.trampoline.succ = spawn_join_block.variant_spawn_join.next;
@@ -852,83 +926,66 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   }
 }
   
-class parallel_for_descriptor {
-public:
-  
-  parallel_for_descriptor()
-  : lo(nullptr), hi(nullptr), join(nullptr) { }
-  
-  parallel_for_descriptor(int& lo, int& hi, trampoline_type entry, trampoline_type exit)
-  : lo(&lo), hi(&hi), join(nullptr), entry(entry), exit(exit) { }
-  
-  int* lo;
-  
-  int* hi;
-  
-  sched::vertex* join;
-  
-  trampoline_type entry;
-  
-  trampoline_type exit;
-  
-};
-
-template <class Sar, class Par, int nb_loop_nests, int nb_loops>
+static constexpr parallel_loop_id_type not_a_parallel_loop_id = -1;
+ 
+template <class Sar, class Par, int nb_loops>
 class parallel_for_private_activation_record : public private_activation_record {
 public:
   
   using sar = Sar;
   using par = Par;
   
-  using loop_nest_id_type = int;
+  std::array<parallel_for_descriptor, nb_loops> parallel_for_descriptors;
   
-  using loop_id_type = int;
-  
-  using loop_address_type = std::pair<loop_nest_id_type, loop_id_type>;
-  
-  using loop_descriptor_table_type = struct {
-    int nb;
-    std::array<parallel_for_descriptor, nb_loops> descriptors;
-  };
-  
-  std::array<loop_descriptor_table_type, nb_loop_nests> tables;
-  
-  virtual loop_nest_id_type my_loop_nest_id() = 0;
-  
-  virtual loop_id_type my_loop_id() = 0;
-  
-  loop_address_type my_loop_address() {
-    return std::make_pair(my_loop_nest_id(), my_loop_id());
+  parallel_for_private_activation_record() {
+    assert(nb_loops == sar::cfg.nb_loops());
+    for (parallel_loop_id_type id = 0; id < nb_loops; id++) {
+      parallel_loop_descriptor_type<par>& d = sar::cfg.loop_descriptors[id];
+      d.initializer(*(par*)this, parallel_for_descriptors[id]);
+    }
   }
   
-  loop_address_type get_oldest() {
-    loop_address_type a;
-    loop_nest_id_type n = my_loop_nest_id();
-    auto& t = tables[n];
-    for (int i = 0; i < t.nb; i++) {
-      if (*t.descriptors[i].hi - *t.descriptors[i].lo >= 2) {
-        a = std::make_pair(n, (loop_id_type)i);
-        break;
+  parallel_loop_id_type get_id_of_current_parallel_loop() const {
+    return sar::cfg.loop_of[trampoline.pred];
+  }
+  
+  parallel_loop_id_type get_id_of_oldest_nonempty() const {
+    parallel_loop_id_type current = get_id_of_current_parallel_loop();
+    if (current == not_a_parallel_loop_id) {
+      return not_a_parallel_loop_id;
+    }
+    for (parallel_loop_id_type id : sar::cfg.loop_descriptors[current].parents) {
+      auto& d = parallel_for_descriptors[id];
+      if (*d.hi - *d.lo >= 2) {
+        return id;
       }
     }
-    return a;
+    auto& d = parallel_for_descriptors[current];
+    if (*d.hi - *d.lo >= 2) {
+      return current;
+    } else {
+      return not_a_parallel_loop_id;
+    }
   }
   
-  parallel_for_descriptor* get_at(loop_address_type a) {
-    return &tables[a.first].descriptors[a.second];
+  parallel_for_descriptor* get_oldest_nonempty() {
+    auto id = get_id_of_oldest_nonempty();
+    if (id == not_a_parallel_loop_id) {
+      return nullptr;
+    } else {
+      return &parallel_for_descriptors[id];
+    }
   }
   
   sched::vertex* get_join() {
-    loop_nest_id_type n = my_loop_nest_id();
-    loop_id_type l = my_loop_id();
-    return tables[n].descriptors[l].join;
+    return parallel_for_descriptors[get_id_of_current_parallel_loop()].join;
   }
   
   int nb_strands() {
     if (trampoline.pred == exit_block_label) {
       return 0;
     }
-    auto d = get_at(get_oldest());
+    auto d = get_oldest_nonempty();
     if (d == nullptr) {
       return 1;
     }
@@ -941,12 +998,13 @@ public:
     interpreter<extended_stack_type>* interp2 = nullptr;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
     par* oldest_private = &peek_oldest_private_frame<par>(interp->stack);
-    loop_address_type address = oldest_private->get_oldest();
-    parallel_for_descriptor& descriptor = *oldest_private->get_at(address);
-    sched::vertex* join = descriptor.join;
-    int lo = *descriptor.lo;
-    int hi = *descriptor.hi;
-    int mid = *descriptor.lo + nb;
+    parallel_loop_id_type id = oldest_private->get_id_of_oldest_nonempty();
+    parallel_for_descriptor& pf_descr = oldest_private->parallel_for_descriptors[id];
+    parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
+    sched::vertex* join = pf_descr.join;
+    int lo = *pf_descr.lo;
+    int hi = *pf_descr.hi;
+    int mid = *pf_descr.lo + nb;
     if (join == nullptr) {
       join = interp;
       auto stacks = slice_stack<sar>(interp->stack);
@@ -957,19 +1015,18 @@ public:
       par& private1 = peek_oldest_private_frame<par>(stack1);
       private1.lo = lo;
       private1.hi = mid;
-      private1.trampoline = descriptor.entry;
-      parallel_for_descriptor& descriptor1 = *private1.get_at(address);
+      private1.trampoline = pl_descr.entry;
+      parallel_for_descriptor& descriptor1 = private1.parallel_for_descriptors[id];
       descriptor1.join = join;
-      descriptor1.lo = &private1.lo;
-      descriptor1.hi = &private1.hi;
-      oldest_private->trampoline = descriptor.exit;
-      descriptor.join = nullptr;
-      *descriptor.lo = -1;
-      *descriptor.hi = -1;
+      pl_descr.initializer(private1, descriptor1);
+      oldest_private->trampoline = pl_descr.exit;
+      pf_descr.join = nullptr;
+      *pf_descr.lo = -1;
+      *pf_descr.hi = -1;
       sched::new_edge(interp1, join);
       interp1->release_handle->decrement();
     } else {
-      *descriptor.hi = mid;
+      *pf_descr.hi = mid;
       interp1 = (interpreter<extended_stack_type>*)interp;
     }
     interp2 = new interpreter<extended_stack_type>(oldest_shared);
@@ -978,11 +1035,10 @@ public:
     par& private2 = peek_oldest_private_frame<par>(stack2);
     private2.lo = mid;
     private2.hi = hi;
-    private2.trampoline = descriptor.entry;
-    parallel_for_descriptor& descriptor2 = *private2.get_at(address);
+    private2.trampoline = pl_descr.entry;
+    parallel_for_descriptor& descriptor2 = private2.parallel_for_descriptors[id];
     descriptor2.join = join;
-    descriptor2.lo = &private2.lo;
-    descriptor2.hi = &private2.hi;
+    pl_descr.initializer(private2, descriptor2);
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
@@ -1569,11 +1625,11 @@ public:
     lt entry = pcfg::entry_block_label;
     lt exit = pcfg::exit_block_label;
     block_map_type map = transform(stmt, entry, exit, { });
-    pcfg::cfg_type<Shared_activation_record> blocks(map.size());
-    for (int i = 0; i < blocks.size(); i++) {
-      blocks[i] = map[i];
+    pcfg::cfg_type<Shared_activation_record> cfg(map.size());
+    for (int i = 0; i < cfg.nb_basic_blocks(); i++) {
+      cfg[i] = map[i];
     }
-    return blocks;
+    return cfg;
   }
   
 };
@@ -1589,25 +1645,25 @@ typename linearize<Sar, Par>::linearize::lt linearize<Sar, Par>::next_block_labe
 /*---------------------------------------------------------------------*/
 /* Macros */
 
-#define encore_pcfg_driver(dsl) \
-std::pair<dsl::stack_type, int> run(dsl::stack_type stack, int fuel) const { \
-  return dsl::step(cfg, stack, fuel); \
+#define encore_pcfg_driver(edsl) \
+std::pair<edsl::stack_type, int> run(edsl::stack_type stack, int fuel) const { \
+  return edsl::step(cfg, stack, fuel); \
 } \
 \
-std::pair<dsl::extended_stack_type, int> run(dsl::extended_stack_type stack, int fuel) const { \
-  return dsl::step(cfg, stack, fuel); \
+std::pair<edsl::extended_stack_type, int> run(edsl::extended_stack_type stack, int fuel) const { \
+  return edsl::step(cfg, stack, fuel); \
 } \
 \
-void promote(dsl::interpreter<dsl::stack_type>* interp) const { \
-  dsl::promote(cfg, interp); \
+void promote(edsl::interpreter<edsl::stack_type>* interp) const { \
+  edsl::promote(cfg, interp); \
 } \
 \
-void promote(dsl::interpreter<dsl::extended_stack_type>* interp) const { \
-  dsl::promote(cfg, interp); \
+void promote(edsl::interpreter<edsl::extended_stack_type>* interp) const { \
+  edsl::promote(cfg, interp); \
 }
 
-#define encore_pcfg_default_private_activation_record(dsl) \
-class private_activation_record : public dsl::private_activation_record { };
+#define encore_pcfg_default_private_activation_record(edsl) \
+class private_activation_record : public edsl::private_activation_record { };
 
 #define encore_pcfg_declare(edsl, name, sar, par, bb) \
 encore_pcfg_driver(edsl::pcfg) \
@@ -1616,7 +1672,7 @@ using cfg_type = edsl::pcfg::cfg_type<name>; \
 using sar = name; \
 using par = private_activation_record; \
 using stt = edsl::pcfg::stack_type; \
-using bb = typename cfg_type::value_type; \
+using bb = typename cfg_type::basic_block_type; \
 \
 template <class Activation_record, class ...Args> \
 static stt ecall(stt s, Args... args) { \
@@ -1639,4 +1695,4 @@ cfg_type get_cfg() { \
 #define encore_pcfg_allocate(name, get_cfg) \
 name::cfg_type name::cfg = name::get_cfg(); \
 
-#endif /*! _ENCORE_SCHED_EDSL_H_ */
+#endif /*! _ENCORE_EDSL_H_ */

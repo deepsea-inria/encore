@@ -15,32 +15,14 @@ public:
   
   enum { entry, header, body, exit, nb_blocks };
   
-  enum { loop_nest_0, nb_loop_nests };
-  
   enum { loop_0, nb_loops };
   
   class private_activation_record
   : public dsl::pcfg::parallel_for_private_activation_record<incr,
-           private_activation_record, nb_loop_nests, nb_loops> {
+           private_activation_record, nb_loops> {
   public:
     
     int lo; int hi;
-    
-    private_activation_record() {
-      tables[loop_nest_0].nb = 1;
-      dsl::pcfg::trampoline_type entry = { .pred=header, .succ=header };
-      dsl::pcfg::trampoline_type eexit = { .pred=exit, .succ=exit };
-      dsl::pcfg::parallel_for_descriptor d(lo, hi, entry, eexit);
-      tables[loop_nest_0].descriptors[loop_0] = d;
-    }
-    
-    loop_nest_id_type my_loop_nest_id() {
-      return loop_nest_0;
-    }
-    
-    loop_id_type my_loop_id() {
-      return loop_0;
-    }
     
   };
   
@@ -55,7 +37,7 @@ public:
   
   static
   cfg_type get_cfg() {
-    cfg_type cfg(nb_blocks);
+    cfg_type cfg(nb_blocks, nb_loops);
     cfg[entry] = bb::unconditional_jump([] (sar& s, par& p) {
       p.lo = 0;
       p.hi = s.n;
@@ -75,7 +57,25 @@ public:
     cfg[exit] = bb::unconditional_jump([] (sar&, par& p) {
       // nothing to do here
     }, encore::edsl::pcfg::exit_block_label);
+    register_loops();
     return cfg;
+  }
+  
+  static
+  void register_loops() {
+    for (int i = 0; i < nb_blocks; i++) {
+      cfg.loop_of[i] = dsl::pcfg::not_a_parallel_loop_id;
+    }
+    cfg.loop_of[header] = loop_0;
+    cfg.loop_of[body] = loop_0;
+    dsl::pcfg::parallel_loop_descriptor_type<private_activation_record> d;
+    d.entry = { .pred=header, .succ=header };
+    d.exit = { .pred=exit, .succ=exit };
+    d.initializer = [] (private_activation_record& p, dsl::pcfg::parallel_for_descriptor& d) {
+      d.lo = &p.lo;
+      d.hi = &p.hi;
+    };
+    cfg.loop_descriptors[loop_0] = d;
   }
   
 };
