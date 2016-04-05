@@ -1083,7 +1083,7 @@ public:
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
   using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
   using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
-  using parallel_for_getter_type = std::function<std::pair<int*, int*>(sar_type&, par_type&)>;
+  using parallel_for_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
   
   stmt_tag_type tag;
   
@@ -1106,6 +1106,7 @@ public:
       std::unique_ptr<stmt_type> body;
     } variant_sequential_loop;
     struct {
+      predicate_code_type predicate;
       parallel_for_getter_type getter;
       std::unique_ptr<stmt_type> body;
     } variant_parallel_for_loop;
@@ -1167,6 +1168,7 @@ private:
         break;
       }
       case tag_parallel_for_loop: {
+        new (&variant_parallel_for_loop.predicate) predicate_code_type(other.variant_parallel_for_loop.predicate);
         new (&variant_parallel_for_loop.getter) parallel_for_getter_type(other.variant_parallel_for_loop.getter);
         auto p = new stmt_type;
         p->copy_constructor(*other.variant_parallel_for_loop.body);
@@ -1248,6 +1250,7 @@ private:
         break;
       }
       case tag_parallel_for_loop: {
+        new (&variant_parallel_for_loop.predicate) predicate_code_type;
         new (&variant_parallel_for_loop.getter) parallel_for_getter_type;
         variant_parallel_for_loop.getter = std::move(other.variant_parallel_for_loop.getter);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>;
@@ -1332,7 +1335,8 @@ public:
         break;
       }
       case tag_parallel_for_loop: {
-        variant_parallel_for_loop.getter.~parallel_for_loop_getter();
+        variant_parallel_for_loop.predicate.~predicate_code_type();
+        variant_parallel_for_loop.getter.~parallel_for_getter_type();
         using st = std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body.~st();
         break;
@@ -1423,9 +1427,10 @@ public:
   }
   
   static
-  stmt_type parallel_for_loop(parallel_for_getter_type getter, stmt_type body) {
+  stmt_type parallel_for_loop(predicate_code_type predicate, parallel_for_getter_type getter, stmt_type body) {
     stmt_type s;
     s.tag = tag_parallel_for_loop;
+    new (&s.variant_parallel_for_loop.predicate) predicate_code_type(predicate);
     new (&s.variant_parallel_for_loop.getter) parallel_for_getter_type(getter);
     new (&s.variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
     return s;
@@ -1509,18 +1514,45 @@ private:
   using lt = basic_block_label_type;
   using block_map_type = std::map<basic_block_label_type, basic_block_type>;
   
+  using parallel_loop_id_type = pcfg::parallel_loop_id_type;
+  using parallel_loop_of_basic_block_type = std::map<basic_block_label_type, parallel_loop_id_type>;
+  using parallel_loop_descriptor_type = pcfg::parallel_loop_descriptor_type<Private_activation_record>;
+  using parallel_loop_descriptor_table_type = std::map<parallel_loop_id_type, parallel_loop_descriptor_type>;
+  
   static
   lt next_block_label;
   
   static
-  block_map_type transform(stmt_type stmt, lt entry, lt exit, block_map_type blocks) {
-    auto result = blocks;
+  parallel_loop_id_type next_parallel_loop_id;
+  
+  using configuration_type = struct {
+    block_map_type blocks;
+    parallel_loop_of_basic_block_type loop_of_basic_block;
+    parallel_loop_descriptor_table_type descriptor_of_loop;
+  };
+  
+  static
+  configuration_type transform(stmt_type stmt,
+                               lt entry, lt exit,
+                               std::vector<parallel_loop_id_type> loop_scope,
+                               configuration_type config) {
+    configuration_type result = config;
     auto new_label = [&] {
       return next_block_label++;
     };
     auto add_block = [&] (lt label, bbt block) {
-      assert(result.find(label) == result.end());
-      result.insert(std::make_pair(label, block));
+      assert(result.blocks.find(label) == result.blocks.end());
+      result.blocks.insert(std::make_pair(label, block));
+      if (! loop_scope.empty()) {
+        result.loop_of_basic_block.insert(std::make_pair(label, loop_scope.back()));
+      }
+    };
+    auto new_parallel_loop_label = [&] {
+      return next_parallel_loop_id++;
+    };
+    auto add_parallel_loop = [&] (parallel_loop_id_type label, parallel_loop_descriptor_type d) {
+      assert(result.descriptor_of_loop.find(label) == result.descriptor_of_loop.end());
+      result.descriptor_of_loop.insert(std::make_pair(label, d));
     };
     switch (stmt.tag) {
       case tag_stmt: {
@@ -1536,7 +1568,7 @@ private:
         for (auto& s : stmt.variant_stmts.stmts) {
           lt entry = entries.at(i);
           lt exit2 = (i + 1 == entries.size()) ? exit : entries.at(i + 1);
-          result = transform(s, entry, exit2, result);
+          result = transform(s, entry, exit2, loop_scope, result);
           i++;
         }
         break;
@@ -1556,11 +1588,11 @@ private:
         auto otherwise_label = new_label();
         i = 0;
         for (auto& s : stmts) {
-          result = transform(s, entries.at(i), exit, result);
+          result = transform(s, entries.at(i), exit, loop_scope, result);
           i++;
         }
         entries.push_back(otherwise_label);
-        result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, result);
+        result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, loop_scope, result);
         auto selector = [=] (sar& s, par& p) {
           int i = 0;
           for (auto& pred : predicates) {
@@ -1586,11 +1618,34 @@ private:
         };
         std::vector<lt> targets = { body_label, exit };
         add_block(header_label, bbt::conditional_jump(selector, targets));
-        result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, result);
+        result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_parallel_for_loop: {
-        assert(false); // todo
+        parallel_loop_id_type loop_label = new_parallel_loop_label();
+        // create the loop descriptor
+        parallel_loop_descriptor_type descriptor;
+        descriptor.entry = { .pred=entry, .succ=entry };
+        descriptor.exit = { .pred=exit, .succ=exit };
+        descriptor.parents = loop_scope;
+        auto getter = stmt.variant_parallel_for_loop.getter;
+        descriptor.initializer = [getter] (Private_activation_record& p, pcfg::parallel_for_descriptor& d) {
+          std::pair<int*, int*> range = getter(p);
+          d.lo = range.first;
+          d.hi = range.second;
+        };
+        add_parallel_loop(loop_label, descriptor);
+        // create CFG blocks
+        auto header_label = entry;
+        auto body_label = new_label();
+        auto selector = [=] (sar& s, par& p) {
+          return stmt.variant_parallel_for_loop.predicate(s, p) ? 0 : 1;
+        };
+        std::vector<lt> targets = { body_label, exit };
+        add_block(header_label, bbt::conditional_jump(selector, targets));
+        auto body_loop_scope = loop_scope;
+        body_loop_scope.push_back(loop_label);
+        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, body_loop_scope, result);
         break;
       }
       case tag_spawn_join: {
@@ -1633,10 +1688,25 @@ public:
   pcfg::cfg_type<Shared_activation_record> transform(stmt_type stmt) {
     lt entry = pcfg::entry_block_label;
     lt exit = pcfg::exit_block_label;
-    block_map_type map = transform(stmt, entry, exit, { });
-    pcfg::cfg_type<Shared_activation_record> cfg(map.size());
+    configuration_type result = transform(stmt, entry, exit, { pcfg::not_a_parallel_loop_id }, { });
+    pcfg::cfg_type<Shared_activation_record> cfg(result.blocks.size());
     for (int i = 0; i < cfg.nb_basic_blocks(); i++) {
-      cfg[i] = map[i];
+      cfg[i] = result.blocks[i];
+    }
+    auto nb_loops = result.descriptor_of_loop.size();
+    assert(nb_loops == next_parallel_loop_id);
+    cfg.loop_descriptors.resize(nb_loops);
+    for (auto& p : result.descriptor_of_loop) {
+      cfg.loop_descriptors[p.first] = p.second;
+    }
+    cfg.loop_of.resize(cfg.nb_basic_blocks());
+    for (int i = 0; i < cfg.nb_basic_blocks(); i++) {
+      parallel_loop_id_type loop_id = pcfg::not_a_parallel_loop_id;
+      auto it = result.loop_of_basic_block.find(i);
+      if (it != result.loop_of_basic_block.end()) {
+        loop_id = it->second;
+      }
+      cfg.loop_of[i] = loop_id;
     }
     return cfg;
   }
@@ -1645,6 +1715,9 @@ public:
   
 template <class Sar, class Par>
 typename linearize<Sar, Par>::linearize::lt linearize<Sar, Par>::next_block_label = pcfg::entry_block_label + 1;
+  
+template <class Sar, class Par>
+pcfg::parallel_loop_id_type linearize<Sar, Par>::next_parallel_loop_id = 0;
   
 } // end namespace
   
