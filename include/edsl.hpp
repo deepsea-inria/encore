@@ -1063,7 +1063,7 @@ namespace dc {
   
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit,
-  tag_sequential_loop, tag_parallel_loop,
+  tag_sequential_loop, tag_parallel_for_loop,
   tag_spawn_join, tag_spawn2_join,
   tag_join_plus, tag_spawn_minus,
   tag_spawn_plus, tag_join_minus,
@@ -1083,6 +1083,7 @@ public:
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
   using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
   using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
+  using parallel_for_getter_type = std::function<std::pair<int*, int*>(sar_type&, par_type&)>;
   
   stmt_tag_type tag;
   
@@ -1105,8 +1106,9 @@ public:
       std::unique_ptr<stmt_type> body;
     } variant_sequential_loop;
     struct {
-      // todo
-    } variant_parallel_loop;
+      parallel_for_getter_type getter;
+      std::unique_ptr<stmt_type> body;
+    } variant_parallel_for_loop;
     struct {
       procedure_call_code_type code;
     } variant_spawn_join;
@@ -1164,9 +1166,11 @@ private:
         new (&variant_sequential_loop.body) std::unique_ptr<stmt_type>(p);
         break;
       }
-      case tag_parallel_loop: {
-        // todo
-        assert(false);
+      case tag_parallel_for_loop: {
+        new (&variant_parallel_for_loop.getter) parallel_for_getter_type(other.variant_parallel_for_loop.getter);
+        auto p = new stmt_type;
+        p->copy_constructor(*other.variant_parallel_for_loop.body);
+        new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(p);
         break;
       }
       case tag_spawn_join: {
@@ -1243,9 +1247,11 @@ private:
         variant_sequential_loop.body = std::move(other.variant_sequential_loop.body);
         break;
       }
-      case tag_parallel_loop: {
-        // todo
-        assert(false);
+      case tag_parallel_for_loop: {
+        new (&variant_parallel_for_loop.getter) parallel_for_getter_type;
+        variant_parallel_for_loop.getter = std::move(other.variant_parallel_for_loop.getter);
+        new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>;
+        variant_parallel_for_loop.body = std::move(other.variant_parallel_for_loop.body);
         break;
       }
       case tag_spawn_join: {
@@ -1325,8 +1331,10 @@ public:
         variant_sequential_loop.body.~st();
         break;
       }
-      case tag_parallel_loop: {
-        assert(false); // todo
+      case tag_parallel_for_loop: {
+        variant_parallel_for_loop.getter.~parallel_for_loop_getter();
+        using st = std::unique_ptr<stmt_type>;
+        variant_parallel_for_loop.body.~st();
         break;
       }
       case tag_spawn_join: {
@@ -1415,10 +1423,11 @@ public:
   }
   
   static
-  stmt_type parallel_loop() {
+  stmt_type parallel_for_loop(parallel_for_getter_type getter, stmt_type body) {
     stmt_type s;
-    s.tag = tag_parallel_loop;
-    assert(false); // todo
+    s.tag = tag_parallel_for_loop;
+    new (&s.variant_parallel_for_loop.getter) parallel_for_getter_type(getter);
+    new (&s.variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
     return s;
   }
   
@@ -1580,7 +1589,7 @@ private:
         result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, result);
         break;
       }
-      case tag_parallel_loop: {
+      case tag_parallel_for_loop: {
         assert(false); // todo
         break;
       }
