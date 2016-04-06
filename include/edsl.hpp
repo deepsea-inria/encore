@@ -1013,8 +1013,9 @@ public:
       extended_stack_type& stack1 = interp1->stack;
       stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
       par& private1 = peek_oldest_private_frame<par>(stack1);
-      private1.lo = lo;
-      private1.hi = mid;
+      auto pf1_descr = private1.parallel_for_descriptors[id];
+      *pf1_descr.lo = lo;
+      *pf1_descr.hi = mid;
       private1.trampoline = pl_descr.entry;
       parallel_for_descriptor& descriptor1 = private1.parallel_for_descriptors[id];
       descriptor1.join = join;
@@ -1033,8 +1034,9 @@ public:
     extended_stack_type& stack2 = interp2->stack;
     stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
     par& private2 = peek_oldest_private_frame<par>(stack2);
-    private2.lo = mid;
-    private2.hi = hi;
+    auto pf2_descr = private2.parallel_for_descriptors[id];
+    *pf2_descr.lo = mid;
+    *pf2_descr.hi = hi;
     private2.trampoline = pl_descr.entry;
     parallel_for_descriptor& descriptor2 = private2.parallel_for_descriptors[id];
     descriptor2.join = join;
@@ -1561,11 +1563,13 @@ private:
       }
       case tag_stmts: {
         std::vector<lt> entries;
-        for (int i = 0; i < stmt.variant_stmts.stmts.size(); i++) {
-          entries.push_back(new_label());
+        auto stmts = stmt.variant_stmts.stmts;
+        for (int i = 0; i < stmts.size(); i++) {
+          lt l = (i == 0) ? entry : new_label();
+          entries.push_back(l);
         }
         int i = 0;
-        for (auto& s : stmt.variant_stmts.stmts) {
+        for (auto& s : stmts) {
           lt entry = entries.at(i);
           lt exit2 = (i + 1 == entries.size()) ? exit : entries.at(i + 1);
           result = transform(s, entry, exit2, loop_scope, result);
@@ -1613,8 +1617,9 @@ private:
       case tag_sequential_loop: {
         auto header_label = entry;
         auto body_label = new_label();
-        auto selector = [=] (sar& s, par& p) {
-          return stmt.variant_sequential_loop.predicate(s, p) ? 0 : 1;
+        auto predicate = stmt.variant_sequential_loop.predicate;
+        auto selector = [predicate] (sar& s, par& p) {
+          return predicate(s, p) ? 0 : 1;
         };
         std::vector<lt> targets = { body_label, exit };
         add_block(header_label, bbt::conditional_jump(selector, targets));
@@ -1638,8 +1643,9 @@ private:
         // create CFG blocks
         auto header_label = entry;
         auto body_label = new_label();
-        auto selector = [=] (sar& s, par& p) {
-          return stmt.variant_parallel_for_loop.predicate(s, p) ? 0 : 1;
+        auto predicate = stmt.variant_parallel_for_loop.predicate;
+        auto selector = [predicate] (sar& s, par& p) {
+          return predicate(s, p) ? 0 : 1;
         };
         std::vector<lt> targets = { body_label, exit };
         add_block(header_label, bbt::conditional_jump(selector, targets));
@@ -1772,6 +1778,18 @@ using dc = edsl::dc::stmt_type<sar, par>; \
 static \
 cfg_type get_cfg() { \
   return edsl::dc::linearize<sar, par>::transform(get_dc()); \
+} \
+
+#define encore_pcfg_allocate(name, get_cfg) \
+name::cfg_type name::cfg = name::get_cfg(); \
+
+#define encore_dc_loop_declare(edsl, name, sar, par, dc, get_dc) \
+encore_pcfg_declare(edsl, name, sar, par, _bb0123) \
+using dc = edsl::dc::stmt_type<sar, par>; \
+\
+static \
+cfg_type get_cfg() { \
+return edsl::dc::linearize<sar, par>::transform(get_dc()); \
 } \
 
 #define encore_pcfg_allocate(name, get_cfg) \
