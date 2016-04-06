@@ -710,15 +710,13 @@ public:
   }
   
   int run(int fuel) {
-    {
-      Stack s = stack;
-      while (! empty_stack(s) && fuel >= 1) {
-        auto result = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
-        s = result.first;
-        fuel = result.second;
-      }
-      stack = s;
+    Stack s = stack;
+    while (! empty_stack(s) && fuel >= 1) {
+      auto result = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
+      s = result.first;
+      fuel = result.second;
     }
+    stack = s;
     if (fuel == suspend_tag) {
       suspend(this);
       fuel = 0;
@@ -826,6 +824,14 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
 template <class Shared_activation_record, class Stack>
 void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  auto nb_strands = interp->nb_strands();
+  if (nb_strands >= 2) {
+    auto vertices = interp->split(nb_strands / 2);
+    schedule(vertices.first);
+    schedule(vertices.second);
+    stats::on_promotion();
+    return;
+  }
   Stack& stack = interp->stack;
   assert(! empty_stack(stack));
   auto& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
@@ -955,6 +961,7 @@ public:
       return not_a_parallel_loop_id;
     }
     for (parallel_loop_id_type id : sar::cfg.loop_descriptors[current].parents) {
+      assert(id != not_a_parallel_loop_id);
       auto& d = parallel_for_descriptors[id];
       if (*d.hi - *d.lo >= 2) {
         return id;
@@ -1628,7 +1635,7 @@ private:
       }
       case tag_parallel_for_loop: {
         parallel_loop_id_type loop_label = new_parallel_loop_label();
-        // create the loop descriptor
+        loop_scope.push_back(loop_label);
         parallel_loop_descriptor_type descriptor;
         descriptor.entry = { .pred=entry, .succ=entry };
         descriptor.exit = { .pred=exit, .succ=exit };
@@ -1640,7 +1647,6 @@ private:
           d.hi = range.second;
         };
         add_parallel_loop(loop_label, descriptor);
-        // create CFG blocks
         auto header_label = entry;
         auto body_label = new_label();
         auto predicate = stmt.variant_parallel_for_loop.predicate;
@@ -1649,9 +1655,7 @@ private:
         };
         std::vector<lt> targets = { body_label, exit };
         add_block(header_label, bbt::conditional_jump(selector, targets));
-        auto body_loop_scope = loop_scope;
-        body_loop_scope.push_back(loop_label);
-        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, body_loop_scope, result);
+        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_spawn_join: {
@@ -1694,7 +1698,7 @@ public:
   pcfg::cfg_type<Shared_activation_record> transform(stmt_type stmt) {
     lt entry = pcfg::entry_block_label;
     lt exit = pcfg::exit_block_label;
-    configuration_type result = transform(stmt, entry, exit, { pcfg::not_a_parallel_loop_id }, { });
+    configuration_type result = transform(stmt, entry, exit, { }, { });
     pcfg::cfg_type<Shared_activation_record> cfg(result.blocks.size());
     for (int i = 0; i < cfg.nb_basic_blocks(); i++) {
       cfg[i] = result.blocks[i];
