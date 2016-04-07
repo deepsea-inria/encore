@@ -522,6 +522,11 @@ public:
     return std::make_pair(nullptr, nullptr);
   }
   
+  virtual sched::vertex* get_join(parallel_loop_id_type) {
+    assert(false); // impossible
+    return nullptr;
+  }
+  
 };
   
 stack_type new_stack() {
@@ -827,8 +832,8 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   auto nb_strands = interp->nb_strands();
   if (nb_strands >= 2) {
     auto vertices = interp->split(nb_strands / 2);
-    schedule(vertices.first);
     schedule(vertices.second);
+    schedule(vertices.first);
     stats::on_promotion();
     return;
   }
@@ -988,8 +993,12 @@ public:
     }
   }
   
+  sched::vertex* get_join(parallel_loop_id_type id) {
+    return parallel_for_descriptors[id].join;
+  }
+  
   sched::vertex* get_join() {
-    return parallel_for_descriptors[get_id_of_current_parallel_loop()].join;
+    return get_join(get_id_of_current_parallel_loop());
   }
   
   int nb_strands() {
@@ -1028,10 +1037,8 @@ public:
       auto& pf1_descr = private1.parallel_for_descriptors[id];
       *pf1_descr.lo = lo;
       *pf1_descr.hi = mid;
+      pf1_descr.join = join;
       private1.trampoline = pl_descr.entry;
-      parallel_for_descriptor& descriptor1 = private1.parallel_for_descriptors[id];
-      descriptor1.join = join;
-      pl_descr.initializer(private1, descriptor1);
       oldest_private->trampoline = pl_descr.exit;
       pf_descr.join = nullptr;
       *pf_descr.lo = -1;
@@ -1050,10 +1057,8 @@ public:
     auto& pf2_descr = private2.parallel_for_descriptors[id];
     *pf2_descr.lo = mid;
     *pf2_descr.hi = hi;
+    pf2_descr.join = join;
     private2.trampoline = pl_descr.entry;
-    parallel_for_descriptor& descriptor2 = private2.parallel_for_descriptors[id];
-    descriptor2.join = join;
-    pl_descr.initializer(private2, descriptor2);
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
@@ -1578,8 +1583,7 @@ private:
         std::vector<lt> entries;
         auto stmts = stmt.variant_stmts.stmts;
         for (int i = 0; i < stmts.size(); i++) {
-          lt l = (i == 0) ? entry : new_label();
-          entries.push_back(l);
+          entries.push_back((i == 0) ? entry : new_label());
         }
         int i = 0;
         for (auto& s : stmts) {
@@ -1655,12 +1659,18 @@ private:
         add_parallel_loop(loop_label, descriptor);
         auto header_label = entry;
         auto body_label = new_label();
+        auto footer_label = new_label();
         auto predicate = stmt.variant_parallel_for_loop.predicate;
         auto selector = [predicate] (sar& s, par& p) {
           return predicate(s, p) ? 0 : 1;
         };
-        std::vector<lt> targets = { body_label, exit };
+        std::vector<lt> targets = { body_label, footer_label };
         add_block(header_label, bbt::conditional_jump(selector, targets));
+        auto footer_selector = [loop_label] (sar&, par& p) {
+          return p.get_join(loop_label) == nullptr ? 0 : 1;
+        };
+        std::vector<lt> footer_targets = { exit, pcfg::exit_block_label };
+        add_block(footer_label, bbt::conditional_jump(footer_selector, footer_targets));
         result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
