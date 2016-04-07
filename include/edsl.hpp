@@ -943,12 +943,16 @@ public:
   
   std::array<parallel_for_descriptor, nb_loops> parallel_for_descriptors;
   
-  parallel_for_private_activation_record() {
+  void initialize_descriptors() {
     assert(nb_loops == sar::cfg.nb_loops());
     for (parallel_loop_id_type id = 0; id < nb_loops; id++) {
-      parallel_loop_descriptor_type<par>& d = sar::cfg.loop_descriptors[id];
+      auto& d = sar::cfg.loop_descriptors[id];
       d.initializer(*(par*)this, parallel_for_descriptors[id]);
     }
+  }
+  
+  parallel_for_private_activation_record() {
+    initialize_descriptors();
   }
   
   parallel_loop_id_type get_id_of_current_parallel_loop() const {
@@ -1020,7 +1024,8 @@ public:
       extended_stack_type& stack1 = interp1->stack;
       stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
       par& private1 = peek_oldest_private_frame<par>(stack1);
-      auto pf1_descr = private1.parallel_for_descriptors[id];
+      private1.initialize_descriptors();
+      auto& pf1_descr = private1.parallel_for_descriptors[id];
       *pf1_descr.lo = lo;
       *pf1_descr.hi = mid;
       private1.trampoline = pl_descr.entry;
@@ -1041,7 +1046,8 @@ public:
     extended_stack_type& stack2 = interp2->stack;
     stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
     par& private2 = peek_oldest_private_frame<par>(stack2);
-    auto pf2_descr = private2.parallel_for_descriptors[id];
+    private2.initialize_descriptors();
+    auto& pf2_descr = private2.parallel_for_descriptors[id];
     *pf2_descr.lo = mid;
     *pf2_descr.hi = hi;
     private2.trampoline = pl_descr.entry;
