@@ -193,7 +193,7 @@ int main(int argc, char** argv) {
     encore::launch_interpreter<scan_dc>(n, 0, src, dst);
   });
   encore::run_and_report_elapsed_time([&] {
-    d.dispatch("algorithm");
+    d.dispatch_or_default("algorithm", "serial");
   });
 #ifndef NDEBUG
   value_type* src2 = malloc_array<value_type>(n);
