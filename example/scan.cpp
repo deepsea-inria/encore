@@ -14,7 +14,6 @@ namespace sched = encore::sched;
 namespace cmdline = pasl::util::cmdline;
 namespace dsl = encore::edsl;
 
-int cutoff = 1;
 int branching_factor = 1024;
 
 using value_type = int;
@@ -173,7 +172,6 @@ void cilk_set_nb_cores() {
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
-  cutoff = cmdline::parse_or_default("cutoff", cutoff);
   branching_factor = cmdline::parse_or_default("branching_factor", branching_factor);
   cilk_set_nb_cores();
   value_type* src = malloc_array<value_type>(n);
