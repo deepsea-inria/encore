@@ -203,6 +203,7 @@ stack_type pop_back(stack_type s) {
       t.sp = sp;
       break;
     }
+    case descriptor_type::empty_tag:
     case descriptor_type::overflow_tag: {
       t.fp = nullptr;
       break;
@@ -244,7 +245,12 @@ std::pair<stack_type, stack_type> fork_front(stack_type s) {
     }
     case descriptor_type::overflow_tag: {
       chunk_type* c = next_descriptor->overflow.c;
-      assert(c != nullptr);
+      if (c == nullptr) {
+        s2.top = nullptr;
+        s2.fp = nullptr;
+        s2.sp = nullptr;
+        return std::make_pair(s1, s2);
+      }
       s2.top = (char*)c + sizeof(descriptor_type);
       break;
     }
@@ -262,7 +268,7 @@ std::pair<stack_type, stack_type> fork_front(stack_type s) {
   s2.sp = s.sp;
   return std::make_pair(s1, s2);
 }
-  
+ 
 template <class Activation_record>
 std::pair<stack_type, stack_type> slice_front(stack_type s) {
   assert(! empty(s));
@@ -273,12 +279,17 @@ std::pair<stack_type, stack_type> slice_front(stack_type s) {
   descriptor_type* next_descriptor = (descriptor_type*)s1.sp;
   switch (next_descriptor->tag) {
     case descriptor_type::frame_tag: {
-      s2.top = s.top + sizeof(Activation_record) + sizeof(descriptor_type);
+      s2.top = s1.sp + sizeof(descriptor_type);
       break;
     }
     case descriptor_type::overflow_tag: {
       chunk_type* c = next_descriptor->overflow.c;
-      assert(c != nullptr);
+      if (c == nullptr) {
+        s2.top = nullptr;
+        s2.fp = nullptr;
+        s2.sp = nullptr;
+        return std::make_pair(s1, s2);
+      }
       s2.top = (char*)c + sizeof(descriptor_type);
       next_descriptor = (descriptor_type*)c;
       break;
@@ -295,7 +306,8 @@ std::pair<stack_type, stack_type> slice_front(stack_type s) {
   }
   assert(next_descriptor->tag == descriptor_type::frame_tag);
   assert(next_descriptor->frame.fp != nullptr);
-  next_descriptor->tag = descriptor_type::overflow_tag;
+  next_descriptor->tag = descriptor_type::empty_tag;
+  assert(s.fp != s.top);
   s2.fp = s.fp;
   s2.sp = s.sp;
   return std::make_pair(s1, s2);
