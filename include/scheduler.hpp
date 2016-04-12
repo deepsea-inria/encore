@@ -19,7 +19,7 @@ namespace sched {
 /* Scheduling parameters */
   
 // to control the rate of DAG construction
-int D = 2048;
+int D = 4096;
 
 // to control the eagerness of work distribution
 int K = 2 * D;
@@ -96,9 +96,10 @@ public:
     }
 #ifndef NDEBUG
     int n2 = nb_strands();
-#endif
     assert(n1 == n2 + nb);
-    assert(other.nb_strands() == nb);
+    int n3 = other.nb_strands();
+    assert(n3 == nb);
+#endif
   }
   
   void swap(frontier& other) {
