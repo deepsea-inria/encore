@@ -161,9 +161,8 @@ value_type scan_cilk(int n, value_type z, value_type* src, value_type* dst) {
 }
 
 void cilk_set_nb_cores(int proc) {
-#ifdef USE_CILK_RUNTIME
+#ifdef USE_CILK_PLUS
   __cilkrts_set_param("nworkers", std::to_string(proc).c_str());
-  std::cerr << "Number of workers: " << __cilkrts_get_nworkers() << std::endl;
 #endif
 }
 
