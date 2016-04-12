@@ -15,7 +15,7 @@ namespace cmdline = pasl::util::cmdline;
 namespace dsl = encore::edsl;
 
 int cutoff = 1;
-int branching_factor = 2;
+int branching_factor = 1024;
 
 using value_type = int;
 
@@ -160,11 +160,23 @@ value_type scan_cilk(int n, value_type z, value_type* src, value_type* dst) {
   return r;
 }
 
+void cilk_set_nb_cores(int proc) {
+#ifdef USE_CILK_RUNTIME
+  __cilkrts_set_param("nworkers", std::to_string(proc).c_str());
+  std::cerr << "Number of workers: " << __cilkrts_get_nworkers() << std::endl;
+#endif
+}
+
+void cilk_set_nb_cores() {
+  cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
+}
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   cutoff = cmdline::parse_or_default("cutoff", cutoff);
   branching_factor = cmdline::parse_or_default("branching_factor", branching_factor);
+  cilk_set_nb_cores();
   value_type* src = malloc_array<value_type>(n);
   value_type* dst = malloc_array<value_type>(n);
   for (int i = 0; i < n; i++) {
