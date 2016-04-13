@@ -115,20 +115,19 @@ public:
     in.read((char*)header, sizeof(header));
     graph_type = header[0];
     nbbits = int(header[1]);
-    assert(nbbits == sizeof(vertex_id_type));
-    if (nbbits != sizeof(vertex_id_type))
-     std::cerr << "Bogus graph file: given " <<
-        nbbits << " but expected " << sizeof(vertex_id_type) << " bits" << std::endl;
     nb_vertices = size_type(header[2]);
     nb_offsets = nb_vertices + 1;
     nb_edges = size_type(header[3]);
     long nb_cells_alloced = alloc();
     long nb_bytes_allocated = nb_cells_alloced * sizeof(vertex_id_type);
     is_symmetric = bool(header[4]);
-    if (graph_type != GRAPH_TYPE_ADJLIST)
+    if (graph_type != GRAPH_TYPE_ADJLIST) {
       std::cerr << "Bogus graph type." << std::endl;
-    if (sizeof(vertex_id_type) * 8 < nbbits)
-      std::cerr << "Incompatible graph file." << std::endl;
+    }
+    if (sizeof(vertex_id_type) * 8 != nbbits) {
+      std::cerr << "Incompatible graph file: " << sizeof(vertex_id_type) << std::endl;
+      exit(0);
+    }
     in.seekg (0, in.end);
     long contents_szb = long(in.tellg()) - sizeof(header);
     assert(contents_szb == nb_bytes_allocated);
@@ -148,7 +147,7 @@ int* dfs(const adjlist<Vertex_id>& graph, Vertex_id source) {
   for (size_type i = 0; i < nb_vertices; i++) {
     visited[i] = 0;
   }
-  size_type frontier_size;
+  size_type frontier_size = 0;
   frontier[frontier_size++] = source;
   visited[source] = 1;
   while (frontier_size > 0) {
