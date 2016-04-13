@@ -32,8 +32,13 @@ public:
   static
   dc get_dc() {
     return
-    dc::mk_if([] (sar& s, par&) { printf("bintree_rec\n"); return s.hi - s.lo <= cutoff; },
-      dc::stmt([] (sar& s, par&) { s.a[s.lo]++; }),
+    dc::mk_if([] (sar& s, par&) {
+      return s.hi - s.lo <= cutoff; },
+      dc::stmt([] (sar& s, par&) {
+        for (int i = s.lo; i < s.hi; i++) {
+          s.a[s.lo]++;
+        }
+      }),
       dc::stmts({
         dc::stmt([] (sar& s, par&) { s.mid = (s.lo + s.hi) / 2; }),
         dc::spawn_minus([] (sar& s, par&, stt st) {
@@ -65,7 +70,7 @@ public:
   static
   dc get_dc() {
     return
-    dc::join_plus([] (sar& s, par&, stt st) { printf("bintree\n");
+    dc::join_plus([] (sar& s, par&, stt st) {
       return ecall<bintree_rec>(st, 0, s.n, s.a, &s.join); },
       [] (sar& s, par&) { return &s.join; });
   }
