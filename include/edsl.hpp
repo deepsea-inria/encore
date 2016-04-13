@@ -902,7 +902,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
     }
     case tag_spawn_minus: {
       interpreter<Stack>* continuation = interp;
-      auto stacks = slice_stack<Shared_activation_record>(interp->stack);
+      auto stacks = fork_stack<Shared_activation_record>(interp->stack);
       continuation->stack = stacks.first;
       interpreter<stack_type>* branch = new interpreter<stack_type>(stacks.second);
       sched::incounter* incounter = *block.variant_spawn_minus.getter(shared_oldest, private_oldest);
