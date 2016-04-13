@@ -172,6 +172,7 @@ class pdfs_rec : public dsl::pcfg::shared_activation_record {
 public:
   
   using size_type = Vertex_id;
+  using neighbor_list_type = typename adjlist<Vertex_id>::neighbor_list;
   
   std::atomic<int>* visited;
   const adjlist<Vertex_id>* graph;
@@ -186,10 +187,16 @@ public:
   
   encore_dc_declare(encore::edsl, pdfs_rec, sar, par, dc, get_dc)
   
-  typename adjlist<Vertex_id>::neighbor_list neighbors;
+  neighbor_list_type neighbors;
   size_type lo;
   size_type hi;
   Vertex_id s;
+  
+  static
+  bool try_to_claim(std::atomic<int>* visited, Vertex_id v) {
+    int old = 0;
+    return visited[v].compare_exchange_strong(old, 1);
+  }
   
   static
   dc get_dc() {
@@ -199,20 +206,15 @@ public:
         s.hi = s.graph->get_out_degree_of(s.v);
         s.neighbors = s.graph->get_out_edges_of(s.v);
       }),
-      dc::sequential_loop([] (sar& s, par&) {
-        return s.lo != s.hi;
-      }, dc::stmts({
+      dc::sequential_loop([] (sar& s, par&) { return s.lo != s.hi; }, dc::stmts({
         dc::stmt([] (sar& s, par&) {
           s.s = s.neighbors[s.lo];
         }),
-        dc::mk_if([] (sar& s, par&) {
-          return s.visited[s.s].load() == 0;
-        }, dc::mk_if([] (sar& s, par&) {
-              int old = 0;
-              return s.visited[s.s].compare_exchange_strong(old, 1);
-            }, dc::spawn_minus([] (sar& s, par&, stt st) {
-                 return ecall<pdfs_rec>(st, s.visited, s.graph, s.s, s.join); },
-                 [] (sar& s, par&) { return s.join; }))),
+        dc::mk_if([] (sar& s, par&) { return s.visited[s.s].load() == 0; },
+          dc::mk_if([] (sar& s, par&) { return try_to_claim(s.visited, s.s); },
+            dc::spawn_minus([] (sar& s, par&, stt st) {
+              return ecall<pdfs_rec>(st, s.visited, s.graph, s.s, s.join); },
+              [] (sar& s, par&) { return s.join; }))),
         dc::stmt([] (sar& s, par&) {
           s.lo++;
         })
