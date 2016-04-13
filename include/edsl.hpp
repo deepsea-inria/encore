@@ -174,61 +174,61 @@ private:
     other.tag = tag_none;
     switch (tag) {
       case tag_unconditional_jump: {
-        new (&variant_unconditional_jump.code) unconditional_jump_code_type();
+        new (&variant_unconditional_jump.code) unconditional_jump_code_type;
         variant_unconditional_jump.code = std::move(other.variant_unconditional_jump.code);
         variant_unconditional_jump.next = std::move(other.variant_unconditional_jump.next);
         break;
       }
       case tag_conditional_jump: {
-        new (&variant_conditional_jump.code) conditional_jump_code_type();
+        new (&variant_conditional_jump.code) conditional_jump_code_type;
         variant_conditional_jump.code = std::move(other.variant_conditional_jump.code);
-        new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>();
+        new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>;
         variant_conditional_jump.targets = std::move(other.variant_conditional_jump.targets);
         break;
       }
       case tag_spawn_join: {
-        new (&variant_spawn_join.code) procedure_call_code_type();
+        new (&variant_spawn_join.code) procedure_call_code_type;
         variant_spawn_join.code = std::move(other.variant_spawn_join.code);
         variant_spawn_join.next = std::move(other.variant_spawn_join.next);
         break;
       }
       case tag_spawn2_join: {
-        new (&variant_spawn2_join.code1) procedure_call_code_type();
+        new (&variant_spawn2_join.code1) procedure_call_code_type;
         variant_spawn2_join.code1 = std::move(other.variant_spawn2_join.code1);
         variant_spawn2_join.next = std::move(other.variant_spawn2_join.next);
         break;
       }
       case tag_tail: {
-        new (&variant_tail.code) procedure_call_code_type();
+        new (&variant_tail.code) procedure_call_code_type;
         variant_tail.code = std::move(other.variant_tail.code);
         break;
       }
       case tag_join_plus: {
-        new (&variant_join_plus.code) procedure_call_code_type();
+        new (&variant_join_plus.code) procedure_call_code_type;
         variant_join_plus.code = std::move(other.variant_join_plus.code);
-        new (&variant_join_plus.getter) incounter_getter_code_type();
+        new (&variant_join_plus.getter) incounter_getter_code_type;
         variant_join_plus.getter = std::move(other.variant_join_plus.getter);
         variant_join_plus.next = std::move(other.variant_join_plus.next);
         break;
       }
       case tag_spawn_minus: {
-        new (&variant_spawn_minus.code) procedure_call_code_type();
+        new (&variant_spawn_minus.code) procedure_call_code_type;
         variant_spawn_minus.code = std::move(other.variant_spawn_minus.code);
-        new (&variant_spawn_minus.getter) outset_getter_code_type();
+        new (&variant_spawn_minus.getter) outset_getter_code_type;
         variant_spawn_minus.getter = std::move(other.variant_spawn_minus.getter);
         variant_spawn_minus.next = std::move(other.variant_spawn_minus.next);
         break;
       }
       case tag_spawn_plus: {
-        new (&variant_spawn_plus.code) procedure_call_code_type();
+        new (&variant_spawn_plus.code) procedure_call_code_type;
         variant_spawn_plus.code = std::move(other.variant_spawn_plus.code);
-        new (&variant_spawn_plus.getter) outset_getter_code_type();
+        new (&variant_spawn_plus.getter) outset_getter_code_type;
         variant_spawn_plus.getter = std::move(other.variant_spawn_plus.getter);
         variant_spawn_plus.next = std::move(other.variant_spawn_plus.next);
         break;
       }
       case tag_join_minus: {
-        new (&variant_join_minus.getter) outset_getter_code_type();
+        new (&variant_join_minus.getter) outset_getter_code_type;
         variant_join_minus.getter = std::move(other.variant_join_minus.getter);
         variant_join_minus.next = std::move(other.variant_join_minus.next);
         break;
