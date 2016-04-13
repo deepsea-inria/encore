@@ -203,6 +203,7 @@ stack_type pop_back(stack_type s) {
       t.sp = sp;
       break;
     }
+    case descriptor_type::initial_tag:
     case descriptor_type::empty_tag:
     case descriptor_type::overflow_tag: {
       t.fp = nullptr;
@@ -251,6 +252,9 @@ std::pair<stack_type, stack_type> fork_front(stack_type s) {
         s2.sp = nullptr;
         return std::make_pair(s1, s2);
       }
+      next_descriptor->overflow.c = nullptr;
+      descriptor_type* overflow_descriptor = (descriptor_type*)c;
+      overflow_descriptor->tag = descriptor_type::initial_tag;
       s2.top = (char*)c + sizeof(descriptor_type);
       break;
     }
