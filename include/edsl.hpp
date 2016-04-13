@@ -508,7 +508,6 @@ public:
   trampoline_type trampoline = { .pred = entry_block_label, .succ = entry_block_label };
   
   virtual int nb_strands() {
-    assert(trampoline.succ != exit_block_label);
     return 1;
   }
   
@@ -727,7 +726,7 @@ public:
       fuel = 0;
     } else if (! empty_stack(stack)) {
       assert(fuel == 0);
-      peek_newest_shared_frame<shared_activation_record>(stack).promote(this);
+      peek_oldest_shared_frame<shared_activation_record>(stack).promote(this);
     }
     return fuel;
   }
@@ -755,13 +754,17 @@ template <class Shared_activation_record, class Stack>
 std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack, int fuel) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   assert(! empty_stack(stack));
+  fuel--;
   auto& shared_newest = peek_newest_shared_frame<Shared_activation_record>(stack);
   auto& private_newest = peek_newest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = private_newest.trampoline.succ;
   basic_block_label_type succ;
+  if (pred == exit_block_label) {
+    stack = pop_call(stack);
+    return std::make_pair(stack, fuel);
+  }
   assert(pred >= 0 && pred < cfg.nb_basic_blocks());
   auto& block = cfg.basic_blocks[pred];
-  fuel--;
   switch (block.tag) {
     case tag_unconditional_jump: {
       block.variant_unconditional_jump.code(shared_newest, private_newest);
@@ -817,12 +820,8 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
       assert(false);
     }
   }
-  if (succ == exit_block_label) {
-    stack = pop_call(stack);
-  } else {
-    private_newest.trampoline.pred = pred;
-    private_newest.trampoline.succ = succ;
-  }
+  private_newest.trampoline.pred = pred;
+  private_newest.trampoline.succ = succ;
   return std::make_pair(stack, fuel);
 }
 
@@ -841,9 +840,12 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
   assert(! empty_stack(stack));
   auto& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
   auto& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
-  assert(private_oldest.trampoline.pred >= 0);
-  assert(private_oldest.trampoline.pred < cfg.nb_basic_blocks());
-  auto& block = cfg.basic_blocks[private_oldest.trampoline.pred];
+  basic_block_label_type pred = private_oldest.trampoline.pred;
+  if (pred == exit_block_label) {
+    return;
+  }
+  assert(pred >= 0 && pred < cfg.nb_basic_blocks());
+  auto& block = cfg.basic_blocks[pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
       schedule(interp);
