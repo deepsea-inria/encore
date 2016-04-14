@@ -7,8 +7,6 @@ namespace sched = encore::sched;
 namespace cmdline = pasl::util::cmdline;
 namespace dsl = encore::edsl;
 
-int cutoff = 1;
-
 std::atomic<int> nb(0);
 
 class mixed : public encore::edsl::pcfg::shared_activation_record {
@@ -38,17 +36,22 @@ public:
   static
   dc get_dc() {
     return
-    dc::mk_if([] (sar& s, par& p) { return s.n > 1; }, dc::stmts({
-      dc::spawn_plus([] (sar& s, par& p, stt s) { return ecall<mixed>(s, n / 2); },
+    dc::mk_if([] (sar& s, par& p) { return s.n >= 1; }, dc::stmts({
+      dc::spawn_plus([] (sar& s, par& p, stt st) { return ecall<mixed>(st, s.n / 2); },
                      [] (sar& s, par& p) { return &s.f; }),
+      dc::stmt([] (sar& s, par& p) {
+        p.lo = 0;
+        p.hi = s.n;
+      }),
       dc::parallel_for_loop([] (sar& s, par& p) { return p.lo != p.hi; },
-                            [] (sar& s, par& p) { return std::make_pair(&p.lo, p.hi); },
-                            dc::stmt(
-          dc::join_minus([] (sar& s, par& p) { return &s.f; })
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            dc::stmts({
+        dc::join_minus([] (sar& s, par& p) { return &s.f; }),
+        dc::stmt([] (sar& s, par& p) { p.lo++; })
 #ifndef NDEBUG
-          ,dc::stmt([] (sar&, par*) { nb++; })
+        , dc::stmt([] (sar&, par&) { nb++; })
 #endif
-        ))
+      }))
     }));
   }
   
@@ -58,11 +61,10 @@ encore_pcfg_allocate(mixed, get_cfg)
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
-  int n = cmdline::parse<int>("n");
-  cutoff = cmdline::parse_or_default("cutoff", cutoff);
+  int n = 1 << cmdline::parse<int>("lgn");
   encore::run_and_report_elapsed_time([&] {
     encore::launch_interpreter<mixed>(n);
   });
-  assert(nb.load() == n);
+  assert(nb.load() + 1 == 2 * n);
   return 0;
 }
