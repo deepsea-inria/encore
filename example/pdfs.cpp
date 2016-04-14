@@ -233,6 +233,8 @@ public:
   
   using size_type = Vertex_id;
   
+  static constexpr int nb_loops = 1;
+  
   std::atomic<int>* visited;
   const adjlist<Vertex_id>* graph;
   Vertex_id v;
@@ -242,16 +244,37 @@ public:
        Vertex_id v)
   : visited(visited), graph(graph), v(v) { }
   
-  encore_dc_declare(encore::edsl, pdfs, sar, par, dc, get_dc)
+  class private_activation_record
+  : public dsl::pcfg::parallel_for_private_activation_record<pdfs,
+  private_activation_record, nb_loops> {
+  public:
+    
+    int lo; int hi;
+    
+  };
+  
+  encore_dc_loop_declare(encore::edsl, pdfs, sar, par, dc, get_dc)
   
   sched::incounter* join = nullptr;
   
   static
   dc get_dc() {
     return
+    dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        p.lo = 0;
+        p.hi = (int)s.graph->get_nb_vertices();
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { return p.lo != p.hi; },
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            dc::stmt([] (sar& s, par& p) {
+        s.visited[p.lo].store(0);
+        p.lo++;
+      })),
       dc::join_plus([] (sar& s, par&, stt st) {
         return ecall<pdfs_rec<Vertex_id>>(st, s.visited, s.graph, s.v, &s.join); },
-        [] (sar& s, par&) { return &s.join; });
+        [] (sar& s, par&) { return &s.join; })
+    });
   }
   
 };
@@ -274,9 +297,6 @@ void launch() {
     } else if (algo == "pdfs") {
       Vertex_id nb_vertices = graph.get_nb_vertices();
       visited_parallel = malloc_array<std::atomic<int>>(nb_vertices);
-      for (Vertex_id i = 0; i < nb_vertices; i++) {
-        visited_parallel[i].store(0);
-      }
       encore::launch_interpreter<pdfs<Vertex_id>>(visited_parallel, &graph, source);
     } else {
       std::cerr << "bogus value passed for -algo:" << algo << std::endl;
