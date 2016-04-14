@@ -14,8 +14,6 @@ namespace sched {
 class vertex {
 public:
   
-  bool is_future = false;
-  
   incounter_handle* release_handle = nullptr;
   
 private:
@@ -33,11 +31,7 @@ public:
   vertex() {
     in.reset(new incounter(this));
     release_handle = get_incounter()->increment(this);
-    if (is_future) {
-      out_future = new outset;
-    } else {
-      out_dflt.reset(new outset);
-    }
+    out_dflt.reset(new outset);
   }
   
   virtual ~vertex() { }
@@ -47,11 +41,30 @@ public:
   }
   
   outset* get_outset() {
-    if (is_future) {
-      return out_future;
+    outset* r = nullptr;
+    if (is_future()) {
+      r = out_future;
     } else {
-      return out_dflt.get();
+      r = out_dflt.get();
     }
+    assert(r != nullptr);
+    return r;
+  }
+  
+  bool is_future() const {
+    if (out_future == nullptr) {
+      assert(out_dflt.get() != nullptr);
+      return false;
+    } else {
+      assert(out_dflt.get() == nullptr);
+      return true;
+    }
+  }
+  
+  void enable_future() {
+    assert(! is_future());
+    out_future = out_dflt.release();
+    assert(is_future());
   }
   
   virtual int nb_strands() = 0;
@@ -61,6 +74,12 @@ public:
   virtual std::pair<vertex*, vertex*> split(int nb) = 0;
   
 };
+  
+void delete_future(outset* f) {
+  if (f != nullptr) {
+    delete f;
+  }
+}
   
 } // end namespace
 } // end namespace

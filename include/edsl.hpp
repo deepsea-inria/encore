@@ -918,6 +918,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
       auto stacks = fork_stack<Shared_activation_record>(interp->stack);
       continuation->stack = stacks.first;
       interpreter<stack_type>* branch = new interpreter<stack_type>(stacks.second);
+      branch->enable_future();
       assert(*block.variant_spawn_plus.getter(shared_oldest, private_oldest) == nullptr);
       *block.variant_spawn_plus.getter(shared_oldest, private_oldest) = branch->get_outset();
       schedule(continuation);

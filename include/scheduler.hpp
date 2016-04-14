@@ -67,7 +67,7 @@ public:
       vertex* v = vs.pop_back();
       fuel = v->run(fuel);
       if (v->nb_strands() == 0) {
-        parallel_notify(v->is_future, v->get_outset());
+        parallel_notify(v->is_future(), v->get_outset());
         delete v;
       }
     }
@@ -287,7 +287,7 @@ void launch_scheduler(int nb_workers, vertex* v) {
   
 void schedule(vertex* v) {
   if (v->nb_strands() == 0) {
-    parallel_notify(v->is_future, v->get_outset());
+    parallel_notify(v->is_future(), v->get_outset());
     delete v;
     return;
   }

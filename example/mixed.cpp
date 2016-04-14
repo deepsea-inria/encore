@@ -51,7 +51,10 @@ public:
 #ifndef NDEBUG
         , dc::stmt([] (sar&, par&) { nb++; })
 #endif
-      }))
+      })),
+      dc::stmt([] (sar& s, par& p) {
+        sched::delete_future(s.f);
+      })
     }));
   }
   
