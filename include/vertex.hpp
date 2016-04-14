@@ -19,10 +19,7 @@ public:
 private:
   
   std::unique_ptr<incounter> in;
-  
-  /* later: consider using a proper union type, unless
-   * it's clear that saving one word here would be unimportant
-   */
+
   outset* out_future = nullptr; // to use if is_future
   std::unique_ptr<outset> out_dflt; // to use otherwise
   
