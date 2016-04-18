@@ -406,13 +406,24 @@ using trampoline_type = struct {
   basic_block_label_type succ;
 };
   
-class parallel_for_descriptor {
+class loop_activation_record {
 public:
   
-  parallel_for_descriptor()
+  virtual int nb_strands() = 0;
+  
+  virtual void split(loop_activation_record*, int) = 0;
+  
+  virtual sched::vertex*& get_join() = 0;
+  
+};
+  
+class parallel_for_activation_record : public loop_activation_record {
+public:
+  
+  parallel_for_activation_record()
   : lo(nullptr), hi(nullptr), join(nullptr) { }
   
-  parallel_for_descriptor(int& lo, int& hi)
+  parallel_for_activation_record(int& lo, int& hi)
   : lo(&lo), hi(&hi), join(nullptr) { }
   
   int* lo;
@@ -420,6 +431,25 @@ public:
   int* hi;
   
   sched::vertex* join = nullptr;
+  
+  int nb_strands() {
+    return *hi - *lo;
+  }
+  
+  void split(loop_activation_record* _destination, int nb) {
+    parallel_for_activation_record* destination = (parallel_for_activation_record*)_destination;
+    int orig = nb_strands();
+    assert(nb >= 0 && nb <= orig);
+    int mid = (orig - nb) + *lo;
+    *(destination->hi) = *hi;
+    *hi = mid;
+    *(destination->lo) = mid;
+    assert((destination->nb_strands() == nb) && (nb_strands() + nb == orig));
+  }
+  
+  sched::vertex*& get_join() {
+    return join;
+  }
   
 };
 
@@ -435,10 +465,10 @@ public:
   
   trampoline_type exit;
   
-  // parents is ordered from oldest to youngest
+  // ids in parents vector are ordered from outermost to innermost
   std::vector<parallel_loop_id_type> parents;
   
-  std::function<void(par&, parallel_for_descriptor&)> initializer;
+  std::function<void(par&, parallel_for_activation_record&)> initializer;
   
 };
   
@@ -502,6 +532,8 @@ public:
   
 };
   
+sched::vertex* dummy_join = nullptr;
+  
 class private_activation_record {
 public:
   
@@ -521,9 +553,9 @@ public:
     return std::make_pair(nullptr, nullptr);
   }
   
-  virtual sched::vertex* get_join(parallel_loop_id_type) {
+  virtual sched::vertex*& get_join(parallel_loop_id_type) {
     assert(false); // impossible
-    return nullptr;
+    return dummy_join;
   }
   
 };
@@ -949,13 +981,13 @@ public:
   using sar = Sar;
   using par = Par;
   
-  std::array<parallel_for_descriptor, nb_loops> parallel_for_descriptors;
+  std::array<parallel_for_activation_record, nb_loops> parallel_loop_activation_records;
   
   void initialize_descriptors() {
     assert(nb_loops == sar::cfg.nb_loops());
     for (parallel_loop_id_type id = 0; id < nb_loops; id++) {
       auto& d = sar::cfg.loop_descriptors[id];
-      d.initializer(*(par*)this, parallel_for_descriptors[id]);
+      d.initializer(*(par*)this, parallel_loop_activation_records[id]);
     }
   }
   
@@ -974,12 +1006,12 @@ public:
     }
     for (parallel_loop_id_type id : sar::cfg.loop_descriptors[current].parents) {
       assert(id != not_a_parallel_loop_id);
-      auto& d = parallel_for_descriptors[id];
+      auto& d = parallel_loop_activation_records[id];
       if (*d.hi - *d.lo >= 2) {
         return id;
       }
     }
-    auto& d = parallel_for_descriptors[current];
+    auto& d = parallel_loop_activation_records[current];
     if (*d.hi - *d.lo >= 2) {
       return current;
     } else {
@@ -987,20 +1019,20 @@ public:
     }
   }
   
-  parallel_for_descriptor* get_oldest_nonempty() {
+  parallel_for_activation_record* get_oldest_nonempty() {
     auto id = get_id_of_oldest_nonempty();
     if (id == not_a_parallel_loop_id) {
       return nullptr;
     } else {
-      return &parallel_for_descriptors[id];
+      return &parallel_loop_activation_records[id];
     }
   }
   
-  sched::vertex* get_join(parallel_loop_id_type id) {
-    return parallel_for_descriptors[id].join;
+  sched::vertex*& get_join(parallel_loop_id_type id) {
+    return parallel_loop_activation_records[id].get_join();
   }
   
-  sched::vertex* get_join() {
+  sched::vertex*& get_join() {
     return get_join(get_id_of_current_parallel_loop());
   }
   
@@ -1012,22 +1044,19 @@ public:
     if (d == nullptr) {
       return 1;
     }
-    return std::max(1, *d->hi - *d->lo);
+    return std::max(1, d->nb_strands());
   }
   
   template <class Stack>
-  std::pair<sched::vertex*, sched::vertex*> split2(interpreter<Stack>* interp, int nb) {
+  std::pair<sched::vertex*, sched::vertex*> _split(interpreter<Stack>* interp, int nb) {
     interpreter<extended_stack_type>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
     par* oldest_private = &peek_oldest_private_frame<par>(interp->stack);
     parallel_loop_id_type id = oldest_private->get_id_of_oldest_nonempty();
-    parallel_for_descriptor& pf_descr = oldest_private->parallel_for_descriptors[id];
+    parallel_for_activation_record& lp_ar = oldest_private->parallel_loop_activation_records[id];
     parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
-    sched::vertex* join = pf_descr.join;
-    int lo = *pf_descr.lo;
-    int hi = *pf_descr.hi;
-    int mid = *pf_descr.lo + nb;
+    sched::vertex* join = lp_ar.get_join();
     if (join == nullptr) {
       join = interp;
       auto stacks = slice_stack<sar>(interp->stack);
@@ -1037,19 +1066,15 @@ public:
       stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
       par& private1 = peek_oldest_private_frame<par>(stack1);
       private1.initialize_descriptors();
-      auto& pf1_descr = private1.parallel_for_descriptors[id];
-      *pf1_descr.lo = lo;
-      *pf1_descr.hi = mid;
-      pf1_descr.join = join;
+      auto& lp_ar1 = private1.parallel_loop_activation_records[id];
+      lp_ar.split(&lp_ar1, lp_ar.nb_strands());
+      lp_ar1.get_join() = join;
       private1.trampoline = pl_descr.entry;
       oldest_private->trampoline = pl_descr.exit;
-      pf_descr.join = nullptr;
-      *pf_descr.lo = -1;
-      *pf_descr.hi = -1;
+      lp_ar.get_join() = nullptr;
       sched::new_edge(interp1, join);
       interp1->release_handle->decrement();
     } else {
-      *pf_descr.hi = mid;
       interp1 = (interpreter<extended_stack_type>*)interp;
     }
     interp2 = new interpreter<extended_stack_type>(oldest_shared);
@@ -1057,10 +1082,9 @@ public:
     stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
     par& private2 = peek_oldest_private_frame<par>(stack2);
     private2.initialize_descriptors();
-    auto& pf2_descr = private2.parallel_for_descriptors[id];
-    *pf2_descr.lo = mid;
-    *pf2_descr.hi = hi;
-    pf2_descr.join = join;
+    auto& lp_ar2 = private2.parallel_loop_activation_records[id];
+    peek_oldest_private_frame<par>(interp1->stack).parallel_loop_activation_records[id].split(&lp_ar2, nb);
+    lp_ar2.get_join() = join;
     private2.trampoline = pl_descr.entry;
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
@@ -1068,11 +1092,11 @@ public:
   }
   
   std::pair<sched::vertex*, sched::vertex*> split(interpreter<stack_type>* interp, int nb) {
-    return split2(interp, nb);
+    return _split(interp, nb);
   }
   
   std::pair<sched::vertex*, sched::vertex*> split(interpreter<extended_stack_type>* interp, int nb) {
-    return split2(interp, nb);
+    return _split(interp, nb);
   }
   
 };
@@ -1654,10 +1678,10 @@ private:
         descriptor.exit = { .pred=exit, .succ=exit };
         descriptor.parents = loop_scope;
         auto getter = stmt.variant_parallel_for_loop.getter;
-        descriptor.initializer = [getter] (Private_activation_record& p, pcfg::parallel_for_descriptor& d) {
+        descriptor.initializer = [getter] (Private_activation_record& p, pcfg::parallel_for_activation_record& ar) {
           std::pair<int*, int*> range = getter(p);
-          d.lo = range.first;
-          d.hi = range.second;
+          ar.lo = range.first;
+          ar.hi = range.second;
         };
         add_parallel_loop(loop_label, descriptor);
         auto header_label = entry;
