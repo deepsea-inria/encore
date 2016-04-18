@@ -497,8 +497,8 @@ public:
   std::vector<parallel_loop_descriptor_type<par>> loop_descriptors;
   
   // to map from basic_block_id to parallel_loop_id
-  // loop_of[i] yields the id of the parallel loop that is
-  // closes to the basic block labeled i
+  // loop_of[i] yields the id of the parallel loop that most immediately
+  // encloses the basic block labeled i
   std::vector<parallel_loop_id_type> loop_of;
   
   size_t nb_basic_blocks() const {
