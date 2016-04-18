@@ -23,9 +23,11 @@ public:
   : n(n) { }
   
   class private_activation_record
-  : public dsl::pcfg::parallel_for_private_activation_record<mixed,
-  private_activation_record, nb_loops> {
+  : public dsl::pcfg::parallel_loop_private_activation_record<mixed,
+  private_activation_record> {
   public:
+    
+    encore_parallel_loop_alloc_default(encore::edsl, nb_loops)
     
     int lo; int hi;
     

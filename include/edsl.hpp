@@ -937,65 +937,23 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter<Stack>* interp
 }
   
 static constexpr parallel_loop_id_type not_a_parallel_loop_id = -1;
-  
-class parallel_for_activation_record : public parallel_loop_activation_record {
-public:
-  
-  parallel_for_activation_record()
-  : lo(nullptr), hi(nullptr), join(nullptr) { }
-  
-  parallel_for_activation_record(int& lo, int& hi)
-  : lo(&lo), hi(&hi), join(nullptr) { }
-  
-  int* lo;
-  
-  int* hi;
-  
-  sched::vertex* join = nullptr;
-  
-  int nb_strands() {
-    return *hi - *lo;
-  }
-  
-  void split(parallel_loop_activation_record* _destination, int nb) {
-    parallel_for_activation_record* destination = (parallel_for_activation_record*)_destination;
-    int orig = nb_strands();
-    assert(nb >= 0 && nb <= orig);
-    int mid = (orig - nb) + *lo;
-    *(destination->hi) = *hi;
-    *hi = mid;
-    *(destination->lo) = mid;
-    assert((destination->nb_strands() == nb) && (nb_strands() + nb == orig));
-  }
-  
-  sched::vertex*& get_join() {
-    return join;
-  }
-  
-};
  
-template <class Sar, class Par, int nb_loops>
-class parallel_for_private_activation_record : public private_activation_record {
+template <class Sar, class Par>
+class parallel_loop_private_activation_record : public private_activation_record {
 public:
   
   using sar = Sar;
   using par = Par;
   
-  std::array<parallel_for_activation_record, nb_loops> _ars;
-  
   parallel_loop_activation_record* get_ar(parallel_loop_id_type id) {
-    return &_ars[id];
+    auto p = (par*)this;
+    return p->get_ar2(id);
   }
   
   void initialize_descriptors() {
-    assert(nb_loops == sar::cfg.nb_loops());
-    for (parallel_loop_id_type id = 0; id < nb_loops; id++) {
+    for (parallel_loop_id_type id = 0; id < sar::cfg.nb_loops(); id++) {
       sar::cfg.loop_descriptors[id].initializer(*(par*)this, get_ar(id));
     }
-  }
-  
-  parallel_for_private_activation_record() {
-    initialize_descriptors();
   }
   
   parallel_loop_id_type get_id_of_current_parallel_loop() {
@@ -1098,6 +1056,42 @@ public:
   
   std::pair<sched::vertex*, sched::vertex*> split(interpreter<extended_stack_type>* interp, int nb) {
     return _split(interp, nb);
+  }
+  
+};
+
+class parallel_for_activation_record : public parallel_loop_activation_record {
+public:
+  
+  parallel_for_activation_record()
+  : lo(nullptr), hi(nullptr), join(nullptr) { }
+  
+  parallel_for_activation_record(int& lo, int& hi)
+  : lo(&lo), hi(&hi), join(nullptr) { }
+  
+  int* lo;
+  
+  int* hi;
+  
+  sched::vertex* join = nullptr;
+  
+  int nb_strands() {
+    return *hi - *lo;
+  }
+  
+  void split(parallel_loop_activation_record* _destination, int nb) {
+    parallel_for_activation_record* destination = (parallel_for_activation_record*)_destination;
+    int orig = nb_strands();
+    assert(nb >= 0 && nb <= orig);
+    int mid = (orig - nb) + *lo;
+    *(destination->hi) = *hi;
+    *hi = mid;
+    *(destination->lo) = mid;
+    assert((destination->nb_strands() == nb) && (nb_strands() + nb == orig));
+  }
+  
+  sched::vertex*& get_join() {
+    return join;
   }
   
 };
@@ -1843,5 +1837,15 @@ return edsl::dc::linearize<sar, par>::transform(get_dc()); \
 
 #define encore_pcfg_allocate(name, get_cfg) \
 name::cfg_type name::cfg = name::get_cfg(); \
+
+#define encore_parallel_loop_alloc_default(edsl, nb_loops) \
+private_activation_record() { \
+  private_activation_record::initialize_descriptors(); \
+} \
+\
+std::array<edsl::pcfg::parallel_for_activation_record, nb_loops> _ars1; \
+edsl::pcfg::parallel_loop_activation_record* get_ar2(edsl::pcfg::parallel_loop_id_type id) { \
+  return &_ars1[id]; \
+}
 
 #endif /*! _ENCORE_EDSL_H_ */
