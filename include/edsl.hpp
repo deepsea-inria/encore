@@ -981,12 +981,16 @@ public:
   using sar = Sar;
   using par = Par;
   
-  std::array<parallel_for_activation_record, nb_loops> ars;
+  std::array<parallel_for_activation_record, nb_loops> _ars;
+  
+  parallel_loop_activation_record* get_ar(parallel_loop_id_type id) {
+    return &_ars[id];
+  }
   
   void initialize_descriptors() {
     assert(nb_loops == sar::cfg.nb_loops());
     for (parallel_loop_id_type id = 0; id < nb_loops; id++) {
-      sar::cfg.loop_descriptors[id].initializer(*(par*)this, &ars[id]);
+      sar::cfg.loop_descriptors[id].initializer(*(par*)this, get_ar(id));
     }
   }
   
@@ -994,41 +998,39 @@ public:
     initialize_descriptors();
   }
   
-  parallel_loop_id_type get_id_of_current_parallel_loop() const {
+  parallel_loop_id_type get_id_of_current_parallel_loop() {
     return sar::cfg.loop_of[trampoline.pred];
   }
   
-  parallel_loop_id_type get_id_of_oldest_nonempty() const {
+  parallel_loop_id_type get_id_of_oldest_nonempty() {
     parallel_loop_id_type current = get_id_of_current_parallel_loop();
     if (current == not_a_parallel_loop_id) {
       return not_a_parallel_loop_id;
     }
     for (parallel_loop_id_type id : sar::cfg.loop_descriptors[current].parents) {
       assert(id != not_a_parallel_loop_id);
-      auto& d = ars[id];
-      if (*d.hi - *d.lo >= 2) {
+      if (get_ar(id)->nb_strands() >= 2) {
         return id;
       }
     }
-    auto& d = ars[current];
-    if (*d.hi - *d.lo >= 2) {
+    if (get_ar(current)->nb_strands() >= 2) {
       return current;
     } else {
       return not_a_parallel_loop_id;
     }
   }
   
-  parallel_for_activation_record* get_oldest_nonempty() {
+  parallel_loop_activation_record* get_oldest_nonempty() {
     auto id = get_id_of_oldest_nonempty();
     if (id == not_a_parallel_loop_id) {
       return nullptr;
     } else {
-      return &ars[id];
+      return get_ar(id);
     }
   }
   
   sched::vertex*& get_join(parallel_loop_id_type id) {
-    return ars[id].get_join();
+    return get_ar(id)->get_join();
   }
   
   sched::vertex*& get_join() {
@@ -1053,7 +1055,7 @@ public:
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
     par* oldest_private = &peek_oldest_private_frame<par>(interp->stack);
     parallel_loop_id_type id = oldest_private->get_id_of_oldest_nonempty();
-    parallel_for_activation_record& lp_ar = oldest_private->ars[id];
+    parallel_loop_activation_record& lp_ar = *oldest_private->get_ar(id);
     parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
     sched::vertex* join = lp_ar.get_join();
     if (join == nullptr) {
@@ -1065,7 +1067,7 @@ public:
       stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
       par& private1 = peek_oldest_private_frame<par>(stack1);
       private1.initialize_descriptors();
-      auto& lp_ar1 = private1.ars[id];
+      auto& lp_ar1 = *private1.get_ar(id);
       lp_ar.split(&lp_ar1, lp_ar.nb_strands());
       lp_ar1.get_join() = join;
       private1.trampoline = pl_descr.entry;
@@ -1081,8 +1083,8 @@ public:
     stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
     par& private2 = peek_oldest_private_frame<par>(stack2);
     private2.initialize_descriptors();
-    auto& lp_ar2 = private2.ars[id];
-    peek_oldest_private_frame<par>(interp1->stack).ars[id].split(&lp_ar2, nb);
+    auto& lp_ar2 = *private2.get_ar(id);
+    peek_oldest_private_frame<par>(interp1->stack).get_ar(id)->split(&lp_ar2, nb);
     lp_ar2.get_join() = join;
     private2.trampoline = pl_descr.entry;
     sched::new_edge(interp2, join);
