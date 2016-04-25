@@ -256,7 +256,7 @@ public:
     }
     
     int lo; int hi;
-    int acc;
+    int acc = 0;
     
   };
   
@@ -270,17 +270,20 @@ public:
         p.hi = s.n;
         p.acc = 0;
         s.a = new int[s.n];
+        for (int i = 0; i < s.n; i++) {
+          s.a[i] = i;
+        }
       }),
       dc::parallel_combine_loop([] (sar&, par& p) { return p.lo != p.hi; },
-                            [] (par& p) { p.acc = 0; return std::make_pair(&p.lo, &p.hi); },
-                            [] (sar&, par& p, par& destination) { destination.acc += p.acc; },
-                            dc::stmt([] (sar& s, par& p) {
+                                [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                                [] (sar&, par& p, par& destination) { destination.acc += p.acc; },
+                                dc::stmt([] (sar& s, par& p) {
         p.acc += s.a[p.lo];
         p.lo++;
       })),
       dc::stmt([] (sar& s, par& p) {
-#ifndef NDEBUG
         s.result = p.acc;
+#ifndef NDEBUG
         int acc2 = 0;
         for (int i = 0; i < s.n; i++) {
           acc2 += s.a[i];

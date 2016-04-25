@@ -536,19 +536,9 @@ public:
     return dummy_join;
   }
   
-  parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
+  virtual parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
     assert(false); // impossible
     return nullptr;
-  }
-  
-  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() {
-    assert(false); // impossible
-    return dummy_children;
-  }
-  
-  void*& get_parent() {
-    assert(false); // impossible
-    return dummy_parent;
   }
   
 };
@@ -1944,13 +1934,12 @@ private:
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           assert(children);
           auto position = --children->first;
-          assert(position >= 0);
           return &(children->second[position]);
         };
         add_block(children_loop_body_label, bbt::join_minus(children_loop_body, children_loop_header_label));
         auto combine = stmt.variant_parallel_combine_loop.combine;
-        auto parent_check = [combine] (sar& s, par& p) {
-          auto parent = (par*)p.get_parent();
+        auto parent_check = [combine, loop_label] (sar& s, par& p) {
+          auto parent = (par*)p.loop_activation_record_of(loop_label)->get_parent();
           if (parent != nullptr) {
             combine(s, p, *parent);
           }
