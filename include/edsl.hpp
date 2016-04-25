@@ -1902,7 +1902,8 @@ private:
         auto body_label = new_label();
         auto children_loop_init_label = new_label();
         auto children_loop_header_label = new_label();
-        auto children_loop_body_label = new_label();
+        auto children_loop_body0_label = new_label();
+        auto children_loop_body1_label = new_label();
         auto parent_check_label = new_label();
         auto predicate = stmt.variant_parallel_combine_loop.predicate;
         auto selector = [predicate] (sar& s, par& p) {
@@ -1928,23 +1929,32 @@ private:
             return 0;
           }
         };
-        std::vector<lt> child_loop_header_targets = { parent_check_label, children_loop_body_label };
+        std::vector<lt> child_loop_header_targets = { parent_check_label, children_loop_body0_label };
         add_block(children_loop_header_label, bbt::conditional_jump(children_loop_header, child_loop_header_targets));
-        auto children_loop_body = [loop_label] (sar&, par& p) {
+        auto children_loop_body0 = [loop_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           assert(children);
-          auto position = --children->first;
-          return &(children->second[position]);
+          auto i = children->first - 1;
+          return &(children->second.at(i));
         };
-        add_block(children_loop_body_label, bbt::join_minus(children_loop_body, children_loop_header_label));
+        add_block(children_loop_body0_label, bbt::join_minus(children_loop_body0, children_loop_body1_label));
+        auto children_loop_body1 = [loop_label] (sar&, par& p) {
+          auto& children = p.loop_activation_record_of(loop_label)->get_children();
+          assert(children);
+          children->first--;
+        };
+        add_block(children_loop_body1_label, bbt::unconditional_jump(children_loop_body1, children_loop_header_label));
         auto combine = stmt.variant_parallel_combine_loop.combine;
         auto parent_check = [combine, loop_label] (sar& s, par& p) {
           auto parent = (par*)p.loop_activation_record_of(loop_label)->get_parent();
           if (parent != nullptr) {
             combine(s, p, *parent);
+            return 1;
           }
+          return 0;
         };
-        add_block(parent_check_label, bbt::unconditional_jump(parent_check, exit));
+        std::vector<lt> parent_check_targets = { exit, pcfg::exit_block_label };
+        add_block(parent_check_label, bbt::conditional_jump(parent_check, parent_check_targets));
         result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
