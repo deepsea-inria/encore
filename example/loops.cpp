@@ -276,6 +276,7 @@ public:
       }),
       dc::parallel_combine_loop([] (sar&, par& p) { return p.lo != p.hi; },
                                 [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                                [] (sar&, par& p) { p.acc = 0; },
                                 [] (sar&, par& p, par& destination) { destination.acc += p.acc; },
                                 dc::stmt([] (sar& s, par& p) {
         p.acc += s.a[p.lo];
