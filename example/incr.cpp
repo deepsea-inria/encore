@@ -5,7 +5,7 @@
 #include "encore.hpp"
 
 namespace sched = encore::sched;
-namespace cmdline = pasl::util::cmdline;
+namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
 
 int cutoff = 1;

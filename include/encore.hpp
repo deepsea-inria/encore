@@ -6,7 +6,7 @@
 #ifndef _ENCORE_H_
 #define _ENCORE_H_
 
-namespace cmdline = pasl::util::cmdline;
+namespace cmdline = deepsea::cmdline;
 
 namespace encore {
   

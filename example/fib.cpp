@@ -160,7 +160,7 @@ public:
 
 encore_pcfg_allocate(fib_dc, get_cfg)
 
-namespace cmdline = pasl::util::cmdline;
+namespace cmdline = deepsea::cmdline;
 
 #ifdef USE_CILK_PLUS
 void initialize_cilk() {
