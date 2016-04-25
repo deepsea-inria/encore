@@ -226,6 +226,76 @@ public:
 
 encore_pcfg_allocate(parallel_loop_1, get_cfg)
 
+class parallel_combine_0 : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  static constexpr int nb_loops = 1;
+  
+  int n;
+  int* a;
+  int result;
+  
+  parallel_combine_0() { }
+  
+  parallel_combine_0(int n)
+  : n(n) { }
+  
+  class private_activation_record
+  : public dsl::pcfg::parallel_loop_private_activation_record<parallel_combine_0,
+  private_activation_record> {
+  public:
+    
+    private_activation_record() {
+      private_activation_record::initialize_descriptors();
+    }
+    
+    dsl::pcfg::parallel_combine_activation_record _ar;
+    dsl::pcfg::parallel_loop_activation_record* _encore_loop_activation_record_of(dsl::pcfg::parallel_loop_id_type id) {
+      assert(id == 0);
+      return &_ar;
+    }
+    
+    int lo; int hi;
+    int acc;
+    
+  };
+  
+  encore_dc_loop_declare(encore::edsl, parallel_combine_0, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        p.lo = 0;
+        p.hi = s.n;
+        p.acc = 0;
+        s.a = new int[s.n];
+      }),
+      dc::parallel_combine_loop([] (sar&, par& p) { return p.lo != p.hi; },
+                            [] (par& p) { p.acc = 0; return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar&, par& p, par& destination) { destination.acc += p.acc; },
+                            dc::stmt([] (sar& s, par& p) {
+        p.acc += s.a[p.lo];
+        p.lo++;
+      })),
+      dc::stmt([] (sar& s, par& p) {
+#ifndef NDEBUG
+        s.result = p.acc;
+        int acc2 = 0;
+        for (int i = 0; i < s.n; i++) {
+          acc2 += s.a[i];
+        }
+        assert(s.result == acc2);
+#endif
+        delete [] s.a;
+      })
+    });
+  }
+  
+};
+
+encore_pcfg_allocate(parallel_combine_0, get_cfg)
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
@@ -243,6 +313,9 @@ int main(int argc, char** argv) {
     });
     d.add("parallel_loop_1", [=] {
       encore::launch_interpreter<parallel_loop_1>(n);
+    });
+    d.add("parallel_combine_0", [=] {
+      encore::launch_interpreter<parallel_combine_0>(n);
     });
     d.dispatch_or_default("function", "sequential_loop_0");
   });

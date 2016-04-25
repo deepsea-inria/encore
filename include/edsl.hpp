@@ -415,6 +415,10 @@ public:
   
   virtual sched::vertex*& get_join() = 0;
   
+  virtual std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() = 0;
+  
+  virtual void*& get_parent() = 0;
+  
 };
 
 using parallel_loop_id_type = int;
@@ -424,6 +428,14 @@ class parallel_loop_descriptor_type {
 public:
   
   using par = Private_activation_record;
+  
+  using join_type = enum {
+    join_trivial,
+    join_binary_associative_combine,
+    join_binary_associative_commutative_combine
+  };
+  
+  join_type join = join_binary_associative_commutative_combine;
   
   trampoline_type entry;
   
@@ -497,6 +509,8 @@ public:
 };
   
 sched::vertex* dummy_join = nullptr;
+std::unique_ptr<std::pair<int, std::vector<sched::outset*>>> dummy_children = nullptr;
+void* dummy_parent = nullptr;
   
 class private_activation_record {
 public:
@@ -520,6 +534,21 @@ public:
   virtual sched::vertex*& get_join(parallel_loop_id_type) {
     assert(false); // impossible
     return dummy_join;
+  }
+  
+  parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
+    assert(false); // impossible
+    return nullptr;
+  }
+  
+  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() {
+    assert(false); // impossible
+    return dummy_children;
+  }
+  
+  void*& get_parent() {
+    assert(false); // impossible
+    return dummy_parent;
   }
   
 };
@@ -945,14 +974,14 @@ public:
   using sar = Sar;
   using par = Par;
   
-  parallel_loop_activation_record* get_ar(parallel_loop_id_type id) {
+  parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
     auto p = (par*)this;
-    return p->get_ar2(id);
+    return p->_encore_loop_activation_record_of(id);
   }
   
   void initialize_descriptors() {
     for (parallel_loop_id_type id = 0; id < sar::cfg.nb_loops(); id++) {
-      sar::cfg.loop_descriptors[id].initializer(*(par*)this, get_ar(id));
+      sar::cfg.loop_descriptors[id].initializer(*(par*)this, loop_activation_record_of(id));
     }
   }
   
@@ -967,11 +996,11 @@ public:
     }
     for (parallel_loop_id_type id : sar::cfg.loop_descriptors[current].parents) {
       assert(id != not_a_parallel_loop_id);
-      if (get_ar(id)->nb_strands() >= 2) {
+      if (loop_activation_record_of(id)->nb_strands() >= 2) {
         return id;
       }
     }
-    if (get_ar(current)->nb_strands() >= 2) {
+    if (loop_activation_record_of(current)->nb_strands() >= 2) {
       return current;
     } else {
       return not_a_parallel_loop_id;
@@ -983,12 +1012,12 @@ public:
     if (id == not_a_parallel_loop_id) {
       return nullptr;
     } else {
-      return get_ar(id);
+      return loop_activation_record_of(id);
     }
   }
   
   sched::vertex*& get_join(parallel_loop_id_type id) {
-    return get_ar(id)->get_join();
+    return loop_activation_record_of(id)->get_join();
   }
   
   sched::vertex*& get_join() {
@@ -1007,13 +1036,46 @@ public:
   }
   
   template <class Stack>
-  std::pair<sched::vertex*, sched::vertex*> _split(interpreter<Stack>* interp, int nb) {
+  std::pair<sched::vertex*, sched::vertex*>
+  split_join_associative_combine(interpreter<Stack>* interp,
+                                 par* oldest_private,
+                                 parallel_loop_id_type id,
+                                 int nb) {
+    interpreter<Stack>* interp1 = nullptr;
+    interpreter<extended_stack_type>* interp2 = nullptr;
+    interp1 = interp;
+    sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp1->stack);
+    parallel_loop_activation_record& lp_ar = *oldest_private->loop_activation_record_of(id);
+    parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
+    interp2 = new interpreter<extended_stack_type>(oldest_shared);
+    interp2->enable_future();
+    extended_stack_type& stack2 = interp2->stack;
+    stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
+    par& private2 = peek_oldest_private_frame<par>(stack2);
+    private2.initialize_descriptors();
+    parallel_loop_activation_record& lp_ar2 = *private2.loop_activation_record_of(id);
+    lp_ar.split(&lp_ar2, nb);
+    private2.trampoline = pl_descr.entry;
+    auto& children = lp_ar.get_children();
+    if (! children) {
+      children.reset(new std::pair<int, std::vector<sched::outset*>>);
+    }
+    children->second.push_back(interp2->get_outset());
+    lp_ar2.get_parent() = (void*)oldest_private;
+    interp2->release_handle->decrement();
+    return std::make_pair(interp1, interp2);
+  }
+  
+  template <class Stack>
+  std::pair<sched::vertex*, sched::vertex*>
+  split_join_trivial(interpreter<Stack>* interp,
+                     par* oldest_private,
+                     parallel_loop_id_type id,
+                     int nb) {
     interpreter<extended_stack_type>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
-    par* oldest_private = &peek_oldest_private_frame<par>(interp->stack);
-    parallel_loop_id_type id = oldest_private->get_id_of_oldest_nonempty();
-    parallel_loop_activation_record& lp_ar = *oldest_private->get_ar(id);
+    parallel_loop_activation_record& lp_ar = *oldest_private->loop_activation_record_of(id);
     parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
     sched::vertex* join = lp_ar.get_join();
     if (join == nullptr) {
@@ -1025,7 +1087,7 @@ public:
       stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
       par& private1 = peek_oldest_private_frame<par>(stack1);
       private1.initialize_descriptors();
-      auto& lp_ar1 = *private1.get_ar(id);
+      auto& lp_ar1 = *private1.loop_activation_record_of(id);
       lp_ar.split(&lp_ar1, lp_ar.nb_strands());
       lp_ar1.get_join() = join;
       private1.trampoline = pl_descr.entry;
@@ -1041,8 +1103,8 @@ public:
     stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
     par& private2 = peek_oldest_private_frame<par>(stack2);
     private2.initialize_descriptors();
-    auto& lp_ar2 = *private2.get_ar(id);
-    peek_oldest_private_frame<par>(interp1->stack).get_ar(id)->split(&lp_ar2, nb);
+    auto& lp_ar2 = *private2.loop_activation_record_of(id);
+    peek_oldest_private_frame<par>(interp1->stack).loop_activation_record_of(id)->split(&lp_ar2, nb);
     lp_ar2.get_join() = join;
     private2.trampoline = pl_descr.entry;
     sched::new_edge(interp2, join);
@@ -1050,12 +1112,34 @@ public:
     return std::make_pair(interp1, interp2);
   }
   
+  template <class Stack>
+  std::pair<sched::vertex*, sched::vertex*>
+  split_entry(interpreter<Stack>* interp, int nb) {
+    std::pair<sched::vertex*, sched::vertex*> result;
+    par* oldest_private = &peek_oldest_private_frame<par>(interp->stack);
+    parallel_loop_id_type id = oldest_private->get_id_of_oldest_nonempty();
+    switch (sar::cfg.loop_descriptors[id].join) {
+      case parallel_loop_descriptor_type<par>::join_trivial: {
+        result = split_join_trivial(interp, oldest_private, id, nb);
+        break;
+      }
+      case parallel_loop_descriptor_type<par>::join_binary_associative_combine: {
+        result = split_join_associative_combine(interp, oldest_private, id, nb);
+        break;
+      }
+      default: {
+        assert(false);
+      }
+    }
+    return result;
+  }
+  
   std::pair<sched::vertex*, sched::vertex*> split(interpreter<stack_type>* interp, int nb) {
-    return _split(interp, nb);
+    return split_entry(interp, nb);
   }
   
   std::pair<sched::vertex*, sched::vertex*> split(interpreter<extended_stack_type>* interp, int nb) {
-    return _split(interp, nb);
+    return split_entry(interp, nb);
   }
   
 };
@@ -1094,6 +1178,66 @@ public:
     return join;
   }
   
+  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() {
+    assert(false); // impossible
+    return dummy_children;
+  }
+  
+  void*& get_parent() {
+    assert(false); // impossible
+    return dummy_parent;
+  }
+  
+};
+
+class parallel_combine_activation_record : public parallel_loop_activation_record {
+public:
+  
+  parallel_combine_activation_record()
+  : lo(nullptr), hi(nullptr) { }
+  
+  parallel_combine_activation_record(int& lo, int& hi)
+  : lo(&lo), hi(&hi) { }
+  
+  parallel_combine_activation_record(const parallel_combine_activation_record&)
+  : lo(nullptr), hi(nullptr), parent(nullptr) { }
+  
+  int* lo;
+  
+  int* hi;
+  
+  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>> children;
+  
+  void* parent = nullptr;
+ 
+  int nb_strands() {
+    return *hi - *lo;
+  }
+  
+  void split(parallel_loop_activation_record* _destination, int nb) {
+    parallel_combine_activation_record* destination = (parallel_combine_activation_record*)_destination;
+    int orig = nb_strands();
+    assert(nb >= 0 && nb <= orig);
+    int mid = (orig - nb) + *lo;
+    *(destination->hi) = *hi;
+    *hi = mid;
+    *(destination->lo) = mid;
+    assert((destination->nb_strands() == nb) && (nb_strands() + nb == orig));
+  }
+  
+  sched::vertex*& get_join() {
+    assert(false); // impossible
+    return dummy_join;
+  }
+  
+  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() {
+    return children;
+  }
+  
+  void*& get_parent() {
+    return parent;
+  }
+  
 };
   
 } // end namespace
@@ -1105,7 +1249,7 @@ namespace dc {
   
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit,
-  tag_sequential_loop, tag_parallel_for_loop,
+  tag_sequential_loop, tag_parallel_for_loop, tag_parallel_combine_loop,
   tag_spawn_join, tag_spawn2_join,
   tag_join_plus, tag_spawn_minus,
   tag_spawn_plus, tag_join_minus,
@@ -1125,7 +1269,8 @@ public:
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
   using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
   using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
-  using parallel_for_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
+  using parallel_loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
+  using parallel_combining_operator_type = std::function<void(sar_type&, par_type&, par_type&)>;
   
   stmt_tag_type tag;
   
@@ -1149,9 +1294,15 @@ public:
     } variant_sequential_loop;
     struct {
       predicate_code_type predicate;
-      parallel_for_getter_type getter;
+      parallel_loop_range_getter_type getter;
       std::unique_ptr<stmt_type> body;
     } variant_parallel_for_loop;
+    struct {
+      predicate_code_type predicate;
+      parallel_loop_range_getter_type getter;
+      parallel_combining_operator_type combine;
+      std::unique_ptr<stmt_type> body;
+    } variant_parallel_combine_loop;
     struct {
       procedure_call_code_type code;
     } variant_spawn_join;
@@ -1211,10 +1362,19 @@ private:
       }
       case tag_parallel_for_loop: {
         new (&variant_parallel_for_loop.predicate) predicate_code_type(other.variant_parallel_for_loop.predicate);
-        new (&variant_parallel_for_loop.getter) parallel_for_getter_type(other.variant_parallel_for_loop.getter);
+        new (&variant_parallel_for_loop.getter) parallel_loop_range_getter_type(other.variant_parallel_for_loop.getter);
         auto p = new stmt_type;
         p->copy_constructor(*other.variant_parallel_for_loop.body);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(p);
+        break;
+      }
+      case tag_parallel_combine_loop: {
+        new (&variant_parallel_combine_loop.predicate) predicate_code_type(other.variant_parallel_combine_loop.predicate);
+        new (&variant_parallel_combine_loop.getter) parallel_loop_range_getter_type(other.variant_parallel_combine_loop.getter);
+        new (&variant_parallel_combine_loop.combine) parallel_combining_operator_type(other.variant_parallel_combine_loop.combine);
+        auto p = new stmt_type;
+        p->copy_constructor(*other.variant_parallel_combine_loop.body);
+        new (&variant_parallel_combine_loop.body) std::unique_ptr<stmt_type>(p);
         break;
       }
       case tag_spawn_join: {
@@ -1293,10 +1453,20 @@ private:
       }
       case tag_parallel_for_loop: {
         new (&variant_parallel_for_loop.predicate) predicate_code_type;
-        new (&variant_parallel_for_loop.getter) parallel_for_getter_type;
+        new (&variant_parallel_for_loop.getter) parallel_loop_range_getter_type;
         variant_parallel_for_loop.getter = std::move(other.variant_parallel_for_loop.getter);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body = std::move(other.variant_parallel_for_loop.body);
+        break;
+      }
+      case tag_parallel_combine_loop: {
+        new (&variant_parallel_combine_loop.predicate) predicate_code_type;
+        new (&variant_parallel_combine_loop.getter) parallel_loop_range_getter_type;
+        variant_parallel_combine_loop.getter = std::move(other.variant_parallel_combine_loop.getter);
+        new (&variant_parallel_combine_loop.combine) parallel_combining_operator_type;
+        variant_parallel_combine_loop.combine = std::move(other.variant_parallel_combine_loop.combine);
+        new (&variant_parallel_combine_loop.body) std::unique_ptr<stmt_type>;
+        variant_parallel_combine_loop.body = std::move(other.variant_parallel_combine_loop.body);
         break;
       }
       case tag_spawn_join: {
@@ -1378,9 +1548,17 @@ public:
       }
       case tag_parallel_for_loop: {
         variant_parallel_for_loop.predicate.~predicate_code_type();
-        variant_parallel_for_loop.getter.~parallel_for_getter_type();
+        variant_parallel_for_loop.getter.~parallel_loop_range_getter_type();
         using st = std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body.~st();
+        break;
+      }
+      case tag_parallel_combine_loop: {
+        variant_parallel_combine_loop.predicate.~predicate_code_type();
+        variant_parallel_combine_loop.getter.~parallel_loop_range_getter_type();
+        variant_parallel_combine_loop.combine.~parallel_combining_operator_type();
+        using st = std::unique_ptr<stmt_type>;
+        variant_parallel_combine_loop.body.~st();
         break;
       }
       case tag_spawn_join: {
@@ -1469,12 +1647,26 @@ public:
   }
   
   static
-  stmt_type parallel_for_loop(predicate_code_type predicate, parallel_for_getter_type getter, stmt_type body) {
+  stmt_type parallel_for_loop(predicate_code_type predicate, parallel_loop_range_getter_type getter, stmt_type body) {
     stmt_type s;
     s.tag = tag_parallel_for_loop;
     new (&s.variant_parallel_for_loop.predicate) predicate_code_type(predicate);
-    new (&s.variant_parallel_for_loop.getter) parallel_for_getter_type(getter);
+    new (&s.variant_parallel_for_loop.getter) parallel_loop_range_getter_type(getter);
     new (&s.variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
+    return s;
+  }
+  
+  static
+  stmt_type parallel_combine_loop(predicate_code_type predicate,
+                                  parallel_loop_range_getter_type getter,
+                                  parallel_combining_operator_type combine,
+                                  stmt_type body) {
+    stmt_type s;
+    s.tag = tag_parallel_combine_loop;
+    new (&s.variant_parallel_combine_loop.predicate) predicate_code_type(predicate);
+    new (&s.variant_parallel_combine_loop.getter) parallel_loop_range_getter_type(getter);
+    new (&s.variant_parallel_combine_loop.combine) parallel_combining_operator_type(combine);
+    new (&s.variant_parallel_combine_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
     return s;
   }
   
@@ -1669,12 +1861,14 @@ private:
         parallel_loop_id_type loop_label = new_parallel_loop_label();
         loop_scope.push_back(loop_label);
         parallel_loop_descriptor_type descriptor;
+        descriptor.join = parallel_loop_descriptor_type::join_trivial;
         descriptor.entry = { .pred=entry, .succ=entry };
         descriptor.exit = { .pred=exit, .succ=exit };
         descriptor.parents = loop_scope;
         auto getter = stmt.variant_parallel_for_loop.getter;
         descriptor.initializer = [getter] (Private_activation_record& p, pcfg::parallel_loop_activation_record* _ar) {
           pcfg::parallel_for_activation_record& ar = *((pcfg::parallel_for_activation_record*)_ar);
+          new (&ar) pcfg::parallel_for_activation_record;
           std::pair<int*, int*> range = getter(p);
           ar.lo = range.first;
           ar.hi = range.second;
@@ -1695,6 +1889,74 @@ private:
         std::vector<lt> footer_targets = { exit, pcfg::exit_block_label };
         add_block(footer_label, bbt::conditional_jump(footer_selector, footer_targets));
         result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
+        break;
+      }
+      case tag_parallel_combine_loop: {
+        parallel_loop_id_type loop_label = new_parallel_loop_label();
+        loop_scope.push_back(loop_label);
+        parallel_loop_descriptor_type descriptor;
+        descriptor.join = parallel_loop_descriptor_type::join_binary_associative_combine;
+        descriptor.entry = { .pred=entry, .succ=entry };
+        descriptor.exit = { .pred=exit, .succ=exit };
+        descriptor.parents = loop_scope;
+        auto getter = stmt.variant_parallel_combine_loop.getter;
+        descriptor.initializer = [getter] (Private_activation_record& p, pcfg::parallel_loop_activation_record* _ar) {
+          pcfg::parallel_combine_activation_record& ar = *((pcfg::parallel_combine_activation_record*)_ar);
+          new (&ar) pcfg::parallel_combine_activation_record;
+          std::pair<int*, int*> range = getter(p);
+          ar.lo = range.first;
+          ar.hi = range.second;
+        };
+        add_parallel_loop(loop_label, descriptor);
+        auto header_label = entry;
+        auto body_label = new_label();
+        auto children_loop_init_label = new_label();
+        auto children_loop_header_label = new_label();
+        auto children_loop_body_label = new_label();
+        auto parent_check_label = new_label();
+        auto predicate = stmt.variant_parallel_combine_loop.predicate;
+        auto selector = [predicate] (sar& s, par& p) {
+          return predicate(s, p) ? 0 : 1;
+        };
+        std::vector<lt> targets = { body_label, children_loop_init_label };
+        add_block(header_label, bbt::conditional_jump(selector, targets));
+        add_block(children_loop_init_label, bbt::unconditional_jump([loop_label] (sar&, par& p) {
+          auto& children = p.loop_activation_record_of(loop_label)->get_children();
+          if (children) {
+            children->first = (int)children->second.size();
+          }
+        }, children_loop_header_label));
+        auto children_loop_header = [loop_label] (sar&, par& p) {
+          auto& children = p.loop_activation_record_of(loop_label)->get_children();
+          if (children) {
+            if (children->first <= 0) {
+              children.reset();
+              return 0;
+            }
+            return 1;
+          } else {
+            return 0;
+          }
+        };
+        std::vector<lt> child_loop_header_targets = { parent_check_label, children_loop_body_label };
+        add_block(children_loop_header_label, bbt::conditional_jump(children_loop_header, child_loop_header_targets));
+        auto children_loop_body = [loop_label] (sar&, par& p) {
+          auto& children = p.loop_activation_record_of(loop_label)->get_children();
+          assert(children);
+          auto position = --children->first;
+          assert(position >= 0);
+          return &(children->second[position]);
+        };
+        add_block(children_loop_body_label, bbt::join_minus(children_loop_body, children_loop_header_label));
+        auto combine = stmt.variant_parallel_combine_loop.combine;
+        auto parent_check = [combine] (sar& s, par& p) {
+          auto parent = (par*)p.get_parent();
+          if (parent != nullptr) {
+            combine(s, p, *parent);
+          }
+        };
+        add_block(parent_check_label, bbt::unconditional_jump(parent_check, exit));
+        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_spawn_join: {
@@ -1844,7 +2106,7 @@ private_activation_record() { \
 } \
 \
 std::array<edsl::pcfg::parallel_for_activation_record, nb_loops> _ars1; \
-edsl::pcfg::parallel_loop_activation_record* get_ar2(edsl::pcfg::parallel_loop_id_type id) { \
+edsl::pcfg::parallel_loop_activation_record* _encore_loop_activation_record_of(edsl::pcfg::parallel_loop_id_type id) { \
   return &_ars1[id]; \
 }
 
