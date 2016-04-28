@@ -27,9 +27,10 @@ using chunk_type = struct chunk_struct {
 };
   
 using stack_type = struct stack_struct {
-  char* fp;  // to point at the first byte of the newest frame
-  char* sp;  // to point at the first byte after the newest frame
-  char* top; // to point at the first byte of the oldest frame
+             // to point at the first byte:
+  char* fp;  // - of the newest frame
+  char* sp;  // - after the newest frame
+  char* top; // - of the oldest frame
 };
   
 using descriptor_type = struct {
@@ -145,6 +146,11 @@ void delete_stack(stack_type s) {
   if ((char*)c + sizeof(descriptor_type) == s.top) {
     delete_chunk(c);
   }
+}
+  
+bool is_overflow(stack_type s) {
+  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
+  return current_descriptor->tag == descriptor_type::overflow_tag;
 }
 
 template <class Activation_record, class ...Args>
