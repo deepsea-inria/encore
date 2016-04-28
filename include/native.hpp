@@ -19,14 +19,12 @@ public:
   bool v = false;
   
   bool capture() {
-    assert(! v);
     v = true;
     getcontext(&c);
     return v;
   }
   
   void throwto() {
-    assert(v);
     v = false;
     setcontext(&c);
   }
@@ -63,7 +61,7 @@ public:
 };
   
 template <class Function>
-class activation_record {
+class activation_record : public activation_record_template {
 public:
   
   context_type resume;
@@ -105,15 +103,12 @@ public:
     }
     if (! cactus::empty(encore_stack)) {
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
-      auto& gr = newest.get_resume();
-      auto b = gr.capture();
-      if (b) {
+      if (! newest.get_resume().capture()) {
         return;
       }
     }
     using ar_type = activation_record<Function>;
     encore_stack = cactus::push_back<ar_type>(encore_stack, callee);
-    ar_type& newest = cactus::peek_back<ar_type>(encore_stack);
     if (! cactus::is_overflow(encore_stack)) {
       callee();
       encore_stack = cactus::pop_back<ar_type>(encore_stack);
@@ -121,6 +116,7 @@ public:
         schedulers.mine().throwto();
       }
     } else {
+      ar_type& newest = cactus::peek_back<ar_type>(encore_stack);
       context_type::create(newest.enter, newest.exit, &newest, (void*)ar_type::call_nonlocally);
       encore_stack = cactus::pop_back<ar_type>(encore_stack);
     }
@@ -189,7 +185,7 @@ void recur(int n) {
   if (n <= 0) {
     return;
   }
-  call([&] { recur(n - 1); });
+  call([=] { recur(n - 1); });
 }
   
 void scheduler() {
