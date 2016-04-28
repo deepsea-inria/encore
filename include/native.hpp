@@ -35,13 +35,15 @@ public:
   }
   
   static
-  void create(context_type& enter, context_type& exit, void* data, void* funptr) {
+  void create(context_type& c1, context_type& c2, void* data, void* funptr) {
     char* stack = (char*)malloc(SIGSTKSZ);
-    enter.c.uc_link = nullptr;
-    enter.c.uc_stack.ss_sp = stack;
-    enter.c.uc_stack.ss_size = SIGSTKSZ;
-    makecontext(&enter.c, (void (*)(void))funptr, 1, data);
-    swap(exit, enter);
+    c2.c.uc_link = nullptr;
+    c2.c.uc_stack.ss_sp = stack;
+    c2.c.uc_stack.ss_size = SIGSTKSZ;
+    getcontext(&c1.c);
+    getcontext(&c2.c);
+    makecontext(&c2.c, (void (*)(void))funptr, 1, data);
+    swap(c1, c2);
   }
   
 };
@@ -117,7 +119,7 @@ public:
       }
     } else {
       ar_type& newest = cactus::peek_back<ar_type>(encore_stack);
-      context_type::create(newest.enter, newest.exit, &newest, (void*)ar_type::call_nonlocally);
+      context_type::create(newest.exit, newest.enter, &newest, (void*)ar_type::call_nonlocally);
       encore_stack = cactus::pop_back<ar_type>(encore_stack);
     }
   }
@@ -192,7 +194,7 @@ void scheduler() {
   auto v = new vertex;
   auto f = [&] {
     std::cout << "hi" << std::endl;
-    recur(5);
+    recur(0);
   };
   v->f.reset(new std::function<void()>(f));
   std::deque<vertex*> ready;
