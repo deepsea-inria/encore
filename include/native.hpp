@@ -131,7 +131,7 @@ public:
   void enter(vertex* v) {
     using ar_type = activation_record<typeof(f)>;
     assert(v->f);
-    auto& f = *(v->f);
+    auto f = *(v->f);
     v->f.reset();
     v->call(f);
   }
