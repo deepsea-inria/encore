@@ -22,6 +22,11 @@ namespace {
   
 int run_vertex(vertex*, int);
   
+namespace d = pasl::data;
+
+template <class Item, int Chunk_capacity, class Cache>
+using weighted_stack = d::chunkedseq::bootstrapped::stack<Item, Chunk_capacity, Cache>;
+  
 class frontier {
 private:
   
@@ -35,8 +40,8 @@ private:
   };
   
   static constexpr int chunk_capacity = 512;
-  using cache_type = pasl::data::cachedmeasure::weight<vertex*, int, size_t, measure_env>;
-  using weighted_seq_type = pasl::data::chunkedseq::bootstrapped::stack<vertex*, chunk_capacity, cache_type>;
+  using cache_type = d::cachedmeasure::weight<vertex*, int, size_t, measure_env>;
+  using weighted_seq_type = weighted_stack<vertex*, chunk_capacity, cache_type>;
   
   weighted_seq_type vs;
   
