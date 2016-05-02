@@ -16,18 +16,11 @@ namespace encore {
 namespace sched {
   
 /*---------------------------------------------------------------------*/
-/* Scheduling parameters */
-  
-// to control the rate of DAG construction
-int D = 4096;
-
-// to control the eagerness of work distribution
-int K = 2 * D;
-  
-/*---------------------------------------------------------------------*/
 /* Frontier */
   
 namespace {
+  
+int run_vertex(vertex*, int);
   
 class frontier {
 private:
@@ -65,7 +58,7 @@ public:
   int run(int fuel) {
     while (fuel > 0 && ! vs.empty()) {
       vertex* v = vs.pop_back();
-      fuel = v->run(fuel);
+      fuel = run_vertex(v, fuel);
       if (v->nb_strands() == 0) {
         parallel_notify(v->is_future(), v->get_outset());
         delete v;
@@ -96,9 +89,9 @@ public:
     }
 #ifndef NDEBUG
     int n2 = nb_strands();
-    assert(n1 == n2 + nb);
+    //assert(n1 == n2 + nb);
     int n3 = other.nb_strands();
-    assert(n3 == nb);
+    //assert(n3 == nb);
 #endif
   }
   
@@ -115,10 +108,16 @@ public:
   
 namespace {
   
+// to control the rate of DAG construction
+int D = 4096;
+
+// to control the eagerness of work distribution
+int K = 2 * D;
+  
 template <class Item>
 using perworker_array = data::perworker::array<Item>;
   
-std::atomic<int> nb_active_workers; // later: user SNZI instead
+std::atomic<int> nb_active_workers; // later: use SNZI instead
   
 perworker_array<std::atomic<bool>> status;
 
@@ -130,11 +129,18 @@ frontier* no_response = tagged::tag_with((frontier*)nullptr, 1);
   
 perworker_array<std::atomic<frontier*>> transfer;
   
-perworker_array<std::mt19937> scheduler_rngs;  // random-number generators
+perworker_array<std::mt19937> rngs;  // random-number generators
   
 perworker_array<frontier> frontiers;
   
+perworker_array<vertex*> vertices;
+  
 perworker_array<std::deque<vertex*>> suspended;
+  
+int run_vertex(vertex* v, int fuel) {
+  vertices.mine() = v;
+  return v->run(fuel);
+}
   
 void initialize_scheduler() {
   nb_active_workers.store(0);
@@ -147,20 +153,6 @@ void initialize_scheduler() {
   transfer.for_each([&] (int, std::atomic<frontier*>& t) {
     t.store(no_response);
   });
-}
-  
-int random_other_worker(int my_id) {
-  int P = data::perworker::get_nb_workers();
-  std::uniform_int_distribution<int> distribution(0, 2*P);
-  int i = distribution(scheduler_rngs[my_id]) % (P - 1);
-  if (i >= my_id) {
-    i++;
-  }
-  return i;
-}
-  
-bool is_finished() {
-  return nb_active_workers.load() == 0;
 }
   
 // one instance of this function is to be run by each
@@ -179,6 +171,20 @@ void worker_loop(vertex* v) {
   } else {
     nb_active_workers++;
   }
+  
+  auto is_finished = [&] {
+    return nb_active_workers.load() == 0;
+  };
+  
+  auto random_other_worker = [&] {
+    int P = data::perworker::get_nb_workers();
+    std::uniform_int_distribution<int> distribution(0, 2*P);
+    int i = distribution(rngs[my_id]) % (P - 1);
+    if (i >= my_id) {
+      i++;
+    }
+    return i;
+  };
   
   // update the status flag
   auto update_status = [&] {
@@ -213,7 +219,7 @@ void worker_loop(vertex* v) {
     nb_active_workers--;
     while (! is_finished()) {
       transfer[my_id].store(no_response);
-      int k = random_other_worker(my_id);
+      int k = random_other_worker();
       int orig = no_request;
       if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
@@ -241,7 +247,7 @@ void worker_loop(vertex* v) {
     }
     vertex* v = my_suspended.front();
     my_suspended.pop_front();
-    v->run(0);
+    run_vertex(v, 0);
   };
   
   while (! is_finished()) {
