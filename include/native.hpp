@@ -24,26 +24,25 @@ public:
     return v;
   }
   
-  void throwto() {
+  void throw_to() {
     v = false;
     setcontext(&c);
   }
   
-  static
-  void swap(context_type& c1, context_type& c2) {
-    swapcontext(&c1.c, &c2.c);
+  void swap_with(context_type& target) {
+    swapcontext(&c, &target.c);
   }
   
   static
-  void create(context_type& c1, context_type& c2, void* data, void* funptr) {
+  void create(context_type& save, context_type& target, void* data, void* funptr) {
     size_t stack_szb = SIGSTKSZ;
     char* stack = (char*)cactus::aligned_alloc(16, stack_szb);
-    c2.c.uc_link = nullptr;
-    c2.c.uc_stack.ss_sp = stack;
-    c2.c.uc_stack.ss_size = stack_szb;
-    getcontext(&c2.c);
-    makecontext(&(c2.c), (void (*)(void))funptr, 1, data);
-    swap(c1, c2);
+    target.c.uc_link = nullptr;
+    target.c.uc_stack.ss_sp = stack;
+    target.c.uc_stack.ss_size = stack_szb;
+    getcontext(&target.c);
+    makecontext(&(target.c), (void (*)(void))funptr, 1, data);
+    save.swap_with(target);
   }
   
 };
@@ -93,6 +92,8 @@ public:
   
   context_type context;
   
+  std::unique_ptr<std::function<void()>> f;
+  
   vertex() {
     fuel = 0;
     encore_stack = cactus::new_stack();
@@ -107,25 +108,28 @@ public:
     if (! cactus::empty(encore_stack)) {
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
       if (! newest.get_resume().capture()) {
+        // make control flow back to the caller; can be triggered only if
+        // the caller is promoted
         return;
       }
     }
     using ar_type = activation_record<Function>;
     encore_stack = cactus::push_back<ar_type>(encore_stack, callee);
-    if (! cactus::is_overflow(encore_stack)) {
+    if (! cactus::overflow(encore_stack)) {
+      // initiate the call on the same system stack
       callee();
       encore_stack = cactus::pop_back<ar_type>(encore_stack);
       if (cactus::empty(encore_stack)) {
-        context.throwto();
+        // hand control back to the DAG vertex because the caller was promoted
+        context.throw_to();
       }
     } else {
+      // handle stack overflow by activating the callee on a new system stack
       ar_type& newest = cactus::peek_back<ar_type>(encore_stack);
       context_type::create(newest.exit, newest.enter, &newest, (void*)ar_type::call_nonlocally);
       encore_stack = cactus::pop_back<ar_type>(encore_stack);
     }
   }
-  
-  std::unique_ptr<std::function<void()>> f;
   
   static
   void enter(vertex* v) {
@@ -143,7 +147,7 @@ public:
       context_type::create(context, tmp, this, (void*)enter);
     } else {
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
-      context_type::swap(context, newest.get_resume());
+      context.swap_with(newest.get_resume());
     }
     return this->fuel;
   }
@@ -159,12 +163,8 @@ public:
   
 };
 
-data::perworker::array<vertex*> vertices;
-  
 vertex* my_vertex() {
-  auto v = vertices.mine();
-  assert(v != nullptr);
-  return v;
+  return (vertex*)sched::my_vertex();
 }
   
 template <class Function>
@@ -172,42 +172,15 @@ void activation_record<Function>::call_nonlocally(activation_record* ar) {
   ar->f();
   vertex* v = my_vertex();
   if (cactus::empty(v->encore_stack)) {
-    v->context.throwto();
+    v->context.throw_to();
   } else {
-    ar->exit.throwto();
+    ar->exit.throw_to();
   }
 }
   
 template <class Function>
 void call(const Function& f) {
   my_vertex()->call(f);
-}
-  
-#include <deque>
-  
-void recur(int n) {
-  std::cout << "recur(" << n << ")" << std::endl;
-  if (n <= 0) {
-    return;
-  }
-  call([=] { recur(n - 1); });
-}
-  
-void scheduler() {
-  auto v = new vertex;
-  auto f = [&] {
-    std::cout << "hi" << std::endl;
-    recur(0);
-  };
-  v->f.reset(new std::function<void()>(f));
-  std::deque<vertex*> ready;
-  ready.push_back(v);
-  while (! ready.empty()) {
-    vertex* s = ready.back();
-    ready.pop_back();
-    vertices.mine() = s;
-    s->run(100);
-  }
 }
   
 } // end namespace

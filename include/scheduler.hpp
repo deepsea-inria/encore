@@ -296,6 +296,10 @@ void launch_scheduler(int nb_workers, vertex* v) {
 /*---------------------------------------------------------------------*/
 /* Scheduling primitives */
   
+vertex* my_vertex() {
+  return vertices.mine();
+}
+  
 void schedule(vertex* v) {
   if (v->nb_strands() == 0) {
     parallel_notify(v->is_future(), v->get_outset());

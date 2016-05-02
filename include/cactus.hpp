@@ -148,7 +148,7 @@ void delete_stack(stack_type s) {
   }
 }
   
-bool is_overflow(stack_type s) {
+bool overflow(stack_type s) {
   descriptor_type* current_descriptor = (descriptor_type*)s.sp;
   return current_descriptor->tag == descriptor_type::overflow_tag;
 }
