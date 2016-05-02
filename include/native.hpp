@@ -36,19 +36,17 @@ public:
   
   static
   void create(context_type& c1, context_type& c2, void* data, void* funptr) {
-    char* stack = (char*)malloc(SIGSTKSZ);
+    size_t stack_szb = SIGSTKSZ;
+    char* stack = (char*)cactus::aligned_alloc(16, stack_szb);
     c2.c.uc_link = nullptr;
     c2.c.uc_stack.ss_sp = stack;
-    c2.c.uc_stack.ss_size = SIGSTKSZ;
-    getcontext(&c1.c);
+    c2.c.uc_stack.ss_size = stack_szb;
     getcontext(&c2.c);
-    makecontext(&c2.c, (void (*)(void))funptr, 1, data);
+    makecontext(&(c2.c), (void (*)(void))funptr, 1, data);
     swap(c1, c2);
   }
   
 };
-  
-data::perworker::array<context_type> schedulers;
   
 context_type dummy;
   
@@ -93,12 +91,15 @@ public:
   
   int fuel;
   
+  context_type context;
+  
   vertex() {
     fuel = 0;
     encore_stack = cactus::new_stack();
   }
   
   template <class Function>
+  inline
   void call(const Function& callee) {
     if (--fuel == 0) {
       // todo: promote here
@@ -115,7 +116,7 @@ public:
       callee();
       encore_stack = cactus::pop_back<ar_type>(encore_stack);
       if (cactus::empty(encore_stack)) {
-        schedulers.mine().throwto();
+        context.throwto();
       }
     } else {
       ar_type& newest = cactus::peek_back<ar_type>(encore_stack);
@@ -131,6 +132,7 @@ public:
     using ar_type = activation_record<typeof(f)>;
     assert(v->f);
     auto& f = *(v->f);
+    v->f.reset();
     v->call(f);
   }
   
@@ -138,10 +140,10 @@ public:
     this->fuel = fuel;
     if (cactus::empty(encore_stack)) {
       context_type tmp;
-      context_type::create(schedulers.mine(), tmp, this, (void*)enter);
+      context_type::create(context, tmp, this, (void*)enter);
     } else {
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
-      context_type::swap(schedulers.mine(), newest.get_resume());
+      context_type::swap(context, newest.get_resume());
     }
     return this->fuel;
   }
@@ -168,8 +170,9 @@ vertex* my_vertex() {
 template <class Function>
 void activation_record<Function>::call_nonlocally(activation_record* ar) {
   ar->f();
-  if (cactus::empty(my_vertex()->encore_stack)) {
-    schedulers.mine().throwto();
+  vertex* v = my_vertex();
+  if (cactus::empty(v->encore_stack)) {
+    v->context.throwto();
   } else {
     ar->exit.throwto();
   }
@@ -199,11 +202,10 @@ void scheduler() {
   v->f.reset(new std::function<void()>(f));
   std::deque<vertex*> ready;
   ready.push_back(v);
-  assert(schedulers.mine().capture());
   while (! ready.empty()) {
     vertex* s = ready.back();
-    vertices.mine() = s;
     ready.pop_back();
+    vertices.mine() = s;
     s->run(100);
   }
 }
