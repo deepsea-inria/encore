@@ -12,7 +12,6 @@ namespace native {
   
 using stack_type = cactus::stack_type;
 
-  
 context_type dummy;
   
 class activation_record_template {
@@ -22,6 +21,11 @@ public:
   context_type& get_context() {
     assert(false);
     return dummy;
+  }
+  
+  virtual
+  int nb_strands() {
+    return 1;
   }
   
 };
@@ -50,6 +54,10 @@ public:
 static constexpr
 int stack_szb = 1<<12;
   
+class vertex;
+
+vertex* my_vertex();
+  
 class vertex : public sched::vertex {
 public:
   
@@ -64,6 +72,10 @@ public:
   vertex() {
     fuel = 0;
     encore_stack = cactus::new_stack();
+  }
+  
+  ~vertex() {
+    cactus::delete_stack(encore_stack);
   }
   
   template <class Function>
@@ -101,7 +113,8 @@ public:
   }
   
   static
-  void enter(vertex* v) {
+  void enter() {
+    vertex* v = my_vertex();
     assert(v->f);
     auto f = *(v->f);
     v->f.reset();
@@ -125,7 +138,13 @@ public:
   }
   
   int nb_strands() {
-    return 1;
+    if (f) {
+      return 1;
+    } else if (cactus::empty(encore_stack)) {
+      return 0;
+    } else {
+      return cactus::peek_front<activation_record_template>(encore_stack).nb_strands();
+    }
   }
   
   std::pair<sched::vertex*, sched::vertex*> split(int nb) {
