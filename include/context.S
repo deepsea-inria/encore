@@ -1,21 +1,21 @@
 
-#define SAVE_CONTEXT \
-        mov     %rsp, 0x00(%rdi); \
-        mov     %r15, 0x08(%rdi); \
-        mov     %r14, 0x10(%rdi); \
-        mov     %r13, 0x18(%rdi); \
-        mov     %r12, 0x20(%rdi); \
-        mov     %rbx, 0x28(%rdi); \
-        mov     %rbp, 0x30(%rdi);
+#define SAVE_CONTEXT(target) \
+        mov     %rsp, 0x00(target); \
+        mov     %r15, 0x08(target); \
+        mov     %r14, 0x10(target); \
+        mov     %r13, 0x18(target); \
+        mov     %r12, 0x20(target); \
+        mov     %rbx, 0x28(target); \
+        mov     %rbp, 0x30(target);
 
-#define LOAD_CONTEXT \
-        mov     0x00(%rsi), %rsp; \
-        mov     0x08(%rsi), %r15; \
-        mov     0x10(%rsi), %r14; \
-        mov     0x18(%rsi), %r13; \
-        mov     0x20(%rsi), %r12; \
-        mov     0x28(%rsi), %rbx; \
-        mov     0x30(%rsi), %rbp;
+#define LOAD_CONTEXT(source) \
+        mov     0x00(source), %rsp; \
+        mov     0x08(source), %r15; \
+        mov     0x10(source), %r14; \
+        mov     0x18(source), %r13; \
+        mov     0x20(source), %r12; \
+        mov     0x28(source), %rbx; \
+        mov     0x30(source), %rbp;
 
         .file "context.S"
         .text
@@ -28,7 +28,7 @@
 _encore_context_save:
 encore_context_save:
 
-        SAVE_CONTEXT
+        SAVE_CONTEXT(%rdi)
 
         ret
 
@@ -39,7 +39,7 @@ encore_context_save:
 _encore_context_switch:
 encore_context_switch:
 
-        LOAD_CONTEXT
+        LOAD_CONTEXT(%rdi)
 
         ret
 
@@ -54,8 +54,8 @@ encore_context_switch:
 _encore_context_swap:
 encore_context_swap:
 
-        SAVE_CONTEXT
+        SAVE_CONTEXT(%rdi)
 
-        LOAD_CONTEXT
+        LOAD_CONTEXT(%rsi)
 
         ret
