@@ -23,6 +23,7 @@ namespace encore {
 static
 void impossible() {
   std::cerr << "encore::context: impossible" << std::endl;
+  exit(0);
 }
 
 class context_type {

@@ -52,7 +52,7 @@ public:
 };
   
 static constexpr
-int stack_szb = 1<<12;
+int stack_szb = 1<<14;
   
 class vertex;
 
@@ -126,9 +126,10 @@ public:
     this->fuel = fuel;
     if (cactus::empty(encore_stack)) {
       // create initial call
+      context_type tmp;
       char* stack = (char*)malloc(stack_szb);
-      context.create(stack, stack_szb, (void*)enter);
-      context.switch_to();
+      tmp.create(stack, stack_szb, (void*)enter);
+      context.swap(tmp);
     } else {
       // resume pending call
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
@@ -149,6 +150,7 @@ public:
   
   std::pair<sched::vertex*, sched::vertex*> split(int nb) {
     std::pair<sched::vertex*, sched::vertex*> r;
+    assert(false); // todo
     return r;
   }
   
