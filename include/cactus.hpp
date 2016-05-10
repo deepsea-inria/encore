@@ -235,19 +235,18 @@ Activation_record& peek_front(stack_type s) {
   return *((Activation_record*)s.top);
 }
   
-template <class Activation_record>
-std::pair<stack_type, stack_type> fork_front(stack_type s) {
+std::pair<stack_type, stack_type> fork_front(stack_type s, int activation_record_szb) {
   assert(! empty(s));
   stack_type s1, s2;
   s1.top = s.top;
   s1.fp = s1.top;
-  s1.sp = s1.fp + sizeof(Activation_record);
+  s1.sp = s1.fp + activation_record_szb;
   descriptor_type* next_descriptor = (descriptor_type*)s1.sp;
   switch (next_descriptor->tag) {
     case descriptor_type::frame_tag: {
       next_descriptor->tag = descriptor_type::overflow_tag;
       next_descriptor->overflow.c = nullptr;
-      s2.top = s.top + sizeof(Activation_record) + sizeof(descriptor_type);
+      s2.top = s.top + activation_record_szb + sizeof(descriptor_type);
       break;
     }
     case descriptor_type::overflow_tag: {
@@ -277,6 +276,11 @@ std::pair<stack_type, stack_type> fork_front(stack_type s) {
   s2.fp = s.fp;
   s2.sp = s.sp;
   return std::make_pair(s1, s2);
+}
+
+template <class Activation_record>
+std::pair<stack_type, stack_type> fork_front(stack_type s) {
+  return fork_front(s, sizeof(Activation_record));
 }
  
 template <class Activation_record>

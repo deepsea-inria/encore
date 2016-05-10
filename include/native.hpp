@@ -17,6 +17,8 @@ context_type dummy;
 class activation_record_template {
 public:
   
+  int szb;
+  
   virtual inline
   context_type& get_context() {
     assert(false);
@@ -39,7 +41,9 @@ public:
   Function f;
   
   activation_record(const Function& f)
-  : f(f) { }
+  : f(f) {
+    szb = sizeof(activation_record);
+  }
   
   inline
   context_type& get_context() {
@@ -81,9 +85,7 @@ public:
   template <class Function>
   inline
   void call(const Function& callee) {
-    if (--fuel == 0) {
-      // todo: promote here
-    }
+    fuel--;
     if (! cactus::empty(encore_stack)) {
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
       if (! newest.get_context().capture()) {
@@ -92,17 +94,29 @@ public:
         return;
       }
     }
+    if (fuel == 0 && ! cactus::empty(encore_stack)) {
+      vertex* join = this;
+      int szb = cactus::peek_front<activation_record_template>(encore_stack).szb;
+      auto stacks = cactus::fork_front(encore_stack, szb);
+      join->encore_stack = stacks.first;
+      vertex* branch = new vertex;
+      branch->encore_stack = stacks.second;
+      new_edge(branch, join);
+      release(branch);
+      fuel = sched::D;
+      stats::on_promotion();
+    }
     using callee_ar_type = activation_record<Function>;
     bool use_same_system_stack = ! cactus::overflow(encore_stack);
     encore_stack = cactus::push_back<callee_ar_type>(encore_stack, callee);
     if (use_same_system_stack) {
       // initiate the call on the same system stack
       callee();
-      encore_stack = cactus::pop_back<callee_ar_type>(encore_stack);
       if (cactus::empty(encore_stack)) {
         // hand control back to the DAG vertex because the caller was promoted
         context.switch_to();
       }
+      encore_stack = cactus::pop_back<callee_ar_type>(encore_stack);
     } else {
       // handle stack overflow by activating the callee on a new system stack
       callee_ar_type& newest = cactus::peek_back<callee_ar_type>(encore_stack);
@@ -125,6 +139,9 @@ public:
   int run(int fuel) {
     this->fuel = fuel;
     if (cactus::empty(encore_stack)) {
+      if (! f) {
+        return this->fuel;
+      }
       // create initial call
       context_type tmp;
       char* stack = (char*)malloc(stack_szb);
