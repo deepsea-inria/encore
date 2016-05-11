@@ -116,8 +116,15 @@ void create_overflow(descriptor_type*& d, char*& fp) {
   
 } // end namespace
   
+inline
 bool empty(struct stack_struct s) {
   return s.fp == nullptr;
+}
+  
+inline
+bool overflow(stack_type s) {
+  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
+  return current_descriptor->tag == descriptor_type::overflow_tag;
 }
 
 void empty_freelist() {
@@ -146,11 +153,6 @@ void delete_stack(stack_type s) {
   if ((char*)c + sizeof(descriptor_type) == s.top) {
     delete_chunk(c);
   }
-}
-  
-bool overflow(stack_type s) {
-  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
-  return current_descriptor->tag == descriptor_type::overflow_tag;
 }
 
 template <class Activation_record, class ...Args>
@@ -223,6 +225,7 @@ stack_type pop_back(stack_type s) {
 }
   
 template <class Activation_record>
+inline
 Activation_record& peek_back(stack_type s) {
   assert(! empty(s));
   return *((Activation_record*)s.fp);
