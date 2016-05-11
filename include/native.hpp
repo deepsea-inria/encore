@@ -111,7 +111,6 @@ public:
       // resume pending call
       auto& newest = cactus::peek_back<activation_record_template>(encore_stack);
       context.swap(newest.get_context());
-      std::cout << "hi" << std::endl;
     }
     return this->fuel;
   }
@@ -160,7 +159,7 @@ void vertex::call(vertex* v, const Function& callee) {
       new_edge(branch, join);
       release(branch);
       v->fuel = sched::D;
-      auto& newest = cactus::peek_back<activation_record_template>(v->encore_stack);
+      auto& newest = cactus::peek_back<activation_record_template>(branch->encore_stack);
       newest.get_context().swap(v->context);
       v = branch;
       stats::on_promotion();

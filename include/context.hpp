@@ -48,7 +48,7 @@ public:
   
   inline
   void swap(context_type& target) {
-    target.status = true;
+    target.status = false;
     encore_context_swap(&registers, &target.registers);
   }
   
