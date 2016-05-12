@@ -133,6 +133,10 @@ public:
   
 };
   
+vertex* my_vertex() {
+  return (vertex*)sched::my_vertex();
+}
+  
 template <class Function>
 void vertex::call(vertex* v, const Function& callee) {
   using callee_ar_type = activation_record<Function>;
@@ -170,6 +174,7 @@ void vertex::call(vertex* v, const Function& callee) {
   if (use_same_system_stack) {
     // initiate the call on the same system stack
     callee();
+    v = my_vertex();
     v->encore_stack = cactus::pop_back<callee_ar_type>(v->encore_stack);
     if (cactus::empty(v->encore_stack)) {
       // hand control back to the DAG vertex because the caller was promoted
@@ -180,12 +185,8 @@ void vertex::call(vertex* v, const Function& callee) {
     callee_ar_type& newest = cactus::peek_back<callee_ar_type>(v->encore_stack);
     char* stack = (char*)malloc(stack_szb);
     newest.context.create(stack, stack_szb, (void*)callee_ar_type::call_nonlocally);
-    newest.get_context().switch_to();
+    newest.context.switch_to();
   }
-}
-
-vertex* my_vertex() {
-  return (vertex*)sched::my_vertex();
 }
   
 template <class Function>
@@ -196,6 +197,7 @@ void activation_record<Function>::call_nonlocally() {
   assert(! cactus::empty(v->encore_stack));
   callee_ar_type& callee_ar = cactus::peek_back<callee_ar_type>(v->encore_stack);
   callee_ar.f();
+  v = my_vertex();
   v->encore_stack = cactus::pop_back<callee_ar_type>(v->encore_stack);
   if (cactus::empty(v->encore_stack)) {
     v->context.switch_to();
