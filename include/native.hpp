@@ -170,17 +170,17 @@ void vertex::call(vertex* v, const Function& callee) {
   if (use_same_system_stack) {
     // initiate the call on the same system stack
     callee();
+    v->encore_stack = cactus::pop_back<callee_ar_type>(v->encore_stack);
     if (cactus::empty(v->encore_stack)) {
       // hand control back to the DAG vertex because the caller was promoted
       v->context.switch_to();
     }
-    v->encore_stack = cactus::pop_back<callee_ar_type>(v->encore_stack);
   } else {
     // handle stack overflow by activating the callee on a new system stack
     callee_ar_type& newest = cactus::peek_back<callee_ar_type>(v->encore_stack);
     char* stack = (char*)malloc(stack_szb);
     newest.context.create(stack, stack_szb, (void*)callee_ar_type::call_nonlocally);
-    newest.context.switch_to();
+    newest.get_context().switch_to();
   }
 }
 
@@ -196,10 +196,10 @@ void activation_record<Function>::call_nonlocally() {
   assert(! cactus::empty(v->encore_stack));
   callee_ar_type& callee_ar = cactus::peek_back<callee_ar_type>(v->encore_stack);
   callee_ar.f();
+  v->encore_stack = cactus::pop_back<callee_ar_type>(v->encore_stack);
   if (cactus::empty(v->encore_stack)) {
     v->context.switch_to();
   } else {
-    v->encore_stack = cactus::pop_back<callee_ar_type>(v->encore_stack);
     auto& caller_ar = cactus::peek_back<activation_record_template>(v->encore_stack);
     caller_ar.get_context().switch_to();
   }
