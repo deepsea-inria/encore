@@ -12,8 +12,6 @@ std::atomic<int> nb(0);
 class mixed : public encore::edsl::pcfg::shared_activation_record {
 public:
   
-  static constexpr int nb_loops = 1;
-  
   int n;
   sched::outset* f;
   
@@ -22,18 +20,9 @@ public:
   mixed(int n)
   : n(n) { }
   
-  class private_activation_record
-  : public dsl::pcfg::parallel_loop_private_activation_record<mixed,
-  private_activation_record> {
-  public:
-    
-    encore_parallel_loop_alloc_default(encore::edsl, nb_loops)
-    
+  encore_private_activation_record_begin(encore::edsl, mixed, 1)
     int lo; int hi;
-    
-  };
-  
-  encore_dc_loop_declare(encore::edsl, mixed, sar, par, dc, get_dc)
+  encore_private_activation_record_end(encore::edsl, mixed, sar, par, dc, get_dc)
   
   static
   dc get_dc() {
