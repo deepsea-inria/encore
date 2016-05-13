@@ -55,8 +55,6 @@ std::pair<int, int> get_rng(int k, int n, int i) {
 class scan_dc : public encore::edsl::pcfg::shared_activation_record {
 public:
   
-  static constexpr int nb_loops = 2;
-  
   int n;
   value_type z;
   value_type* src;
@@ -71,18 +69,9 @@ public:
   value_type* scans;
   int m;
   
-  class private_activation_record
-  : public dsl::pcfg::parallel_loop_private_activation_record<scan_dc,
-  private_activation_record> {
-  public:
-    
-    encore_parallel_loop_alloc_default(encore::edsl, nb_loops)
-    
+  encore_private_activation_record_begin(encore::edsl, scan_dc, 2)
     int lo; int hi;
-    
-  };
-  
-  encore_dc_loop_declare(encore::edsl, scan_dc, sar, par, dc, get_dc)
+  encore_private_activation_record_end(encore::edsl, scan_dc, sar, par, dc, get_dc)
   
   static
   dc get_dc() {

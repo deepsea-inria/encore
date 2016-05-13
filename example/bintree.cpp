@@ -79,8 +79,6 @@ public:
 
 encore_pcfg_allocate(bintree, get_cfg)
 
-namespace cmdline = pasl::util::cmdline;
-
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");

@@ -233,8 +233,6 @@ public:
   
   using size_type = Vertex_id;
   
-  static constexpr int nb_loops = 1;
-  
   std::atomic<int>* visited;
   const adjlist<Vertex_id>* graph;
   Vertex_id v;
@@ -244,18 +242,9 @@ public:
        Vertex_id v)
   : visited(visited), graph(graph), v(v) { }
   
-  class private_activation_record
-  : public dsl::pcfg::parallel_loop_private_activation_record<pdfs,
-  private_activation_record> {
-  public:
-    
-    encore_parallel_loop_alloc_default(encore::edsl, nb_loops)
-    
+  encore_private_activation_record_begin(encore::edsl, pdfs, 1)
     int lo; int hi;
-    
-  };
-  
-  encore_dc_loop_declare(encore::edsl, pdfs, sar, par, dc, get_dc)
+  encore_private_activation_record_end(encore::edsl, pdfs, sar, par, dc, get_dc)
   
   sched::incounter* join = nullptr;
   

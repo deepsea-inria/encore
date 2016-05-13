@@ -11,9 +11,7 @@ int cutoff = 1;
 
 class sequential_loop_0 : public encore::edsl::pcfg::shared_activation_record {
 public:
-  
-  static constexpr int nb_loops = 1;
-  
+    
   int n;
   int* a; int lo; int hi;
   
@@ -56,8 +54,6 @@ encore_pcfg_allocate(sequential_loop_0, get_cfg)
 
 class sequential_loop_1 : public encore::edsl::pcfg::shared_activation_record {
 public:
-  
-  static constexpr int nb_loops = 1;
   
   int n;
   int* a; int lo1; int hi1; int lo2; int hi2;
@@ -108,8 +104,6 @@ encore_pcfg_allocate(sequential_loop_1, get_cfg)
 class parallel_loop_0 : public encore::edsl::pcfg::shared_activation_record {
 public:
   
-  static constexpr int nb_loops = 1;
-  
   int n;
   int* a;
   
@@ -118,19 +112,9 @@ public:
   parallel_loop_0(int n)
   : n(n) { }
   
-  class private_activation_record
-  : public dsl::pcfg::parallel_loop_private_activation_record<parallel_loop_0,
-  private_activation_record> {
-  public:
-    
-    encore_parallel_loop_alloc_default(encore::edsl, nb_loops)
-
-    
+  encore_private_activation_record_begin(encore::edsl, parallel_loop_0, 1)
     int lo; int hi;
-    
-  };
-  
-  encore_dc_loop_declare(encore::edsl, parallel_loop_0, sar, par, dc, get_dc)
+  encore_private_activation_record_end(encore::edsl, parallel_loop_0, sar, par, dc, get_dc)
   
   static
   dc get_dc() {
@@ -162,8 +146,6 @@ encore_pcfg_allocate(parallel_loop_0, get_cfg)
 class parallel_loop_1 : public encore::edsl::pcfg::shared_activation_record {
 public:
   
-  static constexpr int nb_loops = 2;
-  
   int n;
   int* a;
   
@@ -172,19 +154,10 @@ public:
   parallel_loop_1(int n)
   : n(n) { }
   
-  class private_activation_record
-  : public dsl::pcfg::parallel_loop_private_activation_record<parallel_loop_1,
-  private_activation_record> {
-  public:
-    
-    encore_parallel_loop_alloc_default(encore::edsl, nb_loops)
-    
+  encore_private_activation_record_begin(encore::edsl, parallel_loop_1, 2)
     int lo1; int hi1;
     int lo2; int hi2;
-    
-  };
-  
-  encore_dc_loop_declare(encore::edsl, parallel_loop_1, sar, par, dc, get_dc)
+  encore_private_activation_record_end(encore::edsl, parallel_loop_1, sar, par, dc, get_dc)
   
   static
   dc get_dc() {

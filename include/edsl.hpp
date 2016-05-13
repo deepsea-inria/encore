@@ -2119,4 +2119,14 @@ edsl::pcfg::parallel_loop_activation_record* _encore_loop_activation_record_of(e
   return &_ars1[id]; \
 }
 
+#define encore_private_activation_record_begin(edsl, name, nb_loops) \
+class private_activation_record \
+: public dsl::pcfg::parallel_loop_private_activation_record<name,private_activation_record> { \
+public: \
+  encore_parallel_loop_alloc_default(edsl, nb_loops)
+
+#define encore_private_activation_record_end(edsl, name, sar, par, dc, get_dc) \
+}; \
+encore_dc_loop_declare(edsl, name, sar, par, dc, get_dc)
+
 #endif /*! _ENCORE_EDSL_H_ */
