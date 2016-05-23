@@ -190,9 +190,9 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::stmt([] (sar& s, par&) {
-        *s.dest = s.g(s.s);
         s.k = 0;
-        s.j = s.s + 1;
+        *s.dest = s.g(s.s);
+        s.s++;
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.s != s.e; }, dc::stmt([] (sar& s, par&) {
         intT j = s.s;
@@ -249,7 +249,7 @@ public:
         dc::exit()
       })),
       dc::stmt([] (sar& s, par& p) {
-        s.Sums = malloc_array<intT>(s.l);
+        s.Idx = malloc_array<intT>(s.l);
         p.s = 0;
         p.e = s.l;
       }),
@@ -259,19 +259,19 @@ public:
         dc::spawn_join([] (sar& s, par& p, stt st) {
           intT ss = s.s + p.s * block_size;
           intT ee = std::min(ss + block_size, s.e);
-          return ecall<maxIndexSerial<ET, intT, F, G>>(st, 0, ss, ee, s.g, &s.Idx[p.s]);
+          return ecall<maxIndexSerial<ET, intT, F, G>>(st, ss, ee, s.f, s.g, &s.Idx[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
       })),
       dc::stmt([] (sar& s, par&) {
-        s.k = s.Idx[0];
+        *s.dest = s.Idx[0];
         s.j = 1;
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.j < s.l; }, dc::stmt([] (sar& s, par&) {
-        if (s.f(s.g(s.Idx[s.j]), s.g(s.k))) {
-          s.k = s.Idx[s.j];
+        if (s.f(s.g(s.Idx[s.j]), s.g(*s.dest))) {
+          *s.dest = s.Idx[s.j];
         }
         s.j++;
       })),
@@ -333,9 +333,9 @@ public:
           }),
           dc::stmts({
             dc::stmt([] (sar& s, par&) {
-              s.i = s;
+              s.i = s.s;
             }),
-            dc::sequential_loop([] (sar& s, par&) { return s.i >= s.s; }, dc::stmt([] (sar& s, par&) {
+            dc::sequential_loop([] (sar& s, par&) { return s.i < s.e; }, dc::stmt([] (sar& s, par&) {
               auto f = s.f;
               auto g = s.g;
               intT i = s.i;
@@ -371,9 +371,9 @@ public:
         }),
         dc::stmts({
           dc::stmt([] (sar& s, par&) {
-            s.i = s;
+            s.i = s.s;
           }),
-          dc::sequential_loop([] (sar& s, par&) { return s.i >= s.s; }, dc::stmt([] (sar& s, par&) {
+          dc::sequential_loop([] (sar& s, par&) { return s.i < s.e; }, dc::stmt([] (sar& s, par&) {
             auto f = s.f;
             auto g = s.g;
             intT i = s.i;
@@ -402,7 +402,7 @@ class scan : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   ET* Out; intT s; intT e; F f; G g; ET zero; bool inclusive; bool back; ET* dest;
-  intT i; intT n; intT l;
+  intT i; intT n; intT l; ET* Sums; ET tmp;
   
   scan() { }
   
@@ -419,9 +419,9 @@ public:
       dc::stmt([] (sar& s, par&) {
         s.l = nb_blocks(s.e - s.s, block_size);
       }),
-      dc::mk_if([] (sar& s, par&) { return s.l <= 1; }, dc::stmts({
+      dc::mk_if([] (sar& s, par&) { return s.l <= 2; }, dc::stmts({
         dc::spawn_join([] (sar& s, par&, stt st) {
-          return ecall<scanSerial<ET,intT,F,G>>(st, s.s, s.e, s.f, s.g, s.zero, s.inclusive, s.dest);
+          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, s.s, s.e, s.f, s.g, s.zero, s.inclusive, s.back, s.dest);
         }),
         dc::exit()
       })),
@@ -430,32 +430,32 @@ public:
         p.s = 0;
         p.e = s.l;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s != p.e; },
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
           intT ss = s.s + p.s * block_size;
           intT ee = std::min(ss + block_size, s.e);
-          return ecall<reduceSerial>(st, 0, ss, ee, s.g, &s.Sums[p.s]);
+          return ecall<reduceSerial<ET,intT,F,G>>(st, ss, ee, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
       })),
       dc::spawn_join([] (sar& s, par&, stt st) {
-        return ecall<scan>(st, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
+        return ecall<scan>(st, s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
       }),
       dc::stmt([] (sar& s, par& p) {
         p.s = 0;
         p.e = s.l;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s != p.e; },
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
           intT ss = s.s + p.s * block_size;
           intT ee = std::min(ss + block_size, s.e);
-          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, ss, ee, s.f, s.g, s.Sums[p.s], s.inclusive, s.back);
+          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, ss, ee, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
