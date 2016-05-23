@@ -441,7 +441,8 @@ public:
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
-      })),
+      }))
+      ,
       dc::spawn_join([] (sar& s, par&, stt st) {
         return ecall<scan>(st, s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
       }),
@@ -455,6 +456,7 @@ public:
         dc::spawn_join([] (sar& s, par& p, stt st) {
           intT ss = s.s + p.s * block_size;
           intT ee = std::min(ss + block_size, s.e);
+          std::cout << "i = " << p.s << std::endl;
           return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, ss, ee, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
