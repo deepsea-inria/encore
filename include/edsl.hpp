@@ -560,7 +560,8 @@ bool empty_stack(stack_type s) {
   
 template <class Shared_activation_record, class ...Args>
 stack_type push_call(stack_type s, Args... args) {
-  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  //  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  using private_activation_record = typename Shared_activation_record::private_activation_record;
   auto ss = cactus::push_back<Shared_activation_record>(s.first, args...);
   auto ps = cactus::push_back<private_activation_record>(s.second);
   return std::make_pair(ss, ps);
