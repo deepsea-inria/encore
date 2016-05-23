@@ -659,11 +659,8 @@ Private_activation_record& peek_newest_private_frame(extended_stack_type s) {
   
 template <class Shared_activation_record>
 Shared_activation_record& peek_oldest_shared_frame(extended_stack_type s) {
-  if (cactus::empty(s.stack.first)) {
-    return *((Shared_activation_record*)s.oldest_shared);
-  } else {
-    return cactus::peek_front<Shared_activation_record>(s.stack.first);
-  }
+  assert(s.oldest_shared != nullptr);
+  return *((Shared_activation_record*)s.oldest_shared);
 }
   
 template <class Private_activation_record>
