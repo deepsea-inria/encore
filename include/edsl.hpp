@@ -637,6 +637,10 @@ extended_stack_type pop_call(extended_stack_type s) {
     s.stack.first = cactus::pop_back<shared_activation_record>(s.stack.first);
   }
   s.stack.second = cactus::pop_back<private_activation_record>(s.stack.second);
+  if (cactus::empty(s.stack.first)) {
+    cactus::delete_stack(s.stack.first);
+    s.stack.first = cactus::new_stack();
+  }
   return s;
 }
  

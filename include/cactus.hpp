@@ -91,7 +91,7 @@ void fill_freelist_if_empty() {
 }
 
 chunk_type* new_chunk() {
-  chunk_type* c;
+  chunk_type* c = nullptr;
   fill_freelist_if_empty();
   chunk_type*& head = freelist.mine();
   c = head;
