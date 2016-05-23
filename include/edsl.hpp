@@ -621,10 +621,7 @@ void delete_stack(extended_stack_type s) {
 }
   
 bool empty_stack(extended_stack_type s) {
-  if (cactus::empty(s.stack.second)) {
-    return true;
-  }
-  return cactus::peek_front<private_activation_record>(s.stack.second).nb_strands() == 0;
+  return cactus::empty(s.stack.second);
 }
   
 template <class Shared_activation_record, class ...Args>
@@ -699,7 +696,7 @@ std::pair<extended_stack_type, stack_type> fork_stack(extended_stack_type s) {
 template <class Stack>
 class interpreter : public sched::vertex {
 public:
-  
+
   Stack stack;
   
   interpreter() {
