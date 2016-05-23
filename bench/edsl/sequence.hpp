@@ -409,7 +409,7 @@ public:
   scan(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool back, ET* dest)
   : Out(Out), s(s), e(e), f(f), g(g), zero(zero), inclusive(inclusive), back(back), dest(dest) { }
   
-  encore_private_activation_record_begin(encore::edsl, scan, 1)
+  encore_private_activation_record_begin(encore::edsl, scan, 2)
     int s; int e;
   encore_private_activation_record_end(encore::edsl, scan, sar, par, dc, get_dc)
   
@@ -456,7 +456,6 @@ public:
         dc::spawn_join([] (sar& s, par& p, stt st) {
           intT ss = s.s + p.s * block_size;
           intT ee = std::min(ss + block_size, s.e);
-          std::cout << "i = " << p.s << std::endl;
           return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, ss, ee, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
