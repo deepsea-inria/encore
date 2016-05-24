@@ -152,7 +152,7 @@ public:
 template <class OT, class intT, class F, class G>
 typename reduce<OT,intT,F,G>::cfg_type reduce<OT,intT,F,G>::cfg = reduce<OT,intT,F,G>::get_cfg();
   
-using stack_type = encore::cactus::stack_type;
+using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class Activation_record, class ...Args>
 static stack_type ecall(stack_type s, Args... args) {
@@ -287,9 +287,9 @@ template <class ET, class intT, class F, class G>
 typename maxIndex<ET,intT,F,G>::cfg_type maxIndex<ET,intT,F,G>::cfg = maxIndex<ET,intT,F,G>::get_cfg();
 
 template <class ET, class intT, class F>
-stack_type maxIndex4(ET* A, intT n, F f, intT* dest) {
+stack_type maxIndex4(stack_type st, ET* A, intT n, F f, intT* dest) {
   auto g = getA<ET,intT>(A);
-  return ecall<maxIndex<ET,intT,F,typeof(g)>>((intT)0, n, f, g);
+  return ecall<maxIndex<ET,intT,F,typeof(g)>>(st, (intT)0, n, f, g);
 }
   
 template <class ET, class intT, class F, class G>
@@ -472,6 +472,286 @@ public:
 
 template <class ET, class intT, class F, class G>
 typename scan<ET,intT,F,G>::cfg_type scan<ET,intT,F,G>::cfg = scan<ET,intT,F,G>::get_cfg();
+  
+template <class ET, class intT>
+stack_type plusScan(stack_type st, ET *In, ET* Out, intT n, ET* dest) {
+  auto f = utils::addF<ET>();
+  auto g = getA<ET,intT>(In);
+  return ecall<scan<ET, intT, typeof(f), typeof(g)>>(st, Out, (intT)0, n, f, g, (ET)0, false, false, dest);
+}
+  
+template <class intT>
+class sumFlagsSerial : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  bool *Fl; intT n; intT* dest;
+  int* IFl; int k; intT r; intT j;
+  
+  sumFlagsSerial() { }
+  
+  sumFlagsSerial(bool *Fl, intT n, intT* dest)
+  : Fl(Fl), n(n), dest(dest) { }
+  
+  encore_dc_declare(encore::edsl, sumFlagsSerial, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par&) {
+        s.r = 0;
+        s.k = 0;
+        s.j = 0;
+      }),
+      dc::mk_if([] (sar& s, par&) { return (s.n >= 128 && (s.n & 511) == 0 && ((long) s.Fl & 3) == 0); }, dc::stmts({
+        dc::stmt([] (sar& s, par&) {
+          s.IFl = (int*)s.Fl;
+        }),
+        dc::sequential_loop([] (sar& s, par&) { return s.k < (s.n >> 9); }, dc::stmt([] (sar& s, par&) {
+          int rr = 0;
+          for (int j=0; j < 128; j++) rr += s.IFl[j];
+          s.r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
+          s.k++;
+        }))
+      }),
+      dc::sequential_loop([] (sar& s, par&) { return s.j < s.n; }, dc::stmt([] (sar& s, par&) {
+        intT r = 0;
+        for (intT j=0; j < s.n; j++) r += s.Fl[j];
+        s.r = r;
+      }))),
+      dc::stmt([] (sar& s, par&) {
+        *s.dest = s.r;
+      })
+    });
+  }
+  
+};
+
+template <class intT>
+typename sumFlagsSerial<intT>::cfg_type sumFlagsSerial<intT>::cfg = sumFlagsSerial<intT>::get_cfg();
+  
+template <class ET, class intT, class F>
+class packSerial : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  ET* Out; bool* Fl; intT s; intT e; F f; _seq<ET>* dest;
+  intT m; intT k;
+  
+  packSerial() { }
+  
+  packSerial(ET* Out, bool* Fl, intT s, intT e, F f, _seq<ET>* dest)
+  : Out(Out), Fl(Fl), s(s), e(e), f(f), dest(dest) { }
+  
+  encore_dc_declare(encore::edsl, packSerial, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::mk_if([] (sar& s, par&) { return s.Out == nullptr; }, dc::stmts({
+        dc::spawn_join([] (sar& s, par& p, stt st) {
+          return ecall<sumFlagsSerial<intT>>(st, s.Fl + s.s, s.e - s.s, &s.m);
+        }),
+        dc::stmt([] (sar& s, par&) {
+          s.Out = malloc_array<ET>(s.m);
+        })
+      })),
+      dc::stmt([] (sar& s, par&) {
+        s.k = 0;
+      }),
+      dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
+        if (s.Fl[s.s]) s.Out[s.k++] = s.f(s.s);
+        s.s++;
+      })),
+      dc::stmt([] (sar& s, par&) {
+        *s.dest = _seq<ET>(s.Out,s.k);
+      })
+    });
+  }
+  
+};
+  
+template <class ET, class intT, class F>
+typename packSerial<ET,intT,F>::cfg_type packSerial<ET,intT,F>::cfg = packSerial<ET,intT,F>::get_cfg();
+  
+template <class ET, class intT, class F>
+class pack : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  ET* Out; bool* Fl; intT s; intT e; F f; _seq<ET>* dest;
+  intT l; intT m; _seq<ET> tmp; intT* Sums;
+  
+  pack() { }
+
+  pack(ET* Out, bool* Fl, intT s, intT e, F f, _seq<ET>* dest)
+  : Out(Out), Fl(Fl), s(s), e(e), f(f), dest(dest) { }
+  
+  encore_private_activation_record_begin(encore::edsl, pack, 2)
+    int s; int e;
+  encore_private_activation_record_end(encore::edsl, pack, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par&) {
+        s.l = nb_blocks(s.e - s.s, block_size);
+      }),
+      dc::mk_if([] (sar& s, par&) { return s.l <= 1; }, dc::stmts({
+        dc::spawn_join([] (sar& s, par&, stt st) {
+          return ecall<packSerial<ET, intT, F>>(st, s.Out, s.Fl, s.s, s.e, s.f, s.dest);
+        }),
+        dc::exit()
+      })),
+      dc::stmt([] (sar& s, par&) {
+        s.Sums = malloc_array<intT>(s.l);
+      }),
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            dc::stmts({
+        dc::spawn_join([] (sar& s, par& p, stt st) {
+          intT ss = s.s + p.s * block_size;
+          intT ee = std::min(ss + block_size, s.e);
+          return ecall<sumFlagsSerial<intT>>(st, s.Fl + ss, ee - ss, &s.Sums[s.s]);
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          p.s++;
+        })
+      })),
+      dc::spawn_join([] (sar& s, par& p, stt st) {
+        return plusScan(st, s.Sums, s.Sums, s.l, &s.m);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        if (s.Out == nullptr) s.Out = malloc_array<ET>(s.m);
+        p.s = 0;
+        p.e = s.l;
+      }),
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            dc::stmts({
+        dc::spawn_join([] (sar& s, par& p, stt st) {
+          intT ss = s.s + p.s * block_size;
+          intT ee = std::min(ss + block_size, s.e);
+          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[s.s], s.Fl, ss, ee, s.f, &s.tmp);
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          p.s++;
+        })
+      })),
+      dc::stmt([] (sar& s, par& p) {
+        free(s.Sums);
+        *s.dest = _seq<ET>(s.Out,s.m);
+      }) 
+    });
+  }
+  
+};
+  
+template <class ET, class intT, class F>
+typename pack<ET,intT,F>::cfg_type pack<ET,intT,F>::cfg = pack<ET,intT,F>::get_cfg();
+  
+template <class ET, class intT>
+stack_type pack5(stack_type st, ET* In, ET* Out, bool* Fl, intT n, _seq<ET>* dest) {
+  auto f = getA<ET,intT>(In);
+  return ecall<pack<ET,intT,typeof(f)>>(st, Out, Fl, (intT) 0, n, f, dest);
+}
+  
+template <class ET, class intT>
+stack_type pack4(stack_type st, ET* In, bool* Fl, intT n, _seq<ET>* dest) {
+  auto f = getA<ET,intT>(In);
+  return ecall<pack<ET,intT,typeof(f)>>(st, (ET*) nullptr, Fl, (intT) 0, n, f, dest);
+}
+
+template <class ET, class intT, class PRED>
+class filterDPS : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  ET* In; ET* Out; intT n; PRED p; intT* dest;
+  _seq<ET> tmp; intT m;
+  
+  filterDPS() { }
+  
+  filterDPS(ET* In, ET* Out, intT n, PRED p, intT* dest)
+  : In(In), Out(Out), n(n), p(p), dest(dest) { }
+  
+  encore_private_activation_record_begin(encore::edsl, filterDPS, 1)
+    int s; int e;
+  encore_private_activation_record_end(encore::edsl, filterDPS, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.Fl = malloc_array<bool>(s.n);
+        p.s = 0;
+        p.s = s.n;
+      }),
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          s.Fl[p.s] = (bool)s.p(s.In[p.s]);
+          p.s++;
+        })
+      })),
+      dc::spawn_join([] (sar& s, par& p, stt st) {
+        return pack5(st, s.In, s.Out, s.n, &s.tmp);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        s.m = s.tmp.n;
+        free(s.Fl);
+        *s.dest = s.m;
+      })
+    });
+  }
+  
+};
+
+template <class ET, class intT, class PRED>
+typename filterDPS<ET,intT,PRED>::cfg_type filterDPS<ET,intT,PRED>::cfg = filterDPS<ET,intT,PRED>::get_cfg();
+  
+template <class ET, class intT, class PRED>
+class filter : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  ET* In; intT n; PRED p; _seq<ET>* dest;
+  bool* Fl;
+  
+  filter() { }
+  
+  filter(ET* In, intT n, PRED p, _seq<ET>* dest)
+  : In(In), n(n), p(p), dest(dest) { }
+  
+  encore_private_activation_record_begin(encore::edsl, filter, 1)
+  int s; int e;
+  encore_private_activation_record_end(encore::edsl, filter, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.Fl = malloc_array<bool>(s.n);
+        p.s = 0;
+        p.e = s.n;
+      }),
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          s.Fl[p.s] = (bool)s.p(s.In[p.s]);
+          p.s++;
+        })
+      })),
+      dc::spawn_join([] (sar& s, par& p, stt st) {
+        return pack4<ET,intT>(st, s.In, s.Fl, s.n, s.dest);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        free(s.Fl);
+      })
+    });
+  }
+  
+};
+
+template <class ET, class intT, class PRED>
+typename filter<ET,intT,PRED>::cfg_type filter<ET,intT,PRED>::cfg = filter<ET,intT,PRED>::get_cfg();
   
 } // end namespace
 

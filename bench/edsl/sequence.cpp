@@ -57,6 +57,55 @@ ET scanSerial(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool b
   return r;
 }
 
+// sums a sequence of n boolean flags
+// an optimized version that sums blocks of 4 booleans by treating
+// them as an integer
+// Only optimized when n is a multiple of 512 and Fl is 4byte aligned
+template <class intT>
+intT sumFlagsSerial(bool *Fl, intT n) {
+  intT r = 0;
+  if (n >= 128 && (n & 511) == 0 && ((long) Fl & 3) == 0) {
+    int* IFl = (int*) Fl;
+    for (int k = 0; k < (n >> 9); k++) {
+      int rr = 0;
+      for (int j=0; j < 128; j++) rr += IFl[j];
+      r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
+      IFl += 128;
+    }
+  } else for (intT j=0; j < n; j++) r += Fl[j];
+  return r;
+}
+
+template <class ET, class intT, class F>
+_seq<ET> packSerial(ET* Out, bool* Fl, intT s, intT e, F f) {
+  if (Out == NULL) {
+    intT m = sumFlagsSerial(Fl+s, e-s);
+    Out = newA(ET,m);
+  }
+  intT k = 0;
+  for (intT i=s; i < e; i++) if (Fl[i]) Out[k++] = f(i);
+  return _seq<ET>(Out,k);
+}
+
+template <class ET, class intT, class PRED>
+_seq<ET> filterSerial(ET* In, intT n, PRED p) {
+  intT m = 0;
+  for (int i = 0; i < n; i++) {
+    if (p(In[i])) {
+      m++;
+    }
+  }
+  ET* A = malloc_array<ET>(m);
+  _seq<ET> result(A, m);
+  m = 0;
+  for (int i = 0; i < n; i++) {
+    if (p(In[i])) {
+      A[m++] = In[i];
+    }
+  }
+  return result;
+}
+
 void bench_reduce() {
   using intT = int;
   using value_type = int;
@@ -146,10 +195,87 @@ void bench_scan() {
     for (int i = 0; i < n; i++) {
       assert(output[i] == output2[i]);
     }
+    free(output2);
 #endif
     assert(result == result2);
   }
   free(input);
+  free(output);
+}
+
+void bench_pack() {
+  using intT = int;
+  using value_type = int;
+  intT n = std::max(2, cmdline::parse<intT>("n"));
+  intT m = cmdline::parse_or_default("m", n / 2);
+  bool check = cmdline::parse_or_default("check", false);
+  std::string algorithm = cmdline::parse<std::string>("algorithm");
+  value_type* input = malloc_array<value_type>(n);
+  bool* flags = malloc_array<bool>(n);
+  _seq<value_type> output;
+  for (intT i = 0; i < n; i++) {
+    input[i] = (value_type)i;
+    flags[i] = rand() % m;
+  }
+  auto f = sequence::getA<value_type,intT>(input);
+  if (algorithm == "encore") {
+    encore::launch_interpreter<sequence::pack<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
+  } else if (algorithm == "encore_sequential") {
+    encore::launch_interpreter<sequence::packSerial<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
+  } else if (algorithm == "sequential") {
+    output = packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+  }
+  if (check) {
+#ifndef NDEBUG
+    _seq<value_type> output2 = packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+    assert(output.n == output2.n);
+    for (int i = 0; i < output.n; i++) {
+      assert(output.A[i] == output2.A[i]);
+    }
+    output2.del();
+#endif
+  }
+  free(input);
+  output.del();
+}
+
+void bench_filter() {
+  using intT = int;
+  using value_type = int;
+  intT n = std::max(2, cmdline::parse<intT>("n"));
+  intT m = cmdline::parse_or_default("m", n / 2);
+  bool check = cmdline::parse_or_default("check", false);
+  std::string algorithm = cmdline::parse<std::string>("algorithm");
+  value_type* input = malloc_array<value_type>(n);
+  bool* flags = malloc_array<bool>(n);
+  _seq<value_type> output;
+  for (intT i = 0; i < n; i++) {
+    input[i] = (value_type)i;
+    flags[i] = rand() % m;
+  }
+  auto p = [&] (value_type v) {
+    return flags[v];
+  };
+  if (algorithm == "encore") {
+    encore::launch_interpreter<sequence::filter<value_type,intT,typeof(p)>>(input, n, p, &output);
+  } else if (algorithm == "encore_sequential") {
+    assert(false);
+  } else if (algorithm == "sequential") {
+    output = filterSerial(input, n, p);
+  }
+  if (check) {
+#ifndef NDEBUG
+    _seq<value_type> output2;
+    output2 = filterSerial(input, n, p);
+    assert(output.n == output2.n);
+    for (int i = 0; i < output.n; i++) {
+      assert(output.A[i] == output2.A[i]);
+    }
+    output2.del();
+#endif
+  }
+  free(input);
+  output.del();
 }
 
 int main(int argc, char** argv) {
@@ -165,6 +291,12 @@ int main(int argc, char** argv) {
   });
   d.add("scan", [&] {
     bench_scan();
+  });
+  d.add("pack", [&] {
+    bench_pack();
+  });
+  d.add("filter", [&] {
+    bench_filter();
   });
   d.dispatch("operation");
   return 0;
