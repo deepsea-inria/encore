@@ -45,11 +45,25 @@ int get_nb_blocks(int k, int n) {
   return 1 + ((n - 1) / k);
 }
 
+class range_type {
+public:
+  int lo;
+  int hi;
+  range_type(int lo, int hi)
+  : lo(lo), hi(hi) { }
+};
+
 static inline
-std::pair<int, int> get_rng(int k, int n, int i) {
+range_type get_rng(int k, int n, int i) {
   int lo = i * k;
   int hi = std::min(lo + k, n);
-  return std::make_pair(lo, hi);
+  return range_type(lo, hi);
+}
+
+static inline
+range_type get_rng(int k, int n, int lo, int hi) {
+  range_type r = get_rng(k, n, lo);
+  return range_type(r.lo, std::min(k * hi, r.hi));
 }
 
 class scan_dc : public encore::edsl::pcfg::shared_activation_record {
@@ -85,13 +99,11 @@ public:
         p.lo = 0;
         p.hi = s.m;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.lo != p.hi; },
+      dc::parallel_for_loop([] (sar&, par& p) { return p.lo < p.hi; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             dc::stmt([] (sar& s, par& p) {
-        int i = p.lo;
-        int lo = get_rng(branching_factor, s.n, i).first;
-        int hi = get_rng(branching_factor, s.n, i).second;
-        s.partials[i] = reduce_serial(lo, hi, 0, s.src);
+        auto rng = get_rng(branching_factor, s.n, p.lo, p.hi);
+        s.partials[p.lo] = reduce_serial(rng.lo, rng.hi, 0, s.src);
         p.lo++;
       })),
       dc::stmt([] (sar& s, par& p) {
@@ -101,20 +113,18 @@ public:
         return ecall<scan_dc>(st, s.m, s.z, s.partials, s.scans);
       }),
       dc::stmt([] (sar& s, par& p) {
+        free(s.partials);
         p.lo = 0;
         p.hi = s.m;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.lo != p.hi; },
+      dc::parallel_for_loop([] (sar&, par& p) { return p.lo < p.hi; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             dc::stmt([] (sar& s, par& p) {
-        int i = p.lo;
-        int lo = get_rng(branching_factor, s.n, i).first;
-        int hi = get_rng(branching_factor, s.n, i).second;
-        scan_serial(lo, hi, s.scans[i], s.src, s.dst);
+        auto rng = get_rng(branching_factor, s.n, p.lo, p.hi);
+        scan_serial(rng.lo, rng.hi, s.scans[p.lo], s.src, s.dst);
         p.lo++;
       })),
       dc::stmt([] (sar& s, par& p) {
-        free(s.partials);
         free(s.scans);
       })
     }));
@@ -133,16 +143,14 @@ value_type scan_cilk(int n, value_type z, value_type* src, value_type* dst) {
     int m = get_nb_blocks(k, n);
     value_type* partials = malloc_array<int>(m);
     cilk_for (int i = 0; i < m; i++) {
-      int lo = get_rng(k, n, i).first;
-      int hi = get_rng(k, n, i).second;
-      partials[i] = reduce_serial(lo, hi, 0, src);
+      auto rng = get_rng(k, n, i);
+      partials[i] = reduce_serial(rng.lo, rng.hi, 0, src);
     }
     value_type* scans = malloc_array<int>(m);
     r = scan_cilk(m, z, partials, scans);
     cilk_for (int i = 0; i < m; i++) {
-      int lo = get_rng(k, n, i).first;
-      int hi = get_rng(k, n, i).second;
-      scan_serial(lo, hi, scans[i], src, dst);
+      auto rng = get_rng(k, n, i);
+      scan_serial(rng.lo, rng.hi, scans[i], src, dst);
     }
     free(partials);
     free(scans);
