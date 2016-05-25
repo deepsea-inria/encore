@@ -148,7 +148,7 @@ stack_type new_stack() {
 }
   
 void delete_stack(stack_type s) {
-  //assert(empty(s));
+  assert(empty(s));
   chunk_type* c = chunk_of(s.fp);
   if ((char*)c + sizeof(descriptor_type) == s.top) {
     delete_chunk(c);
