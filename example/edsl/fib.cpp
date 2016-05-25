@@ -145,14 +145,18 @@ public:
   
   static
   dc get_dc() {
-    return dc::mk_if([] (sar& s, par&) { return s.n <= cutoff; },
-               dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
-               dc::spawn2_join(
-                   [] (sar& s, par&, stt st) {
-                       return ecall<fib_dc>(st, s.n - 1, &s.d1); },
-                   [] (sar& s, par&, stt st) {
-                       return ecall<fib_dc>(st, s.n - 2, &s.d2); })
-                     );
+    return
+    dc::mk_if([] (sar& s, par&) { return s.n <= cutoff; },
+      dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
+      dc::stmts({
+        dc::spawn2_join(
+            [] (sar& s, par&, stt st) {
+              return ecall<fib_dc>(st, s.n - 1, &s.d1); },
+            [] (sar& s, par&, stt st) {
+              return ecall<fib_dc>(st, s.n - 2, &s.d2); }),
+        dc::stmt([] (sar& s, par&) { *s.dp = s.d1 + s.d2; }),
+      })
+    );
   }
 
   
