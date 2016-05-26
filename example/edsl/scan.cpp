@@ -62,8 +62,10 @@ range_type get_rng(int k, int n, int i) {
 
 static inline
 range_type get_rng(int k, int n, int lo, int hi) {
-  range_type r = get_rng(k, n, lo);
-  return range_type(r.lo, std::min(k * hi, r.hi));
+  assert(lo < hi);
+  int lo2 = lo * k;
+  int hi2 = std::min(lo2 + k, std::min(hi * k, n));
+  return range_type(lo2, hi2);
 }
 
 class scan_dc : public encore::edsl::pcfg::shared_activation_record {
@@ -102,6 +104,7 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.lo < p.hi; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             dc::stmt([] (sar& s, par& p) {
+        assert(p.lo < p.hi);
         auto rng = get_rng(branching_factor, s.n, p.lo, p.hi);
         s.partials[p.lo] = reduce_serial(rng.lo, rng.hi, 0, s.src);
         p.lo++;
@@ -120,6 +123,7 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.lo < p.hi; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             dc::stmt([] (sar& s, par& p) {
+        assert(p.lo < p.hi);
         auto rng = get_rng(branching_factor, s.n, p.lo, p.hi);
         scan_serial(rng.lo, rng.hi, s.scans[p.lo], s.src, s.dst);
         p.lo++;
@@ -148,11 +152,11 @@ value_type scan_cilk(int n, value_type z, value_type* src, value_type* dst) {
     }
     value_type* scans = malloc_array<int>(m);
     r = scan_cilk(m, z, partials, scans);
+    free(partials);
     cilk_for (int i = 0; i < m; i++) {
       auto rng = get_rng(k, n, i);
       scan_serial(rng.lo, rng.hi, scans[i], src, dst);
     }
-    free(partials);
     free(scans);
   }
   return r;
@@ -176,7 +180,7 @@ int main(int argc, char** argv) {
   value_type* src = malloc_array<value_type>(n);
   value_type* dst = malloc_array<value_type>(n);
   for (int i = 0; i < n; i++) {
-    src[i] = i;
+    src[i] = 1;
   }
   cmdline::dispatcher d;
   d.add("serial", [&] {
@@ -197,7 +201,9 @@ int main(int argc, char** argv) {
   std::copy(src, src + n, src2);
   scan_serial(0, n, 0, src2, dst2);
   for (int i = 0; i < n; i++) {
-    assert(dst[i] == dst2[i]);
+    auto test = dst[i];
+    auto ref = dst2[i];
+    assert(test == ref);
   }
   free(src2);
   free(dst2);

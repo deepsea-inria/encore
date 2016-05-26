@@ -193,7 +193,9 @@ void bench_scan() {
     value_type* output2 = malloc_array<value_type>(n);
     value_type result2 = scanSerial(output2, (intT) 0, n, f, g, zero, inclusive, back);
     for (int i = 0; i < n; i++) {
-      assert(output[i] == output2[i]);
+      auto x = output[i];
+      auto y = output2[i];
+      assert(x == y);
     }
     free(output2);
 #endif

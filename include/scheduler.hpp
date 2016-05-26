@@ -78,25 +78,25 @@ public:
 #endif
     vertex* v = nullptr;
     vs.split([&] (int n) { return nb < n; }, v, other.vs);
-    int spill = (v->nb_strands() + other.nb_strands()) - nb;
+    int vnb = v->nb_strands();
+    int spill = (vnb + other.nb_strands()) - nb;
     assert(spill >= 0);
     if (spill == 0) {
       other.vs.push_back(v);
-    } else if (spill == 1) {
+    } else if (spill == vnb) {
       vs.push_back(v);
     } else {
-      auto vertices = v->split(spill);
+      auto vertices = v->split(vnb - spill);
       vertex* v1 = vertices.first;
       vertex* v2 = vertices.second;
       other.vs.push_back(v2);
-      assert(v1->nb_strands() > 0);
       vs.push_front(v1);
     }
 #ifndef NDEBUG
     int n2 = nb_strands();
-    //assert(n1 == n2 + nb);
+    assert(n1 == n2 + nb);
     int n3 = other.nb_strands();
-    //assert(n3 == nb);
+    assert(n3 == nb);
 #endif
   }
   
