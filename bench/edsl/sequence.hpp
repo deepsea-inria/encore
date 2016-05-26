@@ -52,6 +52,24 @@ int nb_blocks(intT n, intT bsize) {
   return 1 + ((n - 1) / bsize);
 }
   
+template <class intT>
+class range_type {
+public:
+  intT lo;
+  intT hi;
+  range_type(intT lo, intT hi)
+  : lo(lo), hi(hi) { }
+};
+
+template <class intT>
+range_type<intT> get_rng(intT block_size, intT item_lo, intT item_hi, intT block_lo, intT block_hi) {
+  assert(block_lo <= block_hi);
+  assert(item_lo <= item_hi);
+  intT block_lo2 = block_lo + (item_lo * block_size);
+  intT block_hi2 = std::min(block_lo2 + block_size, std::min(item_hi * block_size, block_hi));
+  return range_type<intT>(block_lo2, block_hi2);
+}
+  
 template <class OT, class intT, class F, class G>
 class reduceSerial : public encore::edsl::pcfg::shared_activation_record {
 public:
@@ -129,9 +147,8 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          intT ss = s.s + p.s * block_size;
-          intT ee = std::min(ss + block_size, s.e);
-          return ecall<reduceSerial<OT,intT,F,G>>(st, ss, ee, s.f, s.g, &s.Sums[p.s]);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          return ecall<reduceSerial<OT,intT,F,G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -257,9 +274,8 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          intT ss = s.s + p.s * block_size;
-          intT ee = std::min(ss + block_size, s.e);
-          return ecall<maxIndexSerial<ET, intT, F, G>>(st, ss, ee, s.f, s.g, &s.Idx[p.s]);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          return ecall<maxIndexSerial<ET, intT, F, G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Idx[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -434,15 +450,14 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          intT ss = s.s + p.s * block_size;
-          intT ee = std::min(ss + block_size, s.e);
-          return ecall<reduceSerial<ET,intT,F,G>>(st, ss, ee, s.f, s.g, &s.Sums[p.s]);
+          assert(p.s < p.e);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          return ecall<reduceSerial<ET,intT,F,G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
-      }))
-      ,
+      })),
       dc::spawn_join([] (sar& s, par&, stt st) {
         return ecall<scan>(st, s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
       }),
@@ -454,9 +469,9 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          intT ss = s.s + p.s * block_size;
-          intT ee = std::min(ss + block_size, s.e);
-          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, ss, ee, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
+          assert(p.s < p.e);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -607,9 +622,8 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          intT ss = s.s + p.s * block_size;
-          intT ee = std::min(ss + block_size, s.e);
-          return ecall<sumFlagsSerial<intT>>(st, s.Fl + ss, ee - ss, &s.Sums[s.s]);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          return ecall<sumFlagsSerial<intT>>(st, s.Fl + rng.lo, rng.hi - rng.lo, &s.Sums[s.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -627,9 +641,8 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          intT ss = s.s + p.s * block_size;
-          intT ee = std::min(ss + block_size, s.e);
-          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[s.s], s.Fl, ss, ee, s.f, &s.tmp);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[s.s], s.Fl, rng.lo, rng.hi, s.f, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
