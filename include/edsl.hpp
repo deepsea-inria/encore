@@ -1061,6 +1061,9 @@ public:
                      par* oldest_private,
                      parallel_loop_id_type id,
                      int nb) {
+#ifndef NDEBUG
+    int nb_orig = interp->nb_strands();
+#endif
     interpreter<extended_stack_type>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
@@ -1098,6 +1101,12 @@ public:
     private2.trampoline = pl_descr.entry;
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
+#ifndef NDEBUG
+    int nb1 = interp1->nb_strands();
+    int nb2 = interp2->nb_strands();
+    assert(nb1 + nb2 == nb_orig);
+    assert(nb2 == nb);
+#endif
     return std::make_pair(interp1, interp2);
   }
   
