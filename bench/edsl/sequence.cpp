@@ -178,7 +178,7 @@ void bench_scan() {
   value_type result = (value_type)0;
   for (intT i = 0; i < n; i++) {
     input[i] = 1;
-    output[i] = 0xdeadbeef;
+    output[i] = -1234;
   }
   auto f = utils::addF<value_type>();
   auto g = sequence::getA<value_type,intT>(input);

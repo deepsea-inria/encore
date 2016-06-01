@@ -412,13 +412,44 @@ public:
   
 template <class ET, class intT, class F, class G>
 typename scanSerial<ET,intT,F,G>::cfg_type scanSerial<ET,intT,F,G>::cfg = scanSerial<ET,intT,F,G>::get_cfg();
+  
+  template <class OT, class intT, class F, class G>
+  OT reduceSerial2(intT s, intT e, F f, G g) {
+    OT r = g(s);
+    for (intT j=s+1; j < e; j++) r = f(r,g(j));
+    return r;
+  }
+  
+  template <class ET, class intT, class F, class G>
+  ET scanSerial2(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool back) {
+    ET r = zero;
+    
+    if (inclusive) {
+      if (back) for (intT i = e-1; i >= s; i--) Out[i] = r = f(r,g(i));
+      else for (intT i = s; i < e; i++) Out[i] = r = f(r,g(i));
+    } else {
+      if (back)
+        for (intT i = e-1; i >= s; i--) {
+          ET t = g(i);
+          Out[i] = r;
+          r = f(r,t);
+        }
+      else
+        for (intT i = s; i < e; i++) {
+          ET t = g(i);
+          Out[i] = r;
+          r = f(r,t);
+        }
+    }
+    return r;
+  }
 
 template <class ET, class intT, class F, class G>
 class scan : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   ET* Out; intT s; intT e; F f; G g; ET zero; bool inclusive; bool back; ET* dest;
-  intT i; intT n; intT l; ET* Sums; ET tmp;
+  intT i; intT l; ET* Sums; ET tmp; std::atomic<int> foo; std::atomic<int> bar;
   
   scan() { }
   
@@ -445,6 +476,8 @@ public:
         s.Sums = malloc_array<ET>(s.l);
         p.s = 0;
         p.e = s.l;
+        s.foo.store(0);
+        s.bar.store(0);
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
@@ -455,11 +488,15 @@ public:
           return ecall<reduceSerial<ET,intT,F,G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
+          assert(p.s < p.e);
           p.s++;
         })
-      })),
+      })), /*
       dc::spawn_join([] (sar& s, par&, stt st) {
         return ecall<scan>(st, s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
+      }), */
+      dc::stmt([] (sar& s, par&) {
+        *s.dest = scanSerial2(s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back);
       }),
       dc::stmt([] (sar& s, par& p) {
         p.s = 0;
@@ -468,16 +505,31 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
+        /*
         dc::spawn_join([] (sar& s, par& p, stt st) {
           assert(p.s < p.e);
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
           return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
+        }), */
+        dc::stmt([] (sar& s, par& p) {
+          assert(p.s < p.e);
+          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
+          scanSerial2(s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back);
+                    p.s++;
         }),
         dc::stmt([] (sar& s, par& p) {
-          p.s++;
+          s.bar++;
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          //assert(p.s < p.e);
+          s.foo++;
+//          p.s++;
         })
       })),
       dc::stmt([] (sar& s, par&) {
+        int n = s.l;
+        int x = s.foo.load();
+        std::cout << "eq = " << (n == x) << " foo = " << x << " n = " << n << " bar = " << s.bar.load() << std::endl;
         free(s.Sums);
       })
     });
