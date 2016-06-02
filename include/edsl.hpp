@@ -799,6 +799,9 @@ stack_type extend_stack_with(const Function& f, Shared_activation_record& sa,
 template <class Function, class Shared_activation_record, class Private_activation_record>
 extended_stack_type extend_stack_with(const Function& f, Shared_activation_record& sa,
                                       Private_activation_record& pa, extended_stack_type s) {
+  if (empty_stack(s.stack)) {
+    s.stack = new_stack();
+  }
   s.stack = f(sa, pa, s.stack);
   return s;
 }
