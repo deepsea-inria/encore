@@ -1106,7 +1106,6 @@ public:
     int nb_orig = interp->nb_strands();
     assert(nb < nb_orig);
     assert(nb > 0);
-    std::cout << "split: nb_orig = " << nb_orig << " nb = " << nb << std::endl;
 #endif
     interpreter<extended_stack_type>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
