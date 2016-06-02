@@ -164,6 +164,19 @@ void bench_max_index() {
   free(input);
 }
 
+template <class Item>
+long count_diffs(long n, Item* trusted, Item* untested) {
+  long nb_diffs = 0;
+  for (long i = 0; i < n; i++) {
+    Item& t = trusted[i];
+    Item& u = untested[i];
+    if (t != u) {
+      nb_diffs++;
+    }
+  }
+  return nb_diffs;
+}
+
 void bench_scan() {
   using intT = int;
   using value_type = int;
@@ -193,11 +206,7 @@ void bench_scan() {
 #ifndef NDEBUG
     value_type* output2 = malloc_array<value_type>(n);
     value_type result2 = scanSerial(output2, (intT) 0, n, f, g, zero, inclusive, back);
-    for (int i = 0; i < n; i++) {
-      auto x = output[i];
-      auto y = output2[i];
-      assert(x == y);
-    }
+    assert(count_diffs(n, output2, output) == 0);
     free(output2);
 #endif
     assert(result == result2);
