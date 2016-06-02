@@ -24,16 +24,21 @@ namespace pcfg {
 using stack_type = std::pair<cactus::stack_type, cactus::stack_type>;
   
 class shared_activation_record;
+class private_activation_record;
   
 using extended_stack_type = struct {
   shared_activation_record* oldest_shared;
+  private_activation_record* oldest_private;
   stack_type stack;
 };
   
 using basic_block_label_type = int;
 
-static constexpr basic_block_label_type entry_block_label = 0;
-static constexpr basic_block_label_type exit_block_label = -1;
+static constexpr
+basic_block_label_type entry_block_label = 0;
+  
+static constexpr
+basic_block_label_type exit_block_label = -1;
   
 static constexpr int suspend_tag = -1;
 
@@ -560,7 +565,8 @@ bool empty_stack(stack_type s) {
   
 template <class Shared_activation_record, class ...Args>
 stack_type push_call(stack_type s, Args... args) {
-  //  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  // The line below is commented out to avoid a GCC bug whereby GCC segfaults.
+  // using private_activation_record = private_activation_record_of<Shared_activation_record>;
   using private_activation_record = typename Shared_activation_record::private_activation_record;
   auto ss = cactus::push_back<Shared_activation_record>(s.first, args...);
   auto ps = cactus::push_back<private_activation_record>(s.second);
@@ -609,93 +615,130 @@ std::pair<stack_type, stack_type> fork_stack(stack_type s) {
   return std::make_pair(std::make_pair(ss.first, ps.first), std::make_pair(ss.second, ps.second));
 }
   
-extended_stack_type new_stack(shared_activation_record* oldest_shared) {
+static inline
+void check_extended_stack(extended_stack_type s) {
+  assert((s.oldest_private == nullptr && s.oldest_shared == nullptr) ||
+         (s.oldest_private != nullptr && s.oldest_shared != nullptr));
+  assert((s.oldest_private == nullptr) ? empty_stack(s.stack) : true);
+}
+  
+template <class Private_activation_record>
+extended_stack_type new_stack(shared_activation_record* oldest_shared,
+                              Private_activation_record* oldest_private,
+                              stack_type stack) {
   extended_stack_type s;
   s.oldest_shared = oldest_shared;
-  s.stack = new_stack();
+  s.oldest_private = new Private_activation_record(*oldest_private);
+  s.stack = stack;
+  check_extended_stack(s);
   return s;
+}
+  
+template <class Private_activation_record>
+extended_stack_type new_stack(shared_activation_record* oldest_shared,
+                              Private_activation_record* oldest_private) {
+  return new_stack(oldest_shared, oldest_private, new_stack());
 }
 
 void delete_stack(extended_stack_type s) {
+  check_extended_stack(s);
   assert(empty_stack(s.stack));
+  s.oldest_shared = nullptr;
+  if (s.oldest_private != nullptr) {
+    delete s.oldest_private;
+    s.oldest_private = nullptr;
+  }  
   delete_stack(s.stack);
 }
   
 bool empty_stack(extended_stack_type s) {
-  return cactus::empty(s.stack.second);
+  check_extended_stack(s);
+  return s.oldest_private == nullptr;
 }
   
 template <class Shared_activation_record, class ...Args>
 extended_stack_type push_call(extended_stack_type s, Args... args) {
+  check_extended_stack(s);
   s.stack = push_call<Shared_activation_record>(s.stack, args...);
+  check_extended_stack(s);
   return s;
 }
 
 extended_stack_type pop_call(extended_stack_type s) {
-  if (cactus::empty(s.stack.first)) {
+  check_extended_stack(s);
+  assert(! empty_stack(s));
+  if (empty_stack(s.stack)) {
+    assert(s.oldest_shared != nullptr);
+    assert(s.oldest_private != nullptr);
     s.oldest_shared = nullptr;
+    delete s.oldest_private;
+    s.oldest_private = nullptr;
   } else {
-    s.stack.first = cactus::pop_back<shared_activation_record>(s.stack.first);
+    s.stack = pop_call(s.stack);
+    if (empty_stack(s.stack)) {
+      delete_stack(s.stack);
+      s.stack = new_stack();
+    }
   }
-  s.stack.second = cactus::pop_back<private_activation_record>(s.stack.second);
-  if (cactus::empty(s.stack.first)) {
-    cactus::delete_stack(s.stack.first);
-    s.stack.first = cactus::new_stack();
-  }
+  check_extended_stack(s);
   return s;
+}
+  
+template <class Shared_activation_record>
+Shared_activation_record& peek_oldest_shared_frame(extended_stack_type s) {
+  check_extended_stack(s);
+  assert(! empty_stack(s));
+  assert(s.oldest_shared != nullptr);
+  return *((Shared_activation_record*)s.oldest_shared);
+}
+
+template <class Private_activation_record>
+Private_activation_record& peek_oldest_private_frame(extended_stack_type s) {
+  check_extended_stack(s);
+  assert(! empty_stack(s));
+  assert(s.oldest_private != nullptr);
+  return *((Private_activation_record*)s.oldest_private);
 }
  
 template <class Shared_activation_record>
 Shared_activation_record& peek_newest_shared_frame(extended_stack_type s) {
-  if (cactus::empty(s.stack.first)) {
-    return *((Shared_activation_record*)s.oldest_shared);
+  check_extended_stack(s);
+  assert(! empty_stack(s));
+  if (empty_stack(s.stack)) {
+    return peek_oldest_shared_frame<Shared_activation_record>(s);
   } else {
-    return cactus::peek_back<Shared_activation_record>(s.stack.first);
+    return peek_newest_shared_frame<Shared_activation_record>(s.stack);
   }
 }
   
 template <class Private_activation_record>
 Private_activation_record& peek_newest_private_frame(extended_stack_type s) {
-  return cactus::peek_back<Private_activation_record>(s.stack.second);
-}
-  
-template <class Shared_activation_record>
-Shared_activation_record& peek_oldest_shared_frame(extended_stack_type s) {
-  assert(s.oldest_shared != nullptr);
-  return *((Shared_activation_record*)s.oldest_shared);
-}
-  
-template <class Private_activation_record>
-Private_activation_record& peek_oldest_private_frame(extended_stack_type s) {
-  return cactus::peek_front<Private_activation_record>(s.stack.second);
+  check_extended_stack(s);
+  assert(! empty_stack(s));
+  if (empty_stack(s.stack)) {
+    return peek_oldest_private_frame<Private_activation_record>(s);
+  } else {
+    return peek_newest_private_frame<Private_activation_record>(s.stack);
+  }
 }
   
 template <class Shared_activation_record>
 std::pair<extended_stack_type, stack_type> slice_stack(extended_stack_type s) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  check_extended_stack(s);
+  assert(! empty_stack(s));
   extended_stack_type s1;
-  stack_type s2;
+  stack_type s2 = s.stack;
   s1.oldest_shared = s.oldest_shared;
-  s1.stack.first = cactus::new_stack();
-  auto private_stacks = cactus::slice_front<private_activation_record>(s.stack.second);
-  s1.stack.second = private_stacks.first;
-  s2.first = s.stack.first;
-  s2.second = private_stacks.second;
+  s1.oldest_private = s.oldest_private;
+  s1.stack = new_stack();
+  check_extended_stack(s1);
   return std::make_pair(s1, s2);
 }
   
 template <class Shared_activation_record>
 std::pair<extended_stack_type, stack_type> fork_stack(extended_stack_type s) {
-  using private_activation_record = private_activation_record_of<Shared_activation_record>;
-  extended_stack_type s1;
-  stack_type s2;
-  s1.oldest_shared = s.oldest_shared;
-  s1.stack.first = cactus::new_stack();
-  s2.first = s.stack.first;
-  auto private_stacks = cactus::fork_front<private_activation_record>(s.stack.second);
-  s1.stack.second = private_stacks.first;
-  s2.second = private_stacks.second;
-  return std::make_pair(s1, s2);
+  return slice_stack<Shared_activation_record>(s);
 }
  
 template <class Stack>
@@ -706,10 +749,6 @@ public:
   
   interpreter() {
     stack = new_stack();
-  }
-  
-  interpreter(shared_activation_record* s) {
-    stack = new_stack(s);
   }
   
   interpreter(Stack stack)
@@ -1032,6 +1071,8 @@ public:
                                  int nb) {
     interpreter<Stack>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
+    assert(false); // fix later
+    /*
     interp1 = interp;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp1->stack);
     parallel_loop_activation_record& lp_ar = *oldest_private->loop_activation_record_of(id);
@@ -1051,7 +1092,7 @@ public:
     }
     children->second.push_back(interp2->get_outset());
     lp_ar2.get_parent() = (void*)oldest_private;
-    interp2->release_handle->decrement();
+    interp2->release_handle->decrement(); */
     return std::make_pair(interp1, interp2);
   }
   
@@ -1063,6 +1104,9 @@ public:
                      int nb) {
 #ifndef NDEBUG
     int nb_orig = interp->nb_strands();
+    assert(nb < nb_orig);
+    assert(nb > 0);
+    std::cout << "split: nb_orig = " << nb_orig << " nb = " << nb << std::endl;
 #endif
     interpreter<extended_stack_type>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
@@ -1074,15 +1118,12 @@ public:
       join = interp;
       auto stacks = slice_stack<sar>(interp->stack);
       interp->stack = stacks.first;
-      interp1 = new interpreter<extended_stack_type>(oldest_shared);
-      extended_stack_type& stack1 = interp1->stack;
-      stack1.stack.second = cactus::push_back<par>(stack1.stack.second, *oldest_private);
-      par& private1 = peek_oldest_private_frame<par>(stack1);
+      interp1 = new interpreter<extended_stack_type>(new_stack(oldest_shared, oldest_private, stacks.second));
+      par& private1 = peek_oldest_private_frame<par>(interp1->stack);
       private1.initialize_descriptors();
       auto& lp_ar1 = *private1.loop_activation_record_of(id);
       lp_ar.split(&lp_ar1, lp_ar.nb_strands());
       lp_ar1.get_join() = join;
-      private1.trampoline = pl_descr.entry;
       oldest_private->trampoline = pl_descr.exit;
       lp_ar.get_join() = nullptr;
       sched::new_edge(interp1, join);
@@ -1090,10 +1131,8 @@ public:
     } else {
       interp1 = (interpreter<extended_stack_type>*)interp;
     }
-    interp2 = new interpreter<extended_stack_type>(oldest_shared);
-    extended_stack_type& stack2 = interp2->stack;
-    stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
-    par& private2 = peek_oldest_private_frame<par>(stack2);
+    interp2 = new interpreter<extended_stack_type>(new_stack(oldest_shared, oldest_private));
+    par& private2 = peek_oldest_private_frame<par>(interp2->stack);
     private2.initialize_descriptors();
     auto& lp_ar2 = *private2.loop_activation_record_of(id);
     peek_oldest_private_frame<par>(interp1->stack).loop_activation_record_of(id)->split(&lp_ar2, nb);
