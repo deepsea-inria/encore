@@ -418,7 +418,7 @@ class scan : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   ET* Out; intT s; intT e; F f; G g; ET zero; bool inclusive; bool back; ET* dest;
-  intT i; intT l; ET* Sums; ET tmp;
+  intT i; intT l; ET* Sums;
   
   scan() { }
   
@@ -427,6 +427,7 @@ public:
   
   encore_private_activation_record_begin(encore::edsl, scan, 2)
     int s; int e;
+    ET tmp;
   encore_private_activation_record_end(encore::edsl, scan, sar, par, dc, get_dc)
   
   static
@@ -472,7 +473,7 @@ public:
         dc::spawn_join([] (sar& s, par& p, stt st) {
           assert(p.s < p.e);
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &s.tmp);
+          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &p.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           assert(p.s < p.e);
