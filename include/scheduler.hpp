@@ -45,6 +45,16 @@ private:
   
   weighted_seq_type vs;
   
+  vertex* pop() {
+    assert(vs.size() >= 1);
+#ifdef ENCORE_RANDOMIZE_SCHEDULE
+    int pos = rand() % vs.size();
+    vertex* tmp = vs.pop_back();
+    vs.insert(vs.begin() + pos, tmp);
+#endif
+    return vs.pop_back();
+  }
+  
 public:
   
   int nb_strands() {
@@ -62,7 +72,7 @@ public:
   
   int run(int fuel) {
     while (fuel > 0 && ! vs.empty()) {
-      vertex* v = vs.pop_back();
+      vertex* v = pop();
       fuel = run_vertex(v, fuel);
       if (v->nb_strands() == 0) {
         parallel_notify(v->is_future(), v->get_outset());
