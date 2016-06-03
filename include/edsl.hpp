@@ -653,6 +653,7 @@ void delete_stack(extended_stack_type s) {
   
 bool empty_stack(extended_stack_type s) {
   check_extended_stack(s);
+  assert(s.oldest_private == nullptr ? empty_stack(s.stack) : true);
   return s.oldest_private == nullptr;
 }
   
