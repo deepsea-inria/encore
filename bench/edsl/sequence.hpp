@@ -713,8 +713,15 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-          s.Fl[p.s] = (bool)s.p(s.In[p.s]);
-          p.s++;
+          auto Fl = s.Fl;
+          auto pr = s.p;
+          auto In = s.In;
+          intT ss = p.s;
+          intT ee = std::min(p.e, p.s + threshold);
+          for (; ss < ee; ss++) {
+            Fl[ss] = (bool)pr(In[ss]);
+          }
+          p.s = ss;
         })
       })),
       dc::spawn_join([] (sar& s, par& p, stt st) {
@@ -761,8 +768,15 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-          s.Fl[p.s] = (bool)s.p(s.In[p.s]);
-          p.s++;
+          auto Fl = s.Fl;
+          auto pr = s.p;
+          auto In = s.In;
+          intT ss = p.s;
+          intT ee = std::min(p.e, p.s + threshold);
+          for (; ss < ee; ss++) {
+            Fl[ss] = (bool)pr(In[ss]);
+          }
+          p.s = ss;
         })
       })),
       dc::spawn_join([] (sar& s, par& p, stt st) {
