@@ -185,12 +185,12 @@ public:
            sched::incounter** join)
   : visited(visited), graph(graph), v(v), join(join) { }
   
-  encore_dc_declare(encore::edsl, pdfs_rec, sar, par, dc, get_dc)
+  encore_private_activation_record_begin(encore::edsl, pdfs_rec, 1)
+    int lo; int hi;
+    Vertex_id s;
+  encore_private_activation_record_end(encore::edsl, pdfs_rec, sar, par, dc, get_dc)
   
   neighbor_list_type neighbors;
-  size_type lo;
-  size_type hi;
-  Vertex_id s;
   
   static
   bool try_to_claim(std::atomic<int>* visited, Vertex_id v) {
@@ -201,22 +201,24 @@ public:
   static
   dc get_dc() {
     return dc::stmts( {
-      dc::stmt([] (sar& s, par&) {
-        s.lo = 0;
-        s.hi = s.graph->get_out_degree_of(s.v);
+      dc::stmt([] (sar& s, par& p) {
+        p.lo = 0;
+        p.hi = (int)s.graph->get_out_degree_of(s.v);
         s.neighbors = s.graph->get_out_edges_of(s.v);
       }),
-      dc::sequential_loop([] (sar& s, par&) { return s.lo != s.hi; }, dc::stmts({
-        dc::stmt([] (sar& s, par&) {
-          s.s = s.neighbors[s.lo];
+      dc::parallel_for_loop([] (sar& s, par& p) { return p.lo < p.hi; },
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          p.s = s.neighbors[p.lo];
         }),
-        dc::mk_if([] (sar& s, par&) { return s.visited[s.s].load() == 0; },
-          dc::mk_if([] (sar& s, par&) { return try_to_claim(s.visited, s.s); },
-            dc::spawn_minus([] (sar& s, par&, stt st) {
-              return ecall<pdfs_rec>(st, s.visited, s.graph, s.s, s.join); },
+        dc::mk_if([] (sar& s, par& p) { return s.visited[p.s].load() == 0; },
+          dc::mk_if([] (sar& s, par& p) { return try_to_claim(s.visited, p.s); },
+            dc::spawn_minus([] (sar& s, par& p, stt st) {
+              return ecall<pdfs_rec>(st, s.visited, s.graph, p.s, s.join); },
               [] (sar& s, par&) { return s.join; }))),
-        dc::stmt([] (sar& s, par&) {
-          s.lo++;
+        dc::stmt([] (sar& s, par& p) {
+          p.lo++;
         })
       }))
     });
