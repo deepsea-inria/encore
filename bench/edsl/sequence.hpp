@@ -528,6 +528,7 @@ public:
           int rr = 0;
           for (int j=0; j < 128; j++) rr += s.IFl[j];
           s.r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
+          s.IFl += 128;
           s.k++;
         }))
       }),
@@ -535,6 +536,7 @@ public:
         intT r = 0;
         for (intT j=0; j < s.n; j++) r += s.Fl[j];
         s.r = r;
+        s.j++;
       }))),
       dc::stmt([] (sar& s, par&) {
         *s.dest = s.r;
@@ -595,7 +597,7 @@ class pack : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   ET* Out; bool* Fl; intT s; intT e; F f; _seq<ET>* dest;
-  intT l; intT m; _seq<ET> tmp; intT* Sums;
+  intT l; intT m; intT* Sums;
   
   pack() { }
 
@@ -604,6 +606,7 @@ public:
   
   encore_private_activation_record_begin(encore::edsl, pack, 2)
     int s; int e;
+    _seq<ET> tmp;
   encore_private_activation_record_end(encore::edsl, pack, sar, par, dc, get_dc)
   
   static
@@ -645,7 +648,7 @@ public:
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[s.s], s.Fl, rng.lo, rng.hi, s.f, &s.tmp);
+          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[s.s], s.Fl, rng.lo, rng.hi, s.f, &p.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
