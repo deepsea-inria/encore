@@ -243,7 +243,9 @@ void bench_pack() {
     _seq<value_type> output2 = packSerial((value_type*)nullptr, flags, (intT)0, n, f);
     assert(output.n == output2.n);
     for (int i = 0; i < output.n; i++) {
-      assert(output.A[i] == output2.A[i]);
+      auto u = output.A[i];
+      auto t = output2.A[i];
+      assert(u == t);
     }
     output2.del();
 #endif

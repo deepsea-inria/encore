@@ -609,11 +609,16 @@ public:
     _seq<ET> tmp;
   encore_private_activation_record_end(encore::edsl, pack, sar, par, dc, get_dc)
   
+  static inline
+  int get_pack_block_size() {
+    return 2 * block_size;
+  }
+  
   static
   dc get_dc() {
     return dc::stmts({
       dc::stmt([] (sar& s, par&) {
-        s.l = nb_blocks(s.e - s.s, block_size);
+        s.l = nb_blocks(s.e - s.s, get_pack_block_size());
       }),
       dc::mk_if([] (sar& s, par&) { return s.l <= 1; }, dc::stmts({
         dc::spawn_join([] (sar& s, par&, stt st) {
@@ -621,15 +626,17 @@ public:
         }),
         dc::exit()
       })),
-      dc::stmt([] (sar& s, par&) {
+      dc::stmt([] (sar& s, par& p) {
         s.Sums = malloc_array<intT>(s.l);
+        p.s = 0;
+        p.e = s.l;
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<sumFlagsSerial<intT>>(st, s.Fl + rng.lo, rng.hi - rng.lo, &s.Sums[s.s]);
+          auto rng = get_rng(get_pack_block_size(), p.s, p.e, s.s, s.e);
+          return ecall<sumFlagsSerial<intT>>(st, s.Fl + rng.lo, rng.hi - rng.lo, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -647,8 +654,8 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[s.s], s.Fl, rng.lo, rng.hi, s.f, &p.tmp);
+          auto rng = get_rng(get_pack_block_size(), p.s, p.e, s.s, s.e);
+          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[p.s], s.Fl, rng.lo, rng.hi, s.f, &p.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
