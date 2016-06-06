@@ -228,7 +228,7 @@ void bench_pack() {
   _seq<value_type> output;
   for (intT i = 0; i < n; i++) {
     input[i] = (value_type)i;
-    flags[i] = rand() % m;
+    flags[i] = rand() % 3 == 0;
   }
   auto f = sequence::getA<value_type,intT>(input);
   if (algorithm == "encore") {
@@ -266,7 +266,7 @@ void bench_filter() {
   _seq<value_type> output;
   for (intT i = 0; i < n; i++) {
     input[i] = (value_type)i;
-    flags[i] = rand() % m;
+    flags[i] = rand() % 3 == 0;
   }
   auto p = [&] (value_type v) {
     return flags[v];
@@ -284,7 +284,9 @@ void bench_filter() {
     output2 = filterSerial(input, n, p);
     assert(output.n == output2.n);
     for (int i = 0; i < output.n; i++) {
-      assert(output.A[i] == output2.A[i]);
+      auto u = output.A[i];
+      auto t = output2.A[i];
+      assert(t == u);
     }
     output2.del();
 #endif
