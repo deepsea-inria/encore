@@ -21,8 +21,8 @@ struct _seq {
 
 namespace sequence {
  
-int threshold = 4;
-int block_size = 8;
+int threshold = 1024;
+int block_size = 2048;
   
 template <class intT>
 struct boolGetA {
