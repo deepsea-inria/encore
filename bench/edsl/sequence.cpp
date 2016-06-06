@@ -220,7 +220,7 @@ void bench_pack() {
   using intT = int;
   using value_type = int;
   intT n = std::max(2, cmdline::parse<intT>("n"));
-  intT m = cmdline::parse_or_default("m", n / 2);
+  intT m = cmdline::parse_or_default("m", 3);
   bool check = cmdline::parse_or_default("check", false);
   std::string algorithm = cmdline::parse<std::string>("algorithm");
   value_type* input = malloc_array<value_type>(n);
@@ -228,7 +228,7 @@ void bench_pack() {
   _seq<value_type> output;
   for (intT i = 0; i < n; i++) {
     input[i] = (value_type)i;
-    flags[i] = rand() % 3 == 0;
+    flags[i] = rand() % m == 0;
   }
   auto f = sequence::getA<value_type,intT>(input);
   if (algorithm == "encore") {
@@ -258,7 +258,7 @@ void bench_filter() {
   using intT = int;
   using value_type = int;
   intT n = std::max(2, cmdline::parse<intT>("n"));
-  intT m = cmdline::parse_or_default("m", n / 2);
+  intT m = cmdline::parse_or_default("m", 3);
   bool check = cmdline::parse_or_default("check", false);
   std::string algorithm = cmdline::parse<std::string>("algorithm");
   value_type* input = malloc_array<value_type>(n);
@@ -266,7 +266,7 @@ void bench_filter() {
   _seq<value_type> output;
   for (intT i = 0; i < n; i++) {
     input[i] = (value_type)i;
-    flags[i] = rand() % 3 == 0;
+    flags[i] = rand() % m == 0;
   }
   auto p = [&] (value_type v) {
     return flags[v];
