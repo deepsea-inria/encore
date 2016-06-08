@@ -15,97 +15,6 @@ namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
 
-template <class OT, class intT, class F, class G>
-OT reduceSerial(intT s, intT e, F f, G g) {
-  OT r = g(s);
-  for (intT j=s+1; j < e; j++) r = f(r,g(j));
-  return r;
-}
-
-template <class ET, class intT, class F, class G>
-intT maxIndexSerial(intT s, intT e, F f, G g) {
-  ET r = g(s);
-  intT k = 0;
-  for (intT j=s+1; j < e; j++) {
-    ET v = g(j);
-    if (f(v,r)) { r = v; k = j;}
-  }
-  return k;
-}
-
-template <class ET, class intT, class F, class G>
-ET scanSerial(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool back) {
-  ET r = zero;
-  
-  if (inclusive) {
-    if (back) for (intT i = e-1; i >= s; i--) Out[i] = r = f(r,g(i));
-    else for (intT i = s; i < e; i++) Out[i] = r = f(r,g(i));
-  } else {
-    if (back)
-      for (intT i = e-1; i >= s; i--) {
-        ET t = g(i);
-        Out[i] = r;
-        r = f(r,t);
-      }
-    else
-      for (intT i = s; i < e; i++) {
-        ET t = g(i);
-        Out[i] = r;
-        r = f(r,t);
-      }
-  }
-  return r;
-}
-
-// sums a sequence of n boolean flags
-// an optimized version that sums blocks of 4 booleans by treating
-// them as an integer
-// Only optimized when n is a multiple of 512 and Fl is 4byte aligned
-template <class intT>
-intT sumFlagsSerial(bool *Fl, intT n) {
-  intT r = 0;
-  if (n >= 128 && (n & 511) == 0 && ((long) Fl & 3) == 0) {
-    int* IFl = (int*) Fl;
-    for (int k = 0; k < (n >> 9); k++) {
-      int rr = 0;
-      for (int j=0; j < 128; j++) rr += IFl[j];
-      r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
-      IFl += 128;
-    }
-  } else for (intT j=0; j < n; j++) r += Fl[j];
-  return r;
-}
-
-template <class ET, class intT, class F>
-_seq<ET> packSerial(ET* Out, bool* Fl, intT s, intT e, F f) {
-  if (Out == NULL) {
-    intT m = sumFlagsSerial(Fl+s, e-s);
-    Out = newA(ET,m);
-  }
-  intT k = 0;
-  for (intT i=s; i < e; i++) if (Fl[i]) Out[k++] = f(i);
-  return _seq<ET>(Out,k);
-}
-
-template <class ET, class intT, class PRED>
-_seq<ET> filterSerial(ET* In, intT n, PRED p) {
-  intT m = 0;
-  for (int i = 0; i < n; i++) {
-    if (p(In[i])) {
-      m++;
-    }
-  }
-  ET* A = malloc_array<ET>(m);
-  _seq<ET> result(A, m);
-  m = 0;
-  for (int i = 0; i < n; i++) {
-    if (p(In[i])) {
-      A[m++] = In[i];
-    }
-  }
-  return result;
-}
-
 void bench_reduce() {
   using intT = int;
   using value_type = int;
@@ -125,12 +34,12 @@ void bench_reduce() {
     encore::launch_interpreter<sequence::reduceSerial<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
-      result = reduceSerial<value_type>(0, n, f, g);
+      result = pbbs::sequence::reduceSerial<value_type>(0, n, f, g);
     });
   }
   if (check) {
 #ifndef NDEBUG
-    value_type result2 = reduceSerial<value_type>(0, n, f, g);
+    value_type result2 = pbbs::sequence::reduceSerial<value_type>(0, n, f, g);
 #endif
     assert(result == result2);
   }
@@ -156,12 +65,12 @@ void bench_max_index() {
     encore::launch_interpreter<sequence::maxIndexSerial<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
-      result = maxIndexSerial<value_type>(0, n, f, g);
+      result = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
     });
   }
   if (check) {
 #ifndef NDEBUG
-    value_type result2 = maxIndexSerial<value_type>(0, n, f, g);
+    value_type result2 = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
 #endif
     assert(result == result2);
   }
@@ -205,13 +114,13 @@ void bench_scan() {
     encore::launch_interpreter<sequence::scanSerial<value_type,intT,typeof(f),typeof(g)>>(output, 0, n, f, g, zero, inclusive, back, &result);
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
-      result = scanSerial<value_type>(output, (intT) 0, n, f, g, zero, inclusive, back);
+      result = pbbs::sequence::scanSerial<value_type>(output, (intT) 0, n, f, g, zero, inclusive, back);
     });
   }
   if (check) {
 #ifndef NDEBUG
     value_type* output2 = malloc_array<value_type>(n);
-    value_type result2 = scanSerial(output2, (intT) 0, n, f, g, zero, inclusive, back);
+    value_type result2 = pbbs::sequence::scanSerial(output2, (intT) 0, n, f, g, zero, inclusive, back);
     auto nb_diffs = count_diffs(n, output2, output);
     assert(nb_diffs == 0);
     free(output2);
@@ -243,12 +152,12 @@ void bench_pack() {
     encore::launch_interpreter<sequence::packSerial<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
-      output = packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+      output = pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f);
     });
   }
   if (check) {
 #ifndef NDEBUG
-    _seq<value_type> output2 = packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+    _seq<value_type> output2 = pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f);
     assert(output.n == output2.n);
     for (int i = 0; i < output.n; i++) {
       auto u = output.A[i];
@@ -260,6 +169,25 @@ void bench_pack() {
   }
   free(input);
   output.del();
+}
+
+template <class ET, class intT, class PRED>
+_seq<ET> filterSerial(ET* In, intT n, PRED p) {
+  intT m = 0;
+  for (int i = 0; i < n; i++) {
+    if (p(In[i])) {
+      m++;
+    }
+  }
+  ET* A = malloc_array<ET>(m);
+  _seq<ET> result(A, m);
+  m = 0;
+  for (int i = 0; i < n; i++) {
+    if (p(In[i])) {
+      A[m++] = In[i];
+    }
+  }
+  return result;
 }
 
 void bench_filter() {
