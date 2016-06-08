@@ -57,7 +57,10 @@ let file_plots exp_name =
 (** Evaluation functions *)
 
 let eval_exectime = fun env all_results results ->
-   Results.get_mean_of "exectime" results
+  Results.get_mean_of "exectime" results
+
+let eval_exectime_stddev = fun env all_results results ->
+  Results.get_stddev_of "exectime" results
 
 let default_formatter =
  Env.format (Env.(format_values  [ "size"; ]))
@@ -269,70 +272,55 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
-(** Comparison-sort benchmark *)
+(** Sequence-library benchmark *)
 
-module ExpEvaluate = struct
+module ExpSequenceLibrary = struct
 
-let mk_proc = mk_list int "proc" arg_proc
+let name = "sequence.opt"
 
-let prog_names = function
-  | "comparison_sort" -> "samplesort"
-  | "blockradix_sort" -> "blockradixsort"
-  | "remove_duplicates" -> "deterministichash"
-  | "suffix_array" -> "suffixarray"
-  | "convex_hull" -> "quickhull"
-  | "nearest_neighbours" -> "nearestneighbours"
-  | "ray_cast" -> "raycast"
-  | _ -> Pbench.error "invalid benchmark"
+let prog = name
 
-let prog benchmark =
-  sprintf "./%s_bench.%s" (prog_names benchmark) arg_extension
+let mk_algorithms = mk_list string "algortithm" [ "sequential"; "pbbs"; "encore" ]
+
+let mk_operations = mk_list string "operations" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
+
+let mk_thresholds = mk_list int "threshold" [ 512; 1024; ]
+
+let mk_input_sizes = mk_list int "n" [ 200000000 ]
 
 let make() =
-  List.iter (fun benchmark ->
-    build "." [prog benchmark] arg_virtual_build
-  ) arg_benchmarks
+  build "." [prog] arg_virtual_build
 
 let run() =
-  List.iter (fun benchmark ->
-    Mk_runs.(call (run_modes @ [
-      Output (file_results benchmark);
-      Timeout 400;
-      Args (
-        mk_prog (prog benchmark)
-      & (
-        mk_sequence_input_names benchmark
-      )
-      & mk_lib_types & mk_proc)]))
-  ) arg_benchmarks
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_algorithms & mk_operations & mk_thresholds & mk_input_sizes
+    )
+  ]))
 
 let check = nothing  (* do something here *)
 
 let plot() =
-  List.iter (fun benchmark ->
-    let eval_relative = fun env all_results results ->
-      let pbbs_results = ~~ Results.filter_by_params all_results (
-        from_env (Env.add (Env.filter_keys ["typ"; "infile"; "proc"] env) "lib_type" (Env.Vstring "pbbs"))
-      ) in
-      if pbbs_results = [] then Pbench.error ("no results for pbbs library");
-      let v = Results.get_mean_of "exectime" results in
-      let b = Results.get_mean_of "exectime" pbbs_results in
-      v /. b
-      in
-    Mk_bar_plot.(call ([
+     Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
+         Chart_opt Chart.([Dimensions (12.,8.) ]);
          X_titles_dir Vertical;
-         Y_axis [Axis.Lower (Some 0.)] ]);
+         Y_axis [ Axis.Lower (Some 0.);
+                  Axis.Is_log false ]
+         ]);
       Formatter default_formatter;
-      Charts mk_proc;
-      Series mk_lib_types;
-      X (mk_sequence_input_names benchmark);
-      Input (file_results benchmark);
-      Output (file_plots benchmark);
+      Charts mk_operations;
+      Series mk_algorithms;
+      X (mk_thresholds & mk_input_sizes);
       Y_label "exectime";
-      Y eval_relative;
-    ]))
-  ) arg_benchmarks
+      Y eval_exectime;
+      Y_whiskers eval_exectime_stddev;
+      Output (file_plots name);
+      Results (Results.from_file (file_results "sequence.opt"));
+      ]))
 
 let all () = select make run check plot
 
@@ -345,7 +333,7 @@ let _ =
   let arg_actions = XCmd.get_others() in
   let bindings = [
     "generate", ExpGenerate.all;
-    "evaluate", ExpEvaluate.all;
+    "sequence", ExpSequenceLibrary.all;
   ]
   in
   system("mkdir -p _data") arg_virtual_run;

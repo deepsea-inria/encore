@@ -1,8 +1,7 @@
 all: basic
 
-PBENCH_PATH=../..
+PBENCH_PATH=../../../pbench
 
 include $(PBENCH_PATH)/Makefile_common
 
-bench.pbench:
-	ocamlc $(XLIB_INCLUDES) $(XLIB_LIBS) $(XLIB_SRC) nums.cma bench.ml -o $@
+clean: pbench_clean
