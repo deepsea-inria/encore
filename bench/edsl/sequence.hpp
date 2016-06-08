@@ -87,16 +87,10 @@ public:
         s.s++;
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
-        F f = s.f;
-        G g = s.g;
         intT ss = s.s;
-        intT e = std::min(s.e, ss + threshold);
-        OT r = *s.dest;
-        for (; ss < e; ss++) {
-          r = f(r, g(ss));
-        }
-        *s.dest = r;
-        s.s = ss;
+        intT ee = std::min(s.e, ss + threshold);
+        *s.dest = s.f(*s.dest, pbbs::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
+        s.s = ee;
       }))
     });
   }
@@ -190,7 +184,6 @@ class maxIndexSerial : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   intT s; intT e; F f; G g; intT* dest;
-  intT k;
   
   maxIndexSerial() { }
   
@@ -203,27 +196,16 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::stmt([] (sar& s, par&) {
-        s.k = 0;
-        *s.dest = s.g(s.s);
-        s.s++;
+        *s.dest = 0;
       }),
-      dc::sequential_loop([] (sar& s, par&) { return s.s != s.e; }, dc::stmt([] (sar& s, par&) {
-        intT j = s.s;
-        intT k = s.k;
-        intT r = *s.dest;
-        auto g = s.g;
-        auto f = s.f;
-        intT e = std::min(s.e, j + threshold);
-        for (; j < e; j++) {
-          ET v = g(j);
-          if (f(v,r)) {
-            r = v;
-            k = j;
-          }
+      dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
+        intT ss = s.s;
+        intT ee = std::min(s.e, ss + threshold);
+        intT m = pbbs::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
+        if (s.f(s.g(m), s.g(*s.dest))) {
+          *s.dest = m;
         }
-        *s.dest = r;
-        s.k = k;
-        s.s = j;
+        s.s = ee;
       }))
     });
   }
@@ -522,7 +504,8 @@ public:
         }),
         dc::sequential_loop([] (sar& s, par&) { return s.k < (s.n >> 9); }, dc::stmt([] (sar& s, par&) {
           int rr = 0;
-          for (int j=0; j < 128; j++) rr += s.IFl[j];
+          auto IFl = s.IFl;
+          for (int j=0; j < 128; j++) rr +=IFl[j];
           s.r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
           s.IFl += 128;
           s.k++;
@@ -530,7 +513,8 @@ public:
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.j < s.n; }, dc::stmt([] (sar& s, par&) {
         intT r = 0;
-        for (intT j=0; j < s.n; j++) r += s.Fl[j];
+        auto Fl = s.Fl;
+        for (intT j=0; j < s.n; j++) r += Fl[j];
         s.r = r;
         s.j++;
       }))),
