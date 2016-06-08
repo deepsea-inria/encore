@@ -36,6 +36,10 @@ void bench_reduce() {
     encore::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::reduceSerial<value_type>(0, n, f, g);
     });
+  } else if (algorithm == "pbbs") {
+    encore::run_and_report_elapsed_time([&] {
+      result = pbbs::sequence::reduce<value_type>(0, n, f, g);
+    });
   }
   if (check) {
 #ifndef NDEBUG
@@ -66,6 +70,10 @@ void bench_max_index() {
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
+    });
+  } else if (algorithm == "pbbs") {
+    encore::run_and_report_elapsed_time([&] {
+      result = pbbs::sequence::maxIndex<value_type>(0, n, f, g);
     });
   }
   if (check) {
@@ -116,6 +124,10 @@ void bench_scan() {
     encore::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::scanSerial<value_type>(output, (intT) 0, n, f, g, zero, inclusive, back);
     });
+  } else if (algorithm == "pbbs") {
+    encore::run_and_report_elapsed_time([&] {
+      result = pbbs::sequence::scan<value_type>(output, (intT) 0, n, f, g, zero, inclusive, back);
+    });
   }
   if (check) {
 #ifndef NDEBUG
@@ -153,6 +165,10 @@ void bench_pack() {
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
       output = pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+    });
+  } else if (algorithm == "pbbs") {
+    encore::run_and_report_elapsed_time([&] {
+      output = pbbs::sequence::pack((value_type*)nullptr, flags, (intT)0, n, f);
     });
   }
   if (check) {
@@ -214,6 +230,10 @@ void bench_filter() {
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
       output = filterSerial(input, n, p);
+    });
+  } else if (algorithm == "pbbs") {
+    encore::run_and_report_elapsed_time([&] {
+      output = pbbs::sequence::filter(input, n, p);
     });
   }
   if (check) {
