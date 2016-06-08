@@ -12,17 +12,6 @@ T* malloc_array(size_t n) {
   return (T*)malloc(n * sizeof(T));
 }
 
-/*
-template <class T>
-struct _seq {
-  T* A;
-  long n;
-  _seq() {A = NULL; n=0;}
-  _seq(T* _A, long _n) : A(_A), n(_n) {}
-  void del() {free(A);}
-};
-*/
-
 template <class T>
 using _seq = pbbs::_seq<T>;
 
