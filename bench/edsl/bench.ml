@@ -15,7 +15,6 @@ let arg_onlys = XCmd.parse_or_default_list_string "only" []
 let arg_sizes = XCmd.parse_or_default_list_string "size" ["all"]
 let arg_benchmarks = XCmd.parse_or_default_list_string "benchmark" ["all"]
 let arg_proc = XCmd.parse_or_default_list_int "proc" [1; 10; 40]
-let arg_extension = XCmd.parse_or_default_string "ext" "norm"
             
 let run_modes =
   Mk_runs.([
@@ -49,10 +48,10 @@ let build path bs is_virtual =
    system (sprintf "make -C %s -j %s" path (String.concat " " bs)) is_virtual
 
 let file_results exp_name =
-  Printf.sprintf "results_%s_%s.txt" exp_name arg_extension
+  Printf.sprintf "results_%s.txt" exp_name
 
 let file_plots exp_name =
-  Printf.sprintf "_plots/plots_%s_%s.pdf" exp_name arg_extension
+  Printf.sprintf "_plots/plots_%s.pdf" exp_name
 
 (** Evaluation functions *)
 
@@ -247,7 +246,7 @@ module ExpGenerate = struct
 
 let name = "generate"
 
-let prog = "./sequence_data.norm"
+let prog = "./sequence_data.opt"
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -276,29 +275,29 @@ end
 
 module ExpSequenceLibrary = struct
 
-let name = "sequence.opt"
+let name = "sequence"
 
-let prog = name
+let prog_encore = name^".encore"
 
-let mk_algorithms = mk_list string "algortithm" [ "sequential"; "pbbs"; "encore" ]
+let prog_cilk = name^".cilk"
 
-let mk_operations = mk_list string "operations" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
+let mk_algorithms = (
+     (mk_prog prog_encore & mk string "algorithm" "sequential")
+  ++ (mk_prog prog_cilk   & mk string "algorithm" "pbbs")
+  ++ (mk_prog prog_encore & mk string "algorithm" "encore"))
 
-let mk_thresholds = mk_list int "threshold" [ 512; 1024; ]
+let mk_operations = mk_list string "operation" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
 
-let mk_input_sizes = mk_list int "n" [ 200000000 ]
+let mk_input_sizes = mk_list int "n" [ 400000000 ]
 
 let make() =
-  build "." [prog] arg_virtual_build
+  build "." [prog_encore; prog_cilk] arg_virtual_build
 
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 400;
-    Args (
-      mk_prog prog
-    & mk_algorithms & mk_operations & mk_thresholds & mk_input_sizes
-    )
+    Args (mk_algorithms & mk_operations & mk_input_sizes)
   ]))
 
 let check = nothing  (* do something here *)
@@ -306,20 +305,20 @@ let check = nothing  (* do something here *)
 let plot() =
      Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
-         Chart_opt Chart.([Dimensions (12.,8.) ]);
+(*         Chart_opt Chart.([Dimensions (12.,8.) ]);
          X_titles_dir Vertical;
          Y_axis [ Axis.Lower (Some 0.);
-                  Axis.Is_log false ]
+                  Axis.Is_log false ] *)
          ]);
       Formatter default_formatter;
       Charts mk_operations;
       Series mk_algorithms;
-      X (mk_thresholds & mk_input_sizes);
+      X mk_input_sizes;
       Y_label "exectime";
       Y eval_exectime;
       Y_whiskers eval_exectime_stddev;
       Output (file_plots name);
-      Results (Results.from_file (file_results "sequence.opt"));
+      Results (Results.from_file (file_results name));
       ]))
 
 let all () = select make run check plot
@@ -336,7 +335,5 @@ let _ =
     "sequence", ExpSequenceLibrary.all;
   ]
   in
-  system("mkdir -p _data") arg_virtual_run;
-  system("mkdir -p _plots") arg_virtual_run;
   Pbench.execute_from_only_skip arg_actions [] bindings;
   ()
