@@ -51,7 +51,7 @@ let file_results exp_name =
   Printf.sprintf "results_%s.txt" exp_name
 
 let file_plots exp_name =
-  Printf.sprintf "_plots/plots_%s.pdf" exp_name
+  Printf.sprintf "plots_%s.pdf" exp_name
 
 (** Evaluation functions *)
 
@@ -61,8 +61,15 @@ let eval_exectime = fun env all_results results ->
 let eval_exectime_stddev = fun env all_results results ->
   Results.get_stddev_of "exectime" results
 
+let formatter_settings = Env.(
+    ["prog", Format_custom (fun s -> "")]
+  @ ["algorithm", Format_custom (fun s -> s)]
+  @ ["n", Format_custom (fun s -> sprintf "Input: %s 32-bit ints" s)]
+  @ ["exectime", Format_custom (fun s -> sprintf "Time (s)")]
+  @ ["operation", Format_custom (fun s -> s)])
+
 let default_formatter =
- Env.format (Env.(format_values  [ "size"; ]))
+ Env.format formatter_settings
 
 (*****************************************************************************)
 (** Input data **)
@@ -281,10 +288,20 @@ let prog_encore = name^".encore"
 
 let prog_cilk = name^".cilk"
 
+let mk_encore_setting threshold block_size =
+  mk int "threshold" threshold & mk int "block_size" block_size
+
+let mk_encore_settings = (
+    mk_encore_setting 1024 2048
+ ++ mk_encore_setting 2048 4096
+ ++ mk_encore_setting 4098 8192)
+
 let mk_algorithms = (
      (mk_prog prog_encore & mk string "algorithm" "sequential")
   ++ (mk_prog prog_cilk   & mk string "algorithm" "pbbs")
-  ++ (mk_prog prog_encore & mk string "algorithm" "encore"))
+  ++ (  (mk_prog prog_encore & mk string "algorithm" "encore")
+      & mk_encore_settings)
+)
 
 let mk_operations = mk_list string "operation" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
 
