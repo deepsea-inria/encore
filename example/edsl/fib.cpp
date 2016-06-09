@@ -2,11 +2,6 @@
 #include <iostream>
 #include <chrono>
 
-#ifdef USE_CILK_PLUS
-#include <cilk/cilk.h>
-#include <cilk/cilk_api.h>
-#endif
-
 #include "encore.hpp"
 
 int fib(int n) {
@@ -165,14 +160,6 @@ public:
 encore_pcfg_allocate(fib_dc, get_cfg)
 
 namespace cmdline = deepsea::cmdline;
-
-#ifdef USE_CILK_PLUS
-void initialize_cilk() {
-  int nb_workers = cmdline::parse_or_default("proc", 1);
-  std::string nb_workers_str = std::to_string(nb_workers);
-  __cilkrts_set_param("nworkers", nb_workers_str.c_str());
-}
-#endif
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);

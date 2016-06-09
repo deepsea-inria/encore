@@ -3,6 +3,11 @@
 #include "edsl.hpp"
 #include "cmdline.hpp"
 
+#ifdef USE_CILK_PLUS
+#include <cilk/cilk.h>
+#include <cilk/cilk_api.h>
+#endif
+
 #ifndef _ENCORE_H_
 #define _ENCORE_H_
 
@@ -48,12 +53,23 @@ public:
 template <class Function>
 typename call_and_report_elapsed<Function>::cfg_type call_and_report_elapsed<Function>::cfg = call_and_report_elapsed<Function>::get_cfg();
   
+void cilk_set_nb_cores(int proc) {
+#ifdef USE_CILK_PLUS
+  __cilkrts_set_param("nworkers", std::to_string(proc).c_str());
+#endif
+}
+
+void cilk_set_nb_cores() {
+  cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
+}
+  
 } // end namespace
   
 void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   sched::D = cmdline::parse_or_default("dag_freq", sched::D);
   sched::K = cmdline::parse_or_default("sharing_freq", 2 * sched::D);
+  cilk_set_nb_cores();
 }
 
 void launch(sched::vertex* v, int nb_workers) {
