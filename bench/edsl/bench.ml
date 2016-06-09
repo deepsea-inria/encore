@@ -280,9 +280,9 @@ let name = "sequence.opt"
 
 let prog = name
 
-let mk_algorithms = mk_list string "algortithm" [ "sequential"; "pbbs"; "encore" ]
+let mk_algorithms = mk_list string "algorithm" [ "sequential"; "pbbs"; "encore" ]
 
-let mk_operations = mk_list string "operations" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
+let mk_operations = mk_list string "operation" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
 
 let mk_thresholds = mk_list int "threshold" [ 512; 1024; ]
 
