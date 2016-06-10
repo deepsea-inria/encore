@@ -1064,19 +1064,14 @@ public:
                                  par* oldest_private,
                                  parallel_loop_id_type id,
                                  int nb) {
-    interpreter<Stack>* interp1 = nullptr;
+    interpreter<Stack>* interp1 = interp;
     interpreter<extended_stack_type>* interp2 = nullptr;
-    assert(false); // fix later
-    /*
-    interp1 = interp;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp1->stack);
     parallel_loop_activation_record& lp_ar = *oldest_private->loop_activation_record_of(id);
     parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
-    interp2 = new interpreter<extended_stack_type>(oldest_shared);
+    interp2 = new interpreter<extended_stack_type>(new_stack(oldest_shared, oldest_private));
     interp2->enable_future();
-    extended_stack_type& stack2 = interp2->stack;
-    stack2.stack.second = cactus::push_back<par>(stack2.stack.second, *oldest_private);
-    par& private2 = peek_oldest_private_frame<par>(stack2);
+    par& private2 = peek_oldest_private_frame<par>(interp2->stack);
     private2.initialize_descriptors();
     parallel_loop_activation_record& lp_ar2 = *private2.loop_activation_record_of(id);
     lp_ar.split(&lp_ar2, nb);
@@ -1087,7 +1082,7 @@ public:
     }
     children->second.push_back(interp2->get_outset());
     lp_ar2.get_parent() = (void*)oldest_private;
-    interp2->release_handle->decrement(); */
+    interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
   }
   
@@ -1097,10 +1092,8 @@ public:
                      par* oldest_private,
                      parallel_loop_id_type id,
                      int nb) {
-#ifndef NDEBUG
     assert(nb < interp->nb_strands());
     assert(nb > 0);
-#endif
     interpreter<extended_stack_type>* interp1 = nullptr;
     interpreter<extended_stack_type>* interp2 = nullptr;
     sar* oldest_shared = &peek_oldest_shared_frame<sar>(interp->stack);
