@@ -101,14 +101,15 @@ public:
   static
   cfg_type get_cfg() {
     enum { entry, branch1, branch2, combine, nb_blocks };
+    auto lab = branch1;
     cfg_type cfg(nb_blocks);
-    cfg[entry] = bb::conditional_jump([] (sar& s, par&) {
+    cfg[entry] = bb::conditional_jump([=] (sar& s, par&) {
       if (s.n <= cutoff) {
         *s.dp = fib(s.n);
-        return 0; // going to exit block
+        return encore::edsl::pcfg::exit_block_label; // going to exit block
       }
-      return 1;  // going to branch1
-    }, { encore::edsl::pcfg::exit_block_label, branch1 });
+      return (int)lab;  // going to branch1
+    });
     cfg[branch1] = bb::spawn2_join([] (sar& s, par&, stt st) {
       return ecall<fib_cfg>(st, s.n - 1, &s.d1);
     }, branch2);

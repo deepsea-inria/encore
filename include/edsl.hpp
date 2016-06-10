@@ -59,7 +59,7 @@ public:
   using par_type = Private_activation_record;
   
   using unconditional_jump_code_type = std::function<void(sar_type&, par_type&)>;
-  using conditional_jump_code_type = std::function<int(sar_type&, par_type&)>;
+  using conditional_jump_code_type = std::function<basic_block_label_type(sar_type&, par_type&)>;
   using procedure_call_code_type = std::function<stack_type(sar_type&, par_type&, stack_type)>;
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
   using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
@@ -73,7 +73,6 @@ public:
     } variant_unconditional_jump;
     struct {
       conditional_jump_code_type code;
-      std::vector<basic_block_label_type> targets;
     } variant_conditional_jump;
     struct {
       procedure_call_code_type code;
@@ -121,7 +120,6 @@ private:
       }
       case tag_conditional_jump: {
         new (&variant_conditional_jump.code) conditional_jump_code_type(other.variant_conditional_jump.code);
-        new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>(other.variant_conditional_jump.targets);
         break;
       }
       case tag_spawn_join: {
@@ -187,8 +185,6 @@ private:
       case tag_conditional_jump: {
         new (&variant_conditional_jump.code) conditional_jump_code_type;
         variant_conditional_jump.code = std::move(other.variant_conditional_jump.code);
-        new (&variant_conditional_jump.targets) std::vector<basic_block_label_type>;
-        variant_conditional_jump.targets = std::move(other.variant_conditional_jump.targets);
         break;
       }
       case tag_spawn_join: {
@@ -258,7 +254,6 @@ public:
       case tag_conditional_jump: {
         variant_conditional_jump.code.~conditional_jump_code_type();
         using blks = std::vector<basic_block_label_type>;
-        variant_conditional_jump.targets.~blks();
         break;
       }
       case tag_spawn_join: {
@@ -318,13 +313,10 @@ public:
   }
   
   static
-  basic_block_type conditional_jump(conditional_jump_code_type code,
-                                    std::vector<basic_block_label_type> targets) {
+  basic_block_type conditional_jump(conditional_jump_code_type code) {
     basic_block_type b;
     b.tag = tag_conditional_jump;
     new (&b.variant_conditional_jump.code) conditional_jump_code_type(code);
-    new (&b.variant_conditional_jump.targets) std::vector<basic_block_label_type>();
-    b.variant_conditional_jump.targets = targets;
     return b;
   }
   
@@ -829,8 +821,7 @@ std::pair<Stack, int> step(cfg_type<Shared_activation_record>& cfg, Stack stack,
       break;
     }
     case tag_conditional_jump: {
-      int target = block.variant_conditional_jump.code(shared_newest, private_newest);
-      succ = block.variant_conditional_jump.targets[target];
+      succ = block.variant_conditional_jump.code(shared_newest, private_newest);
       break;
     }
     case tag_spawn_join: {
@@ -1869,7 +1860,7 @@ private:
         }
         entries.push_back(otherwise_label);
         result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, loop_scope, result);
-        auto selector = [=] (sar& s, par& p) {
+        auto selector = [predicates, entries] (sar& s, par& p) {
           int i = 0;
           for (auto& pred : predicates) {
             if (pred(s, p)) {
@@ -1877,9 +1868,9 @@ private:
             }
             i++;
           }
-          return i;
+          return entries[i];
         };
-        add_block(entry, bbt::conditional_jump(selector, entries));
+        add_block(entry, bbt::conditional_jump(selector));
         break;
       }
       case tag_exit: {
@@ -1890,11 +1881,10 @@ private:
         auto header_label = entry;
         auto body_label = new_label();
         auto predicate = stmt.variant_sequential_loop.predicate;
-        auto selector = [predicate] (sar& s, par& p) {
-          return predicate(s, p) ? 0 : 1;
+        auto selector = [predicate, body_label, exit] (sar& s, par& p) {
+          return predicate(s, p) ? body_label : exit;
         };
-        std::vector<lt> targets = { body_label, exit };
-        add_block(header_label, bbt::conditional_jump(selector, targets));
+        add_block(header_label, bbt::conditional_jump(selector));
         result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
@@ -1919,16 +1909,14 @@ private:
         auto body_label = new_label();
         auto footer_label = new_label();
         auto predicate = stmt.variant_parallel_for_loop.predicate;
-        auto selector = [predicate] (sar& s, par& p) {
-          return predicate(s, p) ? 0 : 1;
+        auto selector = [predicate, body_label, footer_label] (sar& s, par& p) {
+          return predicate(s, p) ? body_label : footer_label;
         };
-        std::vector<lt> targets = { body_label, footer_label };
-        add_block(header_label, bbt::conditional_jump(selector, targets));
-        auto footer_selector = [loop_label] (sar&, par& p) {
-          return p.get_join(loop_label) == nullptr ? 0 : 1;
+        add_block(header_label, bbt::conditional_jump(selector));
+        auto footer_selector = [loop_label, exit] (sar&, par& p) {
+          return p.get_join(loop_label) == nullptr ? exit : pcfg::exit_block_label;
         };
-        std::vector<lt> footer_targets = { exit, pcfg::exit_block_label };
-        add_block(footer_label, bbt::conditional_jump(footer_selector, footer_targets));
+        add_block(footer_label, bbt::conditional_jump(footer_selector));
         result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
@@ -1959,31 +1947,29 @@ private:
         auto parent_check_label = new_label();
         add_block(initialize_label, bbt::unconditional_jump(stmt.variant_parallel_combine_loop.initialize, header_label));
         auto predicate = stmt.variant_parallel_combine_loop.predicate;
-        auto selector = [predicate] (sar& s, par& p) {
-          return predicate(s, p) ? 0 : 1;
+        auto selector = [predicate, body_label, children_loop_finalize_label] (sar& s, par& p) {
+          return predicate(s, p) ? body_label : children_loop_finalize_label;
         };
-        std::vector<lt> targets = { body_label, children_loop_finalize_label };
-        add_block(header_label, bbt::conditional_jump(selector, targets));
+        add_block(header_label, bbt::conditional_jump(selector));
         add_block(children_loop_finalize_label, bbt::unconditional_jump([loop_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           if (children) {
             children->first = (int)children->second.size();
           }
         }, children_loop_header_label));
-        auto children_loop_header = [loop_label] (sar&, par& p) {
+        auto children_loop_header = [loop_label, parent_check_label, children_loop_body0_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           if (children) {
             if (children->first <= 0) {
               children.reset();
-              return 0;
+              return parent_check_label;
             }
-            return 1;
+            return children_loop_body0_label;
           } else {
-            return 0;
+            return parent_check_label;
           }
         };
-        std::vector<lt> child_loop_header_targets = { parent_check_label, children_loop_body0_label };
-        add_block(children_loop_header_label, bbt::conditional_jump(children_loop_header, child_loop_header_targets));
+        add_block(children_loop_header_label, bbt::conditional_jump(children_loop_header));
         auto children_loop_body0 = [loop_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           assert(children);
@@ -1998,16 +1984,15 @@ private:
         };
         add_block(children_loop_body1_label, bbt::unconditional_jump(children_loop_body1, children_loop_header_label));
         auto combine = stmt.variant_parallel_combine_loop.combine;
-        auto parent_check = [combine, loop_label] (sar& s, par& p) {
+        auto parent_check = [combine, loop_label, exit] (sar& s, par& p) {
           auto parent = (par*)p.loop_activation_record_of(loop_label)->get_parent();
           if (parent != nullptr) {
             combine(s, p, *parent);
-            return 1;
+            return pcfg::exit_block_label;
           }
-          return 0;
+          return exit;
         };
-        std::vector<lt> parent_check_targets = { exit, pcfg::exit_block_label };
-        add_block(parent_check_label, bbt::conditional_jump(parent_check, parent_check_targets));
+        add_block(parent_check_label, bbt::conditional_jump(parent_check));
         result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
