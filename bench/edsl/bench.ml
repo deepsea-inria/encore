@@ -9,7 +9,7 @@ let system = XSys.command_must_succeed_or_virtual
 let arg_virtual_run = XCmd.mem_flag "virtual_run"
 let arg_virtual_build = XCmd.mem_flag "virtual_build"
 let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
-let arg_mode = "replace"   (* later: document the purpose of "mode" *)
+let arg_mode = Mk_runs.mode_from_command_line "mode"
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
 let arg_sizes = XCmd.parse_or_default_list_string "size" ["all"]
@@ -18,7 +18,7 @@ let arg_proc = XCmd.parse_or_default_list_int "proc" [1; 10; 40]
             
 let run_modes =
   Mk_runs.([
-    Mode (mode_of_string arg_mode);
+    Mode arg_mode;
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
 
@@ -61,11 +61,24 @@ let eval_exectime = fun env all_results results ->
 let eval_exectime_stddev = fun env all_results results ->
   Results.get_stddev_of "exectime" results
 
+let string_of_millions ?(munit=false) v =
+   let x = v /. 1000000. in
+   let f = 
+     if x >= 10. then sprintf "%.0f" x
+     else if x >= 1. then sprintf "%.1f" x
+     else if x >= 0.1 then sprintf "%.2f" x
+     else sprintf "%.3f" x in
+   f ^ (if munit then "m" else "")
+
+                        
 let formatter_settings = Env.(
     ["prog", Format_custom (fun s -> "")]
   @ ["algorithm", Format_custom (fun s -> s)]
-  @ ["n", Format_custom (fun s -> sprintf "Input: %s 32-bit ints" s)]
-  @ ["exectime", Format_custom (fun s -> sprintf "Time (s)")]
+  @ ["n", Format_custom (fun s -> sprintf "Input: %s million 32-bit ints" (string_of_millions (float_of_string s)))]
+  @ ["proc", Format_custom (fun s -> sprintf "#CPUs %s" s)]
+  @ ["dag_freq", Format_custom (fun s -> sprintf "F=%s" s)]
+  @ ["threshold", Format_custom (fun s -> sprintf "K=%s" s)]
+  @ ["block_size", Format_custom (fun s -> sprintf "B=%s" s)]      
   @ ["operation", Format_custom (fun s -> s)])
 
 let default_formatter =
@@ -288,13 +301,15 @@ let prog_encore = name^".encore"
 
 let prog_cilk = name^".cilk"
 
-let mk_encore_setting threshold block_size =
-  mk int "threshold" threshold & mk int "block_size" block_size
+let mk_encore_setting threshold block_size dag_freq =
+    mk int "threshold" threshold
+  & mk int "block_size" block_size
+  & mk int "dag_freq" dag_freq
 
 let mk_encore_settings = (
-    mk_encore_setting 1024 2048
- ++ mk_encore_setting 2048 4096
- ++ mk_encore_setting 4098 8192)
+    mk_encore_setting 1024 2048 1024
+ ++ mk_encore_setting 2048 4096 1024
+ ++ mk_encore_setting 4098 8192 1024)
 
 let mk_algorithms = (
      (mk_prog prog_encore & mk string "algorithm" "sequential")
@@ -307,6 +322,8 @@ let mk_operations = mk_list string "operation" ["reduce"; "max_index"; "scan"; "
 
 let mk_input_sizes = mk_list int "n" [ 400000000 ]
 
+let mk_procs = mk_list int "proc" [ 1; (* 10; 20; 30; *) 40; ]
+
 let make() =
   build "." [prog_encore; prog_cilk] arg_virtual_build
 
@@ -314,7 +331,7 @@ let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 400;
-    Args (mk_algorithms & mk_operations & mk_input_sizes)
+    Args (mk_algorithms & mk_procs & mk_operations & mk_input_sizes)
   ]))
 
 let check = nothing  (* do something here *)
@@ -322,16 +339,16 @@ let check = nothing  (* do something here *)
 let plot() =
      Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
-(*         Chart_opt Chart.([Dimensions (12.,8.) ]);
-         X_titles_dir Vertical;
-         Y_axis [ Axis.Lower (Some 0.);
-                  Axis.Is_log false ] *)
+                              (*                                       Chart_opt Chart.([Dimensions (12.,8.) ]);*)
+                              X_titles_dir Vertical;
+         Y_axis [ Axis.Lower (Some 0.); Axis.Upper (Some 8.);
+                  Axis.Is_log false ] 
          ]);
       Formatter default_formatter;
-      Charts mk_operations;
+      Charts (mk_procs & mk_input_sizes);
       Series mk_algorithms;
-      X mk_input_sizes;
-      Y_label "exectime";
+      X mk_operations;
+      Y_label "Time (s)";
       Y eval_exectime;
       Y_whiskers eval_exectime_stddev;
       Output (file_plots name);
