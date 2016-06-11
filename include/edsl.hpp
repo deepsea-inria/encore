@@ -1079,6 +1079,7 @@ public:
     auto& children = lp_ar.get_children();
     if (! children) {
       children.reset(new std::pair<int, std::vector<sched::outset*>>);
+      children->first = 0;
     }
     children->second.push_back(interp2->get_outset());
     lp_ar2.get_parent() = (void*)oldest_private;
