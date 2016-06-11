@@ -244,7 +244,7 @@ public:
         p.acc = 0;
         s.a = new int[s.n];
         for (int i = 0; i < s.n; i++) {
-          s.a[i] = i;
+          s.a[i] = i % 1024;
         }
       }),
       dc::parallel_combine_loop([] (sar&, par& p) { return p.lo != p.hi; },
