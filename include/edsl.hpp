@@ -403,6 +403,17 @@ using trampoline_type = struct {
   basic_block_label_type succ;
 };
   
+class children_record {
+public:
+  
+  int nb = 0;
+  
+  using future_type = std::pair<sched::outset*, private_activation_record*>;
+  
+  std::vector<future_type> futures;
+  
+};
+  
 class parallel_loop_activation_record {
 public:
   
@@ -412,9 +423,9 @@ public:
   
   virtual sched::vertex*& get_join() = 0;
   
-  virtual std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() = 0;
+  virtual std::unique_ptr<children_record>& get_children() = 0;
   
-  virtual void*& get_parent() = 0;
+  virtual private_activation_record*& get_destination() = 0;
   
 };
 
@@ -506,8 +517,8 @@ public:
 };
   
 sched::vertex* dummy_join = nullptr;
-std::unique_ptr<std::pair<int, std::vector<sched::outset*>>> dummy_children = nullptr;
-void* dummy_parent = nullptr;
+std::unique_ptr<children_record> dummy_children = nullptr;
+private_activation_record* dummy_destination = nullptr;
   
 class private_activation_record {
 public:
@@ -1078,11 +1089,11 @@ public:
     private2.trampoline = pl_descr.entry;
     auto& children = lp_ar.get_children();
     if (! children) {
-      children.reset(new std::pair<int, std::vector<sched::outset*>>);
-      children->first = 0;
+      children.reset(new children_record);
     }
-    children->second.push_back(interp2->get_outset());
-    lp_ar2.get_parent() = (void*)oldest_private;
+    private_activation_record* destination = new par;
+    children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
+    lp_ar2.get_destination() = destination;
     interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
   }
@@ -1196,14 +1207,14 @@ public:
     return join;
   }
   
-  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() {
+  std::unique_ptr<children_record>& get_children() {
     assert(false); // impossible
     return dummy_children;
   }
-  
-  void*& get_parent() {
+
+  private_activation_record*& get_destination() {
     assert(false); // impossible
-    return dummy_parent;
+    return dummy_destination;
   }
   
 };
@@ -1211,22 +1222,20 @@ public:
 class parallel_combine_activation_record : public parallel_loop_activation_record {
 public:
   
-  parallel_combine_activation_record()
-  : lo(nullptr), hi(nullptr) { }
+  parallel_combine_activation_record() { }
   
   parallel_combine_activation_record(int& lo, int& hi)
   : lo(&lo), hi(&hi) { }
   
-  parallel_combine_activation_record(const parallel_combine_activation_record&)
-  : lo(nullptr), hi(nullptr), parent(nullptr) { }
+  parallel_combine_activation_record(const parallel_combine_activation_record&) { }
   
-  int* lo;
+  int* lo = nullptr;
   
-  int* hi;
+  int* hi = nullptr;
   
-  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>> children;
+  std::unique_ptr<children_record> children;
   
-  void* parent = nullptr;
+  private_activation_record* destination = nullptr;
  
   int nb_strands() {
     return *hi - *lo;
@@ -1248,12 +1257,12 @@ public:
     return dummy_join;
   }
   
-  std::unique_ptr<std::pair<int, std::vector<sched::outset*>>>& get_children() {
+  std::unique_ptr<children_record>& get_children() {
     return children;
   }
   
-  void*& get_parent() {
-    return parent;
+  private_activation_record*& get_destination() {
+    return destination;
   }
   
 };
@@ -1948,13 +1957,13 @@ private:
         add_block(children_loop_finalize_label, bbt::unconditional_jump([loop_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           if (children) {
-            children->first = (int)children->second.size();
+            children->nb = (int)children->futures.size();
           }
         }, children_loop_header_label));
         auto children_loop_header = [loop_label, parent_check_label, children_loop_body0_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           if (children) {
-            if (children->first <= 0) {
+            if (children->nb <= 0) {
               children.reset();
               return parent_check_label;
             }
@@ -1967,21 +1976,26 @@ private:
         auto children_loop_body0 = [loop_label] (sar&, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           assert(children);
-          auto i = children->first - 1;
-          return &(children->second.at(i));
+          auto i = children->nb - 1;
+          return &(children->futures.at(i).first);
         };
         add_block(children_loop_body0_label, bbt::join_minus(children_loop_body0, children_loop_body1_label));
-        auto children_loop_body1 = [loop_label] (sar&, par& p) {
+        auto combine = stmt.variant_parallel_combine_loop.combine;
+        auto children_loop_body1 = [loop_label, combine] (sar& s, par& p) {
           auto& children = p.loop_activation_record_of(loop_label)->get_children();
           assert(children);
-          children->first--;
+          auto i = children->nb - 1;
+          par* c = (par*)children->futures.at(i).second;
+          combine(s, *c, p);
+          delete c;
+          children->futures.at(i).second = nullptr; // to avoid the dangling pointer
+          children->nb--;
         };
         add_block(children_loop_body1_label, bbt::unconditional_jump(children_loop_body1, children_loop_header_label));
-        auto combine = stmt.variant_parallel_combine_loop.combine;
-        auto parent_check = [combine, loop_label, exit] (sar& s, par& p) {
-          auto parent = (par*)p.loop_activation_record_of(loop_label)->get_parent();
-          if (parent != nullptr) {
-            combine(s, p, *parent);
+        auto parent_check = [loop_label, exit] (sar& s, par& p) {
+          auto destination = (par*)p.loop_activation_record_of(loop_label)->get_destination();
+          if (destination != nullptr) {
+            new (destination) par(p);
             return pcfg::exit_block_label;
           }
           return exit;
