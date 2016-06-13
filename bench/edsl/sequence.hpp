@@ -496,12 +496,10 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          assert(p.s < p.e);
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
           return ecall<reduceSerial<ET,intT,F,G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
-          assert(p.s < p.e);
           p.s++;
         })
       })),
@@ -516,12 +514,10 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
         dc::spawn_join([] (sar& s, par& p, stt st) {
-          assert(p.s < p.e);
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
           return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &p.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
-          assert(p.s < p.e);
           p.s++;
         })
       })),
