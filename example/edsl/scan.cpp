@@ -104,7 +104,6 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.lo < p.hi; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             dc::stmt([] (sar& s, par& p) {
-        assert(p.lo < p.hi);
         auto rng = get_rng(branching_factor, s.n, p.lo, p.hi);
         s.partials[p.lo] = reduce_serial(rng.lo, rng.hi, 0, s.src);
         p.lo++;
@@ -123,7 +122,6 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.lo < p.hi; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             dc::stmt([] (sar& s, par& p) {
-        assert(p.lo < p.hi);
         auto rng = get_rng(branching_factor, s.n, p.lo, p.hi);
         scan_serial(rng.lo, rng.hi, s.scans[p.lo], s.src, s.dst);
         p.lo++;
