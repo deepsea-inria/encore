@@ -15,6 +15,7 @@ private:
   using counter_id_type = enum {
     nb_promotions,
     nb_steals,
+    nb_stacklet_allocations,
     nb_counters
   };
   
@@ -23,6 +24,7 @@ private:
     std::map<counter_id_type, const char*> names;
     names[nb_promotions] = "nb_promotions";
     names[nb_steals] = "nb_steals";
+    names[nb_stacklet_allocations] = "nb_stacklet_allocations";
     return names[id];
   }
 
@@ -51,6 +53,11 @@ public:
   static inline
   void on_steal() {
     increment(nb_steals);
+  }
+  
+  static inline
+  void on_stacklet_allocation() {
+    increment(nb_stacklet_allocations);
   }
   
   static

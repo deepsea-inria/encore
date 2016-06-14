@@ -4,6 +4,7 @@
 #include "atomic.hpp"
 #include "tagged.hpp"
 #include "perworker.hpp"
+#include "stats.hpp"
 
 #ifndef _ENCORE_CACTUS_H_
 #define _ENCORE_CACTUS_H_
@@ -64,6 +65,7 @@ chunk_type* allocate_chunk() {
   chunk_type* c = (chunk_type*)aligned_alloc(K, K);
   new (c) chunk_type();
   c->next = nullptr;
+  stats::on_stacklet_allocation();
   return c;
 }
   
