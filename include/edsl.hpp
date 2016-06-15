@@ -554,16 +554,16 @@ public:
 stack_type new_stack() {
   return std::make_pair(cactus::new_stack(), cactus::new_stack());
 }
-
-void delete_stack(stack_type s) {
-  cactus::delete_stack(s.first);
-  cactus::delete_stack(s.second);
-}
   
 bool empty_stack(stack_type s) {
   bool r = cactus::empty(s.first);
   assert(cactus::empty(s.second) == r);
   return r;
+}
+  
+void delete_stack(stack_type s) {
+  // nothing to do because pop_back reclaims stack memory
+  assert(empty_stack(s));
 }
   
 template <class Shared_activation_record, class ...Args>
@@ -642,7 +642,13 @@ extended_stack_type new_stack(shared_activation_record* oldest_shared,
                               Private_activation_record* oldest_private) {
   return new_stack(oldest_shared, oldest_private, new_stack());
 }
-
+  
+bool empty_stack(extended_stack_type s) {
+  check_extended_stack(s);
+  assert(s.oldest_private == nullptr ? empty_stack(s.stack) : true);
+  return s.oldest_private == nullptr;
+}
+  
 void delete_stack(extended_stack_type s) {
   check_extended_stack(s);
   assert(empty_stack(s.stack));
@@ -650,14 +656,8 @@ void delete_stack(extended_stack_type s) {
   if (s.oldest_private != nullptr) {
     delete s.oldest_private;
     s.oldest_private = nullptr;
-  }  
+  }
   delete_stack(s.stack);
-}
-  
-bool empty_stack(extended_stack_type s) {
-  check_extended_stack(s);
-  assert(s.oldest_private == nullptr ? empty_stack(s.stack) : true);
-  return s.oldest_private == nullptr;
 }
   
 template <class Shared_activation_record, class ...Args>

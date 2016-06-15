@@ -148,14 +148,6 @@ stack_type new_stack() {
   ((descriptor_type*)s.sp)->tag = descriptor_type::initial_tag;
   return s;
 }
-  
-void delete_stack(stack_type s) {
-  assert(empty(s));
-  chunk_type* c = chunk_of(s.fp);
-  if ((char*)c + sizeof(descriptor_type) == s.top) {
-    delete_chunk(c);
-  }
-}
 
 template <class Activation_record, class ...Args>
 stack_type push_back(stack_type s, Args... args) {
@@ -205,10 +197,6 @@ stack_type pop_back(stack_type s) {
       current_descriptor->tag = descriptor_type::empty_tag;
       char* fp = current_descriptor->frame.fp;
       char* sp = current_descriptor->frame.sp;
-      chunk_type* current_chunk = chunk_of(s.fp);
-      if (current_chunk != chunk_of(fp)) {
-        delete_chunk(current_chunk);
-      }
       t.fp = fp;
       t.sp = sp;
       break;
@@ -222,6 +210,10 @@ stack_type pop_back(stack_type s) {
     default: {
       assert(false);
     }
+  }
+  chunk_type* current_chunk = chunk_of(s.fp);
+  if ((char*)current_chunk + sizeof(descriptor_type) == s.fp) {
+    delete_chunk(current_chunk);
   }
   return t;
 }
