@@ -18,6 +18,7 @@ TCMALLOC= $(TCMALLOC_HOME) -ltcmalloc
 CILK_PLUS= -DUSE_CILK_PLUS -DUSE_CILK_PLUS_RUNTIME -fcilkplus -lcilkrts
 
 COMMON_PREFIX= -fpermissive -pthread -O2 -DNDEBUG -std=gnu++11
+DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g
 
 sequence.encore:
 	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDES) -o sequence.encore sequence.cpp
@@ -25,5 +26,8 @@ sequence.encore:
 sequence.cilk:
 	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(INCLUDES) -o sequence.cilk sequence.cpp
 
+sequence.dbg:
+	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDES) -o sequence.dbg sequence.cpp
+
 clean: pbench_clean
-	rm -f sequence.encore sequence.cilk
+	rm -f *.encore *.cilk *.dbg
