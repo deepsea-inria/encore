@@ -117,6 +117,14 @@ void create_overflow(descriptor_type*& d, char*& fp) {
   fp = (char*)next_chunk + sizeof(descriptor_type);
 }
   
+stack_type new_null_stack() {
+  stack_type s;
+  s.top = nullptr;
+  s.fp = nullptr;
+  s.sp = nullptr;
+  return s;
+}
+  
 } // end namespace
   
 inline
@@ -217,7 +225,7 @@ stack_type pop_back(stack_type s) {
     case descriptor_type::initial_tag:
     case descriptor_type::empty_tag:
     case descriptor_type::overflow_tag: {
-      t.fp = nullptr;
+      t = new_null_stack();
       break;
     }
     default: {
@@ -262,9 +270,7 @@ std::pair<stack_type, stack_type> fork_front(stack_type s, int activation_record
     case descriptor_type::overflow_tag: {
       chunk_type* c = next_descriptor->overflow.c;
       if (c == nullptr) {
-        s2.top = nullptr;
-        s2.fp = nullptr;
-        s2.sp = nullptr;
+        s2 = new_null_stack();
         return std::make_pair(s1, s2);
       }
       next_descriptor->overflow.c = nullptr;
@@ -274,9 +280,7 @@ std::pair<stack_type, stack_type> fork_front(stack_type s, int activation_record
       break;
     }
     case descriptor_type::empty_tag: {
-      s2.top = nullptr;
-      s2.fp = nullptr;
-      s2.sp = nullptr;
+      s2 = new_null_stack();
       return std::make_pair(s1, s2);
     }
     default: {
@@ -309,9 +313,7 @@ std::pair<stack_type, stack_type> slice_front(stack_type s) {
     case descriptor_type::overflow_tag: {
       chunk_type* c = next_descriptor->overflow.c;
       if (c == nullptr) {
-        s2.top = nullptr;
-        s2.fp = nullptr;
-        s2.sp = nullptr;
+        s2 = new_null_stack();
         return std::make_pair(s1, s2);
       }
       s2.top = (char*)c + sizeof(descriptor_type);
@@ -319,9 +321,7 @@ std::pair<stack_type, stack_type> slice_front(stack_type s) {
       break;
     }
     case descriptor_type::empty_tag: {
-      s2.top = nullptr;
-      s2.fp = nullptr;
-      s2.sp = nullptr;
+      s2 = new_null_stack();
       return std::make_pair(s1, s2);
     }
     default: {
