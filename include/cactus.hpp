@@ -82,12 +82,13 @@ data::perworker::array<chunk_type*> freelist(nullptr);
   
 void fill_freelist_if_empty() {
   chunk_type*& head = freelist.mine();
-  if (head == nullptr) {
-    for (int i = 0; i < freelist_min_refill_size; i++) {
-      chunk_type* c = allocate_chunk();
-      c->next = head;
-      head = c;
-    }
+  if (head != nullptr) {
+    return;
+  }
+  for (int i = 0; i < freelist_min_refill_size; i++) {
+    chunk_type* c = allocate_chunk();
+    c->next = head;
+    head = c;
   }
   assert(head != nullptr);
 }
@@ -147,6 +148,18 @@ stack_type new_stack() {
   s.fp = nullptr;
   ((descriptor_type*)s.sp)->tag = descriptor_type::initial_tag;
   return s;
+}
+  
+void delete_stack(stack_type s) {
+  // only need to handle the case in which the stack has never been
+  // target of a push operation
+  if (s.sp == nullptr) {
+    return;
+  }
+  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
+  if (current_descriptor->tag == descriptor_type::initial_tag) {
+    delete_chunk(chunk_of(s.sp));
+  }
 }
 
 template <class Activation_record, class ...Args>

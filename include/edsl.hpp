@@ -562,8 +562,9 @@ bool empty_stack(stack_type s) {
 }
   
 void delete_stack(stack_type s) {
-  // nothing to do because pop_back reclaims stack memory
   assert(empty_stack(s));
+  cactus::delete_stack(s.first);
+  cactus::delete_stack(s.second);
 }
   
 template <class Shared_activation_record, class ...Args>
