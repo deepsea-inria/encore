@@ -113,8 +113,6 @@ public:
   reduce(intT s, intT e, F f, G g, OT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
   
-  static constexpr int nb_loops = 1;
-  
   class private_activation_record
   : public encore::edsl::pcfg::parallel_loop_private_activation_record<reduce,
   private_activation_record> {
@@ -159,9 +157,6 @@ public:
   }
   
 };
-
-template <class OT, class intT, class F, class G>
-typename reduce<OT,intT,F,G>::cfg_type reduce<OT,intT,F,G>::cfg = reduce<OT,intT,F,G>::get_cfg();
   
 #else
 
@@ -221,10 +216,10 @@ public:
   
 };
   
+#endif
+  
 template <class OT, class intT, class F, class G>
 typename reduce<OT,intT,F,G>::cfg_type reduce<OT,intT,F,G>::cfg = reduce<OT,intT,F,G>::get_cfg();
-  
-#endif
   
 using stack_type = encore::edsl::pcfg::stack_type;
 
@@ -282,6 +277,74 @@ public:
 template <class ET, class intT, class F, class G>
 typename maxIndexSerial<ET,intT,F,G>::cfg_type maxIndexSerial<ET,intT,F,G>::cfg = maxIndexSerial<ET,intT,F,G>::get_cfg();
 
+#if 1
+  
+template <class ET, class intT, class F, class G>
+class maxIndex : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  intT s; intT e; F f; G g; intT* dest;
+  
+  maxIndex() { }
+  
+  maxIndex(intT s, intT e, F f, G g, intT* dest)
+  : s(s), e(e), f(f), g(g), dest(dest) { }
+  
+  class private_activation_record
+  : public encore::edsl::pcfg::parallel_loop_private_activation_record<maxIndex,
+  private_activation_record> {
+  public:
+    
+    private_activation_record() {
+      private_activation_record::initialize_descriptors();
+    }
+    
+    encore::edsl::pcfg::parallel_combine_activation_record _ar;
+    encore::edsl::pcfg::parallel_loop_activation_record* _encore_loop_activation_record_of(encore::edsl::pcfg::parallel_loop_id_type id) {
+      return &_ar;
+    }
+    
+    int s; int e; intT k;
+    
+  };
+  
+  encore_dc_loop_declare(encore::edsl, maxIndex, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        p.s = s.s;
+        p.e = s.e;
+        p.k = 0;
+      }),
+      dc::parallel_combine_loop([] (sar&, par& p) { return p.s < p.e; },
+                                [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                                [] (sar&, par& p) { p.k = 0; },
+                                [] (sar& s, par& p, par& dest) {
+                                  if (s.f(s.g(p.k), s.g(dest.k))) {
+                                    dest.k = p.k;
+                                  }
+                                },
+                                dc::stmt([] (sar& s, par& p) {
+        intT ss = p.s;
+        intT ee = std::min(p.e, ss + threshold);
+        int k = pbbs::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
+        if (s.f(s.g(k), s.g(p.k))) {
+          p.k = k;
+        }
+        p.s = ee;
+      })),
+      dc::stmt([] (sar& s, par& p) {
+        *s.dest = p.k;
+      })
+    });
+  }
+  
+};
+  
+#else
+  
 template <class ET, class intT, class F, class G>
 class maxIndex : public encore::edsl::pcfg::shared_activation_record {
 public:
@@ -295,7 +358,7 @@ public:
   : s(s), e(e), f(f), g(g), dest(dest) { }
   
   encore_private_activation_record_begin(encore::edsl, maxIndex, 1)
-    int s; int e;
+  int s; int e;
   encore_private_activation_record_end(encore::edsl, maxIndex, sar, par, dc, get_dc)
   
   static
@@ -343,6 +406,8 @@ public:
   }
   
 };
+  
+#endif
   
 template <class ET, class intT, class F, class G>
 typename maxIndex<ET,intT,F,G>::cfg_type maxIndex<ET,intT,F,G>::cfg = maxIndex<ET,intT,F,G>::get_cfg();
