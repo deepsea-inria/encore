@@ -10,6 +10,11 @@ CHUNKEDSEQ_HOME=$(HOME)/chunkedseq/include
 ENCORE_INCLUDE_HOME=$(HOME)/encore/include
 CMDLINE_HOME=$(HOME)/cmdline/include
 PBBS_INCLUDE_HOME=$(HOME)/pbbs-include
+HWLOC_HOME=$(HOME)/hwloc/
+
+HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_HOME) --cflags $(HWLOC_HOME)/lib/pkgconfig/hwloc.pc)
+HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_HOME) --libs $(HWLOC_HOME)/lib/pkgconfig/hwloc.pc)
+HWLOC_DIRECTIVES=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
 
 INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp)
 
@@ -19,7 +24,7 @@ TCMALLOC= $(TCMALLOC_HOME) -ltcmalloc
 
 CILK_PLUS= -DUSE_CILK_PLUS -DUSE_CILK_PLUS_RUNTIME -fcilkplus -lcilkrts
 
-COMMON_PREFIX= -fpermissive -pthread -O2 -DNDEBUG -std=gnu++11
+COMMON_PREFIX= -fpermissive -pthread -O2 -DNDEBUG -std=gnu++11 $(HWLOC_DIRECTIVES)
 DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g
 
 sequence.encore: $(INCLUDE_FILES)
