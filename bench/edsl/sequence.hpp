@@ -1,3 +1,24 @@
+// This code is part of the Problem Based Benchmark Suite (PBBS)
+// Copyright (c) 2010 Guy Blelloch and the PBBS team
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights (to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #ifndef _ENCORE_PBBS_SEQUENCE_H_
 #define _ENCORE_PBBS_SEQUENCE_H_
@@ -597,6 +618,30 @@ public:
 template <class ET, class intT, class F, class G>
 typename scan<ET,intT,F,G>::cfg_type scan<ET,intT,F,G>::cfg = scan<ET,intT,F,G>::get_cfg();
   
+template <class ET, class intT, class F>
+stack_type scan6(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+  auto g = getA<ET,intT>(In);
+  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, false, false, dest);
+}
+
+template <class ET, class intT, class F>
+stack_type scanBack(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+  auto g = getA<ET,intT>(In);
+  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, false, true, dest);
+}
+
+template <class ET, class intT, class F>
+stack_type scanI(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+  auto g = getA<ET,intT>(In);
+  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, true, false, dest);
+}
+
+template <class ET, class intT, class F>
+stack_type scanIBack(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+  auto g = getA<ET,intT>(In);
+  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, true, true, dest);
+}
+  
 template <class ET, class intT>
 stack_type plusScan(stack_type st, ET *In, ET* Out, intT n, ET* dest) {
   auto f = utils::addF<ET>();
@@ -807,7 +852,7 @@ class filterDPS : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   ET* In; ET* Out; intT n; PRED p; intT* dest;
-  _seq<ET> tmp; intT m;
+  _seq<ET> tmp; intT m; bool* Fl;
   
   filterDPS() { }
   
@@ -842,10 +887,10 @@ public:
         })
       })),
       dc::spawn_join([] (sar& s, par& p, stt st) {
-        return pack5(st, s.In, s.Out, s.n, &s.tmp);
+        return pack5(st, s.In, s.Out, s.Fl, s.n, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
-        s.m = s.tmp.n;
+        s.m = (intT)s.tmp.n;
         free(s.Fl);
         *s.dest = s.m;
       })
