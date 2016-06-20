@@ -1,12 +1,16 @@
 
-#include "scheduler.hpp"
-#include "edsl.hpp"
-#include "cmdline.hpp"
-
 #ifdef USE_CILK_PLUS
 #include <cilk/cilk.h>
 #include <cilk/cilk_api.h>
 #endif
+
+#ifdef HAVE_HWLOC
+#include <hwloc.h>
+#endif
+
+#include "scheduler.hpp"
+#include "edsl.hpp"
+#include "cmdline.hpp"
 
 #ifndef _ENCORE_H_
 #define _ENCORE_H_
@@ -62,11 +66,37 @@ void cilk_set_nb_cores(int proc) {
 void cilk_set_nb_cores() {
   cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
 }
-  
+
+#ifdef HAVE_HWLOC
+hwloc_topology_t topology;
+#endif
+
+void initialize_hwloc(int nb_workers) {
+#ifdef HAVE_HWLOC
+  hwloc_topology_init(&topology);
+  hwloc_topology_load(topology);
+  bool numa_alloc_interleaved = (nb_workers == 0) ? false : true;
+  numa_alloc_interleaved = cmdline::parse_or_default("numa_alloc_interleaved", numa_alloc_interleaved);
+  if (numa_alloc_interleaved) {
+    hwloc_cpuset_t all_cpus =
+      hwloc_bitmap_dup(hwloc_topology_get_topology_cpuset(topology));
+    int err = hwloc_set_membind(topology, all_cpus, HWLOC_MEMBIND_INTERLEAVE, 0);
+    if (err < 0) {
+      printf("Warning: failed to set NUMA round-robin allocation policy\n");
+    }
+  }
+#endif
+}
+
+void initialize_hwloc() {
+  initialize_hwloc(cmdline::parse_or_default("proc", 1));
+}
+
 } // end namespace
   
 void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
+  initialize_hwloc();
   sched::D = cmdline::parse_or_default("dag_freq", sched::D);
   sched::K = cmdline::parse_or_default("sharing_freq", 2 * sched::D);
   cilk_set_nb_cores();
