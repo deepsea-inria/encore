@@ -20,13 +20,15 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef _ENCORE_PBBS_SEQUENCE_H_
-#define _ENCORE_PBBS_SEQUENCE_H_
+#include <algorithm>
 
 #include "edsl.hpp"
 #include "utils.hpp"
 
 #include "sequence.h" // from PBBS
+
+#ifndef _ENCORE_PBBS_SEQUENCE_H_
+#define _ENCORE_PBBS_SEQUENCE_H_
 
 template <class T>
 T* malloc_array(size_t n) {
@@ -543,6 +545,12 @@ public:
   
 template <class ET, class intT, class F, class G>
 typename scanSerial<ET,intT,F,G>::cfg_type scanSerial<ET,intT,F,G>::cfg = scanSerial<ET,intT,F,G>::get_cfg();
+  
+template <class ET, class intT, class F>
+stack_type scanSerial6(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+  auto g = getA<ET,intT>(In);
+  return ecall<scanSerial<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, false, false, dest);
+}
 
 template <class ET, class intT, class F, class G>
 class scan : public encore::edsl::pcfg::shared_activation_record {
@@ -954,6 +962,48 @@ public:
 
 template <class ET, class intT, class PRED>
 typename filter<ET,intT,PRED>::cfg_type filter<ET,intT,PRED>::cfg = filter<ET,intT,PRED>::get_cfg();
+  
+template <class Iter, class Output_iterator>
+class copy : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  Iter lo; Iter hi; Output_iterator dst;
+  
+  copy() { }
+  
+  copy(Iter lo, Iter hi, Output_iterator dst)
+  : lo(lo), hi(hi), dst(dst) { }
+  
+  encore_private_activation_record_begin(encore::edsl, copy, 1)
+    int s; int e;
+  encore_private_activation_record_end(encore::edsl, copy, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        p.s = 0;
+        p.e = s.hi - s.lo;
+      }),
+      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          intT ss = p.s;
+          intT ee = std::min(p.e, p.s + threshold);
+          auto lo = s.lo + ss;
+          auto hi = s.lo + ee;
+          std::copy(lo, hi, s.dst + (lo - s.lo));
+          p.s = ee;
+        })
+      }))
+    });
+  }
+  
+};
+  
+template <class Iter, class Output_iterator>
+typename copy<Iter,Output_iterator>::cfg_type copy<Iter,Output_iterator>::cfg = copy<Iter,Output_iterator>::get_cfg();
   
 } // end namespace
 
