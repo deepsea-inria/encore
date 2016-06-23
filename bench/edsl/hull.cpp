@@ -34,6 +34,10 @@
 #include "sequence.hpp"
 #include "geometry.hpp"
 
+#include "test.hpp"
+#include "prandgen.hpp"
+#include "geometryio.hpp"
+
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;

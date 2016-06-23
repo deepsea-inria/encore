@@ -26,6 +26,13 @@
 #include "utils.hpp"
 
 #include "sequence.h" // from PBBS
+#undef cilk_spawn
+#undef cilk_sync
+#undef parallel_main 
+#undef parallel_for
+#undef parallel_for_1
+#undef parallel_for_256
+#undef cilk_for
 
 #ifndef _ENCORE_PBBS_SEQUENCE_H_
 #define _ENCORE_PBBS_SEQUENCE_H_
