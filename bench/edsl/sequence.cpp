@@ -11,6 +11,8 @@
 #include "encore.hpp"
 #include "sequence.hpp"
 
+#include "sequence.h"
+
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
@@ -143,6 +145,11 @@ void bench_scan() {
   free(output);
 }
 
+template <class T>
+_seq<T> from_pbbs(pbbs::_seq<T> s) {
+  return _seq<T>(s.A, s.n);
+}
+
 void bench_pack() {
   using intT = int;
   using value_type = int;
@@ -164,16 +171,16 @@ void bench_pack() {
     encore::launch_interpreter<sequence::packSerial<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
   } else if (algorithm == "sequential") {
     encore::run_and_report_elapsed_time([&] {
-      output = pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+      output = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
     });
   } else if (algorithm == "pbbs") {
     encore::run_and_report_elapsed_time([&] {
-      output = pbbs::sequence::pack((value_type*)nullptr, flags, (intT)0, n, f);
+      output = from_pbbs(pbbs::sequence::pack((value_type*)nullptr, flags, (intT)0, n, f));
     });
   }
   if (check) {
 #ifndef NDEBUG
-    _seq<value_type> output2 = pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f);
+    _seq<value_type> output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
     assert(output.n == output2.n);
     for (int i = 0; i < output.n; i++) {
       auto u = output.A[i];
@@ -233,7 +240,7 @@ void bench_filter() {
     });
   } else if (algorithm == "pbbs") {
     encore::run_and_report_elapsed_time([&] {
-      output = pbbs::sequence::filter(input, n, p);
+      output = from_pbbs(pbbs::sequence::filter(input, n, p));
     });
   }
   if (check) {

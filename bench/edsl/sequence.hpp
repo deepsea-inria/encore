@@ -25,14 +25,17 @@
 #include "edsl.hpp"
 #include "utils.hpp"
 
-#include "sequence.h" // from PBBS
-#undef cilk_spawn
-#undef cilk_sync
-#undef parallel_main 
-#undef parallel_for
-#undef parallel_for_1
-#undef parallel_for_256
-#undef cilk_for
+#include <limits.h>
+
+#if defined(LONG)
+typedef long intT;
+typedef unsigned long uintT;
+#define INT_T_MAX LONG_MAX
+#else
+typedef int intT;
+typedef int uintT;
+#define INT_T_MAX INT_MAX
+#endif
 
 #ifndef _ENCORE_PBBS_SEQUENCE_H_
 #define _ENCORE_PBBS_SEQUENCE_H_
@@ -43,7 +46,88 @@ T* malloc_array(size_t n) {
 }
 
 template <class T>
-using _seq = pbbs::_seq<T>;
+struct _seq {
+  T* A;
+  long n;
+  _seq() {A = NULL; n=0;}
+  _seq(T* _A, long _n) : A(_A), n(_n) {}
+  void del() {free(A);}
+};
+
+namespace orig {
+  namespace sequence {
+    
+    template <class intT>
+    struct boolGetA {
+      bool* A;
+      boolGetA(bool* AA) : A(AA) {}
+      intT operator() (intT i) {return (intT) A[i];}
+    };
+    
+    template <class ET, class intT>
+    struct getA {
+      ET* A;
+      getA(ET* AA) : A(AA) {}
+      ET operator() (intT i) {return A[i];}
+    };
+    
+    template <class IT, class OT, class intT, class F>
+    struct getAF {
+      IT* A;
+      F f;
+      getAF(IT* AA, F ff) : A(AA), f(ff) {}
+      OT operator () (intT i) {return f(A[i]);}
+    };
+    
+    template <class OT, class intT, class F, class G>
+    OT reduceSerial(intT s, intT e, F f, G g) {
+      OT r = g(s);
+      for (intT j=s+1; j < e; j++) r = f(r,g(j));
+      return r;
+    }
+    
+    template <class ET, class intT, class F, class G>
+    intT maxIndexSerial(intT s, intT e, F f, G g) {
+      ET r = g(s);
+      intT k = 0;
+      for (intT j=s+1; j < e; j++) {
+        ET v = g(j);
+        if (f(v,r)) { r = v; k = j;}
+      }
+      return k;
+    }
+    
+    template <class ET, class intT, class F, class G>
+    ET scanSerial(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool back) {
+      ET r = zero;
+      
+      if (inclusive) {
+        if (back) for (intT i = e-1; i >= s; i--) Out[i] = r = f(r,g(i));
+        else for (intT i = s; i < e; i++) Out[i] = r = f(r,g(i));
+      } else {
+        if (back)
+          for (intT i = e-1; i >= s; i--) {
+            ET t = g(i);
+            Out[i] = r;
+            r = f(r,t);
+          }
+        else
+          for (intT i = s; i < e; i++) {
+            ET t = g(i);
+            Out[i] = r;
+            r = f(r,t);
+          }
+      }
+      return r;
+    }
+    
+    template <class ET, class intT, class F>
+    ET scanSerial(ET *In, ET* Out, intT n, F f, ET zero) {
+      return scanSerial(Out, (intT) 0, n, f, getA<ET,intT>(In), zero, false, false);
+    }
+    
+  }
+}
 
 namespace sequence {
  
@@ -119,7 +203,7 @@ public:
       dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
         intT ss = s.s;
         intT ee = std::min(s.e, ss + threshold);
-        *s.dest = s.f(*s.dest, pbbs::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
+        *s.dest = s.f(*s.dest, orig::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
         s.s = ee;
       }))
     });
@@ -177,7 +261,7 @@ public:
                                 dc::stmt([] (sar& s, par& p) {
         intT ss = p.s;
         intT ee = std::min(p.e, ss + threshold);
-        p.acc = s.f(p.acc, pbbs::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
+        p.acc = s.f(p.acc, orig::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
         p.s = ee;
       })),
       dc::stmt([] (sar& s, par& p) {
@@ -293,7 +377,7 @@ public:
       dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
         intT ss = s.s;
         intT ee = std::min(s.e, ss + threshold);
-        intT m = pbbs::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
+        intT m = orig::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
         if (s.f(s.g(m), s.g(*s.dest))) {
           *s.dest = m;
         }
@@ -359,7 +443,7 @@ public:
                                 dc::stmt([] (sar& s, par& p) {
         intT ss = p.s;
         intT ee = std::min(p.e, ss + threshold);
-        int k = pbbs::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
+        int k = orig::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
         if (s.f(s.g(k), s.g(p.k))) {
           p.k = k;
         }

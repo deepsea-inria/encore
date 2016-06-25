@@ -45,6 +45,8 @@ namespace dsl = encore::edsl;
 using namespace std;
 using namespace sequence;
 
+using point2d = pasl::pctl::point2d;
+
 template <class ET, class F>
 pair<intT,intT> split(ET* A, intT n, F lf, F rf) {
   intT ll = 0, lm = 0;
@@ -72,16 +74,16 @@ struct aboveLine {
   intT l, r;
   point2d* P;
   aboveLine(point2d* _P, intT _l, intT _r) : P(_P), l(_l), r(_r) {}
-  bool operator() (intT i) {return triArea(P[l], P[r], P[i]) > 0.0;}
+  bool operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[i]) > 0.0;}
 };
 
 intT serialQuickHull(intT* I, point2d* P, intT n, intT l, intT r) {
   if (n < 2) return n;
   intT maxP = I[0];
-  double maxArea = triArea(P[l],P[r],P[maxP]);
+  double maxArea = pasl::pctl::triangle_area(P[l],P[r],P[maxP]);
   for (intT i=1; i < n; i++) {
     intT j = I[i];
-    double a = triArea(P[l],P[r],P[j]);
+    double a = pasl::pctl::triangle_area(P[l],P[r],P[j]);
     if (a > maxArea) {
       maxArea = a;
       maxP = j;
@@ -105,7 +107,7 @@ struct triangArea {
   point2d* P;
   intT* I;
   triangArea(intT* _I, point2d* _P, intT _l, intT _r) : I(_I), P(_P), l(_l), r(_r) {}
-  double operator() (intT i) {return triArea(P[l], P[r], P[I[i]]);}
+  double operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[I[i]]);}
 };
 
 class quickHull : public encore::edsl::pcfg::shared_activation_record {
@@ -254,7 +256,7 @@ public:
                             dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           s.Itmp[p.s] = p.s;
-          double a = triArea(s.P[s.l], s.P[s.r], s.P[p.s]);
+          double a = triangle_area(s.P[s.l], s.P[s.r], s.P[p.s]);
           s.fTop[p.s] = a > 0;
           s.fBot[p.s] = a < 0;
         }),
@@ -315,6 +317,148 @@ public:
 };
 
 encore_pcfg_allocate(hull, get_cfg)
+
+namespace pasl {
+namespace pctl {
+
+/*---------------------------------------------------------------------*/
+/* Quickcheck IO */
+
+template <class Container>
+std::ostream& operator<<(std::ostream& out, const pasl::pctl::container_wrapper<Container>& c) {
+  out << c.c;
+  return out;
+}
+
+/*---------------------------------------------------------------------*/
+/* Quickcheck generators */
+
+void generate(size_t _nb, parray<point2d>& dst) {
+  intT nb = (intT)_nb;
+  if (quickcheck::generateInRange(0, 1) == 0) {
+    dst = plummer2d(nb);
+  } else {
+    bool inSphere = quickcheck::generateInRange(0, 1) == 0;
+    bool onSphere = quickcheck::generateInRange(0, 1) == 0;
+    dst = uniform2d(inSphere, onSphere, nb);
+  }
+}
+
+void generate(size_t nb, container_wrapper<parray<point2d>>& c) {
+  generate(nb, c.c);
+}
+
+
+/*---------------------------------------------------------------------*/
+/* Quickcheck properties */
+
+struct getX {
+  point2d* P;
+  getX(point2d* _P) : P(_P) {}
+  double operator() (intT i) {return P[i].x;}
+};
+
+struct lessX {bool operator() (point2d a, point2d b) {
+  return (a.x < b.x) ? 1 : (a.x > b.x) ? 0 : (a.y < b.y);} };
+
+bool equals(point2d a, point2d b) {
+  return (a.x == b.x) && (a.y == b.y);
+}
+
+//    if (f(v,r)) { r = v; k = j;}
+bool check_hull(parray<point2d>& points, parray<intT> indices) {
+  point2d* p = points.begin();
+  intT n = points.size();
+  intT hull_size = indices.size();
+  point2d* convex_hull = newA(point2d, hull_size);
+  for (intT i = 0; i < hull_size; i++) {
+    convex_hull[i] = p[indices[i]];
+  }
+  intT idx = 0;
+  for (int i = 0; i < hull_size; i++) {
+    if (convex_hull[i].x > convex_hull[idx].x ||
+        (convex_hull[i].x == convex_hull[idx].x && convex_hull[i].y > convex_hull[idx].y)) {
+      idx = i;
+    }
+  }
+  std::sort(p, p + n, lessX());
+  if (!equals(p[0], convex_hull[0])) {
+    cout << "checkHull: bad leftmost point" << endl;
+    p[0].print();  convex_hull[0].print(); cout << endl;
+    return 1;
+  }
+  if (!equals(p[n - 1], convex_hull[idx])) {
+    cout << "checkHull: bad rightmost point" << endl;
+    return 1;
+  }
+  intT k = 1;
+  for (intT i = 0; i < idx; i++) {
+    if (i > 0 && counter_clockwise(convex_hull[i - 1], convex_hull[i], convex_hull[i + 1])) {
+      cout << "checkHull: not convex sides" << endl;
+      return 1;
+    }
+    if (convex_hull[i].x > convex_hull[i + 1].x) {
+      cout << "checkHull: upper hull not sorted by x" << endl;
+//      cout << indices << endl;
+      for (int i = 0; i < hull_size; i++) {
+        cout << convex_hull[i] << " ";
+      }
+      cout << std::endl;
+      return 1;
+    }
+    while (k < n && !equals(p[k], convex_hull[i + 1]))
+      if (counter_clockwise(convex_hull[i], convex_hull[i + 1], p[k++])) {
+        cout << "checkHull: not convex" << endl;
+        return 1;
+      }
+    if (k == n) {
+      cout << "checkHull: unexpected points in hull" << endl;
+      return 1;
+    }
+    k++;
+  }
+  k = n - 2;
+  for (intT i = idx; i < hull_size - 1; i++) {
+    if (i > idx && counter_clockwise(convex_hull[i - 1], convex_hull[i], convex_hull[i + 1])) {
+      cout << "checkHull: not convex sides" << endl;
+      return 1;
+    }
+    if (convex_hull[i].x < convex_hull[i + 1].x) {
+      cout << "checkHull: lower hull not sorted by x" << endl;
+      return 1;
+    }
+    while (k >= 0 && !equals(p[k], convex_hull[i + 1])) {
+      if (counter_clockwise(convex_hull[i], convex_hull[i + 1], p[k--])) {
+        cout << "checkHull: not convex" << endl;
+      }
+    }
+    k--;
+  }
+  free(convex_hull);
+  return 0;
+}
+
+
+using parray_wrapper = container_wrapper<parray<point2d>>;
+
+class consistent_hulls_property : public quickcheck::Property<parray_wrapper> {
+public:
+  
+  bool holdsFor(const parray_wrapper& _in) {
+    parray_wrapper in(_in);
+//    parray<intT> idxs = hull(in.c);
+
+    _seq<intT> idxs;
+    encore::launch_interpreter<hull>(in.c.begin(), in.c.size(), &idxs);
+    parray<intT> idxs2(idxs.n);
+    std::copy(idxs.A, idxs.A+idxs.n, idxs2.begin());
+    return ! check_hull(in.c, idxs2);
+  }
+  
+};
+
+} // end namespace
+} // end namespace
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
