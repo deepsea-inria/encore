@@ -368,8 +368,8 @@ bool equals(point2d a, point2d b) {
 //    if (f(v,r)) { r = v; k = j;}
 bool check_hull(parray<point2d>& points, parray<intT> indices) {
   point2d* p = points.begin();
-  intT n = points.size();
-  intT hull_size = indices.size();
+  intT n = (intT)points.size();
+  intT hull_size = (intT)indices.size();
   point2d* convex_hull = newA(point2d, hull_size);
   for (intT i = 0; i < hull_size; i++) {
     convex_hull[i] = p[indices[i]];
@@ -399,7 +399,7 @@ bool check_hull(parray<point2d>& points, parray<intT> indices) {
     }
     if (convex_hull[i].x > convex_hull[i + 1].x) {
       cout << "checkHull: upper hull not sorted by x" << endl;
-//      cout << indices << endl;
+      cout << indices << endl;
       for (int i = 0; i < hull_size; i++) {
         cout << convex_hull[i] << " ";
       }
@@ -446,8 +446,6 @@ public:
   
   bool holdsFor(const parray_wrapper& _in) {
     parray_wrapper in(_in);
-//    parray<intT> idxs = hull(in.c);
-
     _seq<intT> idxs;
     encore::launch_interpreter<hull>(in.c.begin(), in.c.size(), &idxs);
     parray<intT> idxs2(idxs.n);
@@ -462,6 +460,7 @@ public:
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
-
+  int nb_tests = deepsea::cmdline::parse_or_default_int("n", 1000);
+  checkit<pasl::pctl::consistent_hulls_property>(nb_tests, "quickhull is correct");
   return 0;
 }
