@@ -146,6 +146,7 @@ void empty_freelist() {
     free(c);
     c = t;
   }
+  head = nullptr;
 }
   
 stack_type new_stack() {
