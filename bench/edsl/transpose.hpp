@@ -34,8 +34,6 @@ public:
   intT cStart; intT cCount; intT cLength;
   intT l1; intT l2;
   
-  transpose() { }
-  
   transpose(E *AA, E *BB,
             intT rStart, intT rCount, intT rLength,
             intT cStart, intT cCount, intT cLength)
@@ -110,9 +108,7 @@ public:
   intT rStart; intT rCount; intT rLength;
   intT cStart; intT cCount; intT cLength;
   intT l1; intT l2;
-  
-  blockTrans() { }
-  
+    
   blockTrans(E *AA, E *BB,
              intT *OOA, intT *OOB, intT *LL,
              intT rStart, intT rCount, intT rLength,

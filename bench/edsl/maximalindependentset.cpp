@@ -70,9 +70,7 @@ public:
   
   graph<intT> GS; char** dest;
   char* Flags; intT tmp;
-  
-  maximalIndependentSet() { }
-  
+    
   maximalIndependentSet(graph<intT> GS, char** dest)
   : GS(GS), dest(dest) { }
   
