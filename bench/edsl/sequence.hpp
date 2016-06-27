@@ -186,8 +186,6 @@ public:
   
   intT s; intT e; F f; G g; OT* dest;
   
-  reduceSerial() { }
-  
   reduceSerial(intT s, intT e, F f, G g, OT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
   
@@ -221,8 +219,6 @@ class reduce : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   intT s; intT e; F f; G g; OT* dest;
-  
-  reduce() { }
   
   reduce(intT s, intT e, F f, G g, OT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
@@ -280,8 +276,6 @@ public:
   
   intT s; intT e; F f; G g; OT* dest;
   intT l; OT* Sums;
-
-  reduce() { }
   
   reduce(intT s, intT e, F f, G g, OT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
@@ -361,8 +355,6 @@ public:
 
   intT s; intT e; F f; G g; intT* dest;
   
-  maxIndexSerial() { }
-  
   maxIndexSerial(intT s, intT e, F f, G g, intT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
   
@@ -398,8 +390,6 @@ class maxIndex : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   intT s; intT e; F f; G g; intT* dest;
-  
-  maxIndex() { }
   
   maxIndex(intT s, intT e, F f, G g, intT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
@@ -465,8 +455,6 @@ public:
   
   intT s; intT e; F f; G g; intT* dest;
   intT l; intT* Idx; intT j;
-  
-  maxIndex() { }
   
   maxIndex(intT s, intT e, F f, G g, intT* dest)
   : s(s), e(e), f(f), g(g), dest(dest) { }
@@ -538,8 +526,6 @@ public:
   
   ET* Out; intT s; intT e; F f; G g; ET zero; bool inclusive; bool back; ET* dest;
   intT i;
-  
-  scanSerial() { }
   
   scanSerial(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool back, ET* dest)
   : Out(Out), s(s), e(e), f(f), g(g), zero(zero), inclusive(inclusive), back(back), dest(dest) { }
@@ -650,8 +636,6 @@ public:
   ET* Out; intT s; intT e; F f; G g; ET zero; bool inclusive; bool back; ET* dest;
   intT i; intT l; ET* Sums;
   
-  scan() { }
-  
   scan(ET* Out, intT s, intT e, F f, G g, ET zero, bool inclusive, bool back, ET* dest)
   : Out(Out), s(s), e(e), f(f), g(g), zero(zero), inclusive(inclusive), back(back), dest(dest) { }
   
@@ -755,8 +739,6 @@ public:
   bool *Fl; intT n; intT* dest;
   int* IFl; int k; intT r; intT j;
   
-  sumFlagsSerial() { }
-  
   sumFlagsSerial(bool *Fl, intT n, intT* dest)
   : Fl(Fl), n(n), dest(dest) { }
   
@@ -808,8 +790,6 @@ public:
   ET* Out; bool* Fl; intT s; intT e; F f; _seq<ET>* dest;
   intT m; intT k;
   
-  packSerial() { }
-  
   packSerial(ET* Out, bool* Fl, intT s, intT e, F f, _seq<ET>* dest)
   : Out(Out), Fl(Fl), s(s), e(e), f(f), dest(dest) { }
   
@@ -860,8 +840,6 @@ public:
   ET* Out; bool* Fl; intT s; intT e; F f; _seq<ET>* dest;
   intT l; intT m; intT* Sums;
   
-  pack() { }
-
   pack(ET* Out, bool* Fl, intT s, intT e, F f, _seq<ET>* dest)
   : Out(Out), Fl(Fl), s(s), e(e), f(f), dest(dest) { }
   
@@ -953,8 +931,6 @@ public:
   ET* In; ET* Out; intT n; PRED p; intT* dest;
   _seq<ET> tmp; intT m; bool* Fl;
   
-  filterDPS() { }
-  
   filterDPS(ET* In, ET* Out, intT n, PRED p, intT* dest)
   : In(In), Out(Out), n(n), p(p), dest(dest) { }
   
@@ -1008,8 +984,6 @@ public:
   ET* In; intT n; PRED p; _seq<ET>* dest;
   bool* Fl;
   
-  filter() { }
-  
   filter(ET* In, intT n, PRED p, _seq<ET>* dest)
   : In(In), n(n), p(p), dest(dest) { }
   
@@ -1059,9 +1033,7 @@ class copy : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   Iter lo; Iter hi; Output_iterator dst;
-  
-  copy() { }
-  
+    
   copy(Iter lo, Iter hi, Output_iterator dst)
   : lo(lo), hi(hi), dst(dst) { }
   

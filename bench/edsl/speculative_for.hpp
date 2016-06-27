@@ -52,9 +52,7 @@ public:
   S *state; intT size; _seq<intT> tmp;
   
   int round; intT numberDone; intT numberKeep; intT totalProcessed;
-  
-  speculative_for() { }
-  
+    
   speculative_for(S step, intT s, intT e, int granularity,
                   bool hasState, int maxTries, intT* dest)
   : step(step), s(s), e(e), granularity(granularity),

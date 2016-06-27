@@ -90,8 +90,6 @@ namespace intSort {
     
     int expand; intT blocks; intT nn; intT* cnts; intT* oA; intT* oB; intT ss;
     
-    radixStep() { }
-    
     radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
               intT numBK, intT n, intT m, bool top, F extract)
     : A(A), B(B), Tmp(Tmp), BK(BK), numBK(numBK), n(n),
@@ -180,8 +178,6 @@ namespace intSort {
     
     int rounds; int rbits; int bitOffset;
     
-    radixLoopBottomUp() { }
-    
     radixLoopBottomUp(E *A, E *B, bIndexT *Tmp, intT (*BK)[BUCKETS],
                       intT numBK, intT n, int bits, bool top, F f)
     : A(A), B(B), Tmp(Tmp), BK(BK), numBK(numBK), n(n), bits(bits), top(top), f(f) { }
@@ -224,8 +220,6 @@ namespace intSort {
     E *A; E *B; bIndexT *Tmp; intT (*BK)[BUCKETS];
     intT numBK; intT n; int bits;  F f;
     intT* offsets; intT remain; float y;
-    
-    radixLoopTopDown() { }
     
     radixLoopTopDown(E *A, E *B, bIndexT *Tmp, intT (*BK)[BUCKETS],
                       intT numBK, intT n, int bits, F f)
@@ -317,9 +311,7 @@ namespace intSort {
     // the temporary space is broken into 3 parts: B, Tmp and BK
     E *B; intT Bsize; bIndexT *Tmp; intT tmpSize; bucketsT *BK;
     intT tmp;
-
-//    iSort() { }
-    
+   
     iSort(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp,
           char* tmpSpace, F f)
     : A(A), bucketOffsets(bucketOffsets), n(n), m(m), bottomUp(bottomUp),
