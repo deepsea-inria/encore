@@ -134,6 +134,8 @@ using perworker_array = data::perworker::array<Item>;
   
 std::atomic<int> nb_active_workers; // later: use SNZI instead
   
+std::atomic<int> nb_running_workers;
+  
 perworker_array<std::atomic<bool>> status;
 
 static constexpr int no_request = -1;
@@ -180,6 +182,7 @@ void worker_loop(vertex* v) {
   
   auto random_other_worker = [&] {
     int P = data::perworker::get_nb_workers();
+    assert(P != 1);
     std::uniform_int_distribution<int> distribution(0, 2*P);
     int i = distribution(rngs[my_id]) % (P - 1);
     if (i >= my_id) {
@@ -276,6 +279,7 @@ void worker_loop(vertex* v) {
   assert(my_ready.empty());
   assert(my_suspended.empty());
   cactus::empty_freelist();
+  nb_running_workers--;
 }
 
 } // end namespace
@@ -291,13 +295,16 @@ void launch_scheduler(int nb_workers, vertex* v) {
     t.store(no_response);
   });
   nb_active_workers.store(1);
+  nb_running_workers.store(nb_workers);
+  std::vector<std::thread> threads(nb_workers - 1);
   for (int i = 1; i < nb_workers; i++) {
-    std::thread t([] {
+    threads[i] = std::thread([] {
       worker_loop(nullptr);
     });
-    t.detach();
+    threads[i].detach();
   }
   worker_loop(v);
+  while (nb_running_workers.load() > 0);
   assert(nb_active_workers == 0);
 }
   

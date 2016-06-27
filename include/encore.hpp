@@ -108,6 +108,7 @@ void launch(int nb_workers, const Init& init) {
   sched::vertex* v = init();
   sched::launch_scheduler(nb_workers, v);
   stats::report();
+  data::perworker::reset();
 }
 
 void launch(sched::vertex* v, int nb_workers) {

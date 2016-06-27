@@ -20,6 +20,11 @@ __thread int my_id = -1;
   
 } // end namespace
   
+void reset() {
+  fresh_id.store(0);
+  my_id = -1;
+}
+  
 int get_my_id() {
   if (my_id == -1) {
     my_id = fresh_id++;
