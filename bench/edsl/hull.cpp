@@ -116,9 +116,7 @@ public:
   intT* I; intT* Itmp; point2d* P; intT n; intT l; intT r; intT depth;
   intT* dest;
   intT idx; intT maxP; intT n1; intT n2; intT m1; intT m2;
-  
-  quickHull() { }
-  
+    
   quickHull(intT* I, intT* Itmp, point2d* P, intT n, intT l, intT r, intT depth, intT* dest)
   : I(I), Itmp(Itmp), P(P), n(n), l(l), r(r), depth(depth), dest(dest) { }
   
@@ -149,7 +147,7 @@ public:
       }),
       dc::spawn_join([] (sar& s, par&, stt st) {
         auto a = aboveLine(s.P, s.maxP, s.r);
-        return ecall<filterDPS<intT, intT, typeof(a)>>(st, s.I, s.Itmp+s.n1, s.n, a, &s.n1);
+        return ecall<filterDPS<intT, intT, typeof(a)>>(st, s.I, s.Itmp+s.n1, s.n, a, &s.n2);
       }),
       dc::spawn2_join(
         [] (sar& s, par&, stt st) {
@@ -165,15 +163,12 @@ public:
       // later: replace loops below by a standard parallel memcpy
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           s.I[p.s] = s.Itmp[p.s];
-        }),
-        dc::stmt([] (sar& s, par& p) {
           p.s++;
-        })
-      })),
+        })),
       dc::stmt([] (sar& s, par& p) {
+        s.I[s.m1] = s.maxP;
         p.s = 0;
         p.e = s.m2;
       }),
@@ -224,8 +219,6 @@ public:
   _seq<intT> tmp;
   pair<intT,intT> minMax;
   
-  hull() { }
-  
   hull(point2d* P, intT n, _seq<intT>* dest)
   : P(P), n(n), dest(dest) { }
   
@@ -253,17 +246,13 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           s.Itmp[p.s] = p.s;
           double a = triangle_area(s.P[s.l], s.P[s.r], s.P[p.s]);
           s.fTop[p.s] = a > 0;
           s.fBot[p.s] = a < 0;
-        }),
-        dc::stmt([] (sar& s, par& p) {
           p.s++;
-        })
-      })),
+        })),
       dc::spawn_join([] (sar& s, par&, stt st) {
         return pack5(st, s.Itmp, s.I, s.fTop, s.n, &s.tmp);
       }),
@@ -285,26 +274,26 @@ public:
         [] (sar& s, par&, stt st) {
           return ecall<quickHull>(st, s.I + s.n1, s.Itmp + s.n1, s.P, s.n2, s.r, s.l, 5, &s.m2);
         }),
+      dc::stmt([] (sar& s, par& p) {
+        p.s = 0;
+        p.e = s.m1;
+      }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           s.Itmp[p.s + 1] = s.I[p.s];
-        }),
-        dc::stmt([] (sar& s, par& p) {
           p.s++;
-        })
-      })),
+        })),
+      dc::stmt([] (sar& s, par& p) {
+        p.s = 0;
+        p.e = s.m2;
+      }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           s.Itmp[p.s + s.m1 + 2] = s.I[p.s + s.n1];
-        }),
-        dc::stmt([] (sar& s, par& p) {
           p.s++;
-        })
-      })),
+        })),
       dc::stmt([] (sar& s, par& p) {
         free(s.I);
         s.Itmp[0] = s.l;
@@ -448,8 +437,8 @@ public:
     parray_wrapper in(_in);
     _seq<intT> idxs;
     encore::launch_interpreter<hull>(in.c.begin(), in.c.size(), &idxs);
-    parray<intT> idxs2(idxs.n);
-    std::copy(idxs.A, idxs.A+idxs.n, idxs2.begin());
+    parray<intT> idxs2(idxs.A, idxs.A + idxs.n);
+    idxs.del();
     return ! check_hull(in.c, idxs2);
   }
   
