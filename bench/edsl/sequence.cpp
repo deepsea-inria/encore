@@ -11,11 +11,17 @@
 #include "encore.hpp"
 #include "sequence.hpp"
 
+#include "test.hpp"
+#include "prandgen.hpp"
+
 #include "sequence.h"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
+
+/*---------------------------------------------------------------------*/
+/* Benchmark for reduce */
 
 void bench_reduce() {
   using intT = int;
@@ -52,6 +58,9 @@ void bench_reduce() {
   free(input);
 }
 
+/*---------------------------------------------------------------------*/
+/* Benchmark for max_index */
+
 void bench_max_index() {
   using intT = int;
   using value_type = int;
@@ -87,6 +96,9 @@ void bench_max_index() {
   free(input);
 }
 
+/*---------------------------------------------------------------------*/
+/* Benchmark for scan */
+
 template <class Item>
 long count_diffs(long n, Item* trusted, Item* untrusted) {
   long nb_diffs = 0;
@@ -111,7 +123,7 @@ void bench_scan() {
   value_type* input = malloc_array<value_type>(n);
   value_type* output = malloc_array<value_type>(n);
   value_type zero = 0;
-  value_type result = (value_type)0;
+  value_type result = 0;
   for (intT i = 0; i < n; i++) {
     input[i] = 1;
     output[i] = -1234;
@@ -144,6 +156,9 @@ void bench_scan() {
   free(input);
   free(output);
 }
+
+/*---------------------------------------------------------------------*/
+/* Benchmark for pack */
 
 template <class T>
 _seq<T> from_pbbs(pbbs::_seq<T> s) {
@@ -193,6 +208,9 @@ void bench_pack() {
   free(input);
   output.del();
 }
+
+/*---------------------------------------------------------------------*/
+/* Benchmark for filter */
 
 template <class ET, class intT, class PRED>
 _seq<ET> filterSerial(ET* In, intT n, PRED p) {
@@ -260,10 +278,183 @@ void bench_filter() {
   output.del();
 }
 
-int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
-  sequence::threshold = cmdline::parse_or_default("threshold", sequence::threshold);
-  sequence::block_size = cmdline::parse_or_default("block_size", sequence::block_size);
+/*---------------------------------------------------------------------*/
+/* Quickcheck unit testing */
+
+namespace pasl {
+namespace pctl {
+  
+template <class Item1, class Item2>
+std::ostream& operator<<(std::ostream& out, const std::pair<parray<Item1>, parray<Item2>>& p) {
+  out << p.first;
+  out << "\n";
+  out << p.second;
+  return out;
+}
+
+template <class Container>
+std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& c) {
+  out << c.c;
+  return out;
+}
+
+void generate(size_t _nb, parray<intT>& dst) {
+  dst = prandgen::gen_integ_parray(_nb, 0, 32);
+}
+
+void generate(size_t nb, container_wrapper<parray<intT>>& c) {
+  generate(nb, c.c);
+}
+  
+void generate(size_t _nb, std::pair<parray<intT>,parray<bool>>& dst) {
+  generate(_nb, dst.first);
+  dst.second = prandgen::gen_parray<bool>(_nb, [&] (long, unsigned int x) {
+    return x % 2 == 0;
+  });
+}
+
+void generate(size_t nb, container_wrapper<std::pair<parray<intT>,parray<bool>>>& c) {
+  generate(nb, c.c);
+}
+  
+using int_array_wrapper = container_wrapper<parray<intT>>;
+  
+class consistent_copies_property : public quickcheck::Property<int_array_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const int_array_wrapper& _in) {
+    int_array_wrapper in(_in);
+    parray<intT> output(in.c.size());
+    encore::launch_interpreter<sequence::copy<intT*, intT*>>(in.c.begin(), in.c.end(), output.begin());
+    return count_diffs(in.c.size(), in.c.begin(), output.begin());
+  }
+  
+};
+  
+class consistent_reductions_property : public quickcheck::Property<int_array_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const int_array_wrapper& _in) {
+    int_array_wrapper in(_in);
+    value_type* input = in.c.begin();
+    intT n = (intT)in.c.size();
+    value_type result = 0;
+    auto f = utils::addF<value_type>();
+    auto g = sequence::getA<value_type,intT>(input);
+    encore::launch_interpreter<sequence::reduce<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
+    value_type result2 = pbbs::sequence::reduceSerial<value_type>(0, n, f, g);
+    return result == result2;
+  }
+  
+};
+  
+class consistent_max_indexes_property : public quickcheck::Property<int_array_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const int_array_wrapper& _in) {
+    int_array_wrapper in(_in);
+    value_type* input = in.c.begin();
+    intT n = (intT)in.c.size();
+    value_type result = 0;
+    auto f = utils::addF<value_type>();
+    auto g = sequence::getA<value_type,intT>(input);
+    encore::launch_interpreter<sequence::maxIndex<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
+    value_type result2 = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
+    return result == result2;
+  }
+  
+};
+
+class consistent_scans_property : public quickcheck::Property<int_array_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const int_array_wrapper& _in) {
+    int_array_wrapper in(_in);
+    value_type* input = in.c.begin();
+    intT n = (intT)in.c.size();
+    value_type zero = 0;
+    value_type result = 0;
+    auto f = utils::addF<value_type>();
+    auto g = sequence::getA<value_type,intT>(input);
+    parray<intT> output(n);
+    bool inclusive = cmdline::parse_or_default("inclusive", false);
+    bool back = cmdline::parse_or_default("back", false);
+    encore::launch_interpreter<sequence::scan<value_type,intT,typeof(f),typeof(g)>>(output.begin(), 0, n, f, g, zero, inclusive, back, &result);
+    parray<intT> output2(n);
+    value_type result2 = pbbs::sequence::scanSerial(output2.begin(), (intT) 0, n, f, g, zero, inclusive, back);
+    return result == result2 && count_diffs(n, output2.begin(), output2.begin()) == 0;
+  }
+  
+};
+  
+using pack_wrapper = container_wrapper<std::pair<parray<intT>, parray<bool>>>;
+  
+class consistent_packs_property : public quickcheck::Property<pack_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const pack_wrapper& _in) {
+    pack_wrapper in(_in);
+    _seq<value_type> output;
+    intT n = (intT)in.c.first.size();
+    assert(in.c.first.size() == in.c.second.size());
+    auto f = sequence::getA<value_type,intT>(in.c.first.begin());
+    auto flags = in.c.second.begin();
+    encore::launch_interpreter<sequence::pack<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
+    auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
+    auto nb_diffs = count_diffs(n, output2.A, output.A);
+    output.del();
+    output2.del();
+    return nb_diffs == 0;
+  }
+  
+};
+  
+class consistent_filters_property : public quickcheck::Property<pack_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const pack_wrapper& _in) {
+    pack_wrapper in(_in);
+    _seq<value_type> output;
+    intT n = (intT)in.c.first.size();
+    assert(in.c.first.size() == in.c.second.size());
+    auto f = sequence::getA<value_type,intT>(in.c.first.begin());
+    auto flags = in.c.second.begin();
+    auto p = [&] (value_type v) {
+      return flags[v];
+    };
+    encore::launch_interpreter<sequence::filter<value_type,intT,typeof(p)>>(in.c.first.begin(), n, p, &output);
+    auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
+    parray<value_type> output3(n);
+    intT dest;
+    encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.first.begin(), output3.begin(), n, p, &dest);
+    auto nb_diffs = count_diffs(n, output2.A, output.A);
+    auto nb_diffs2 = count_diffs(n, output3.begin(), output.A);
+    output.del();
+    output2.del();
+    return nb_diffs == 0 && nb_diffs2 == 0;
+  }
+  
+};
+
+} // end namespace
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+/* Main routine */
+
+void benchmark() {
   cmdline::dispatcher d;
   d.add("reduce", [&] {
     bench_reduce();
@@ -281,5 +472,42 @@ int main(int argc, char** argv) {
     bench_filter();
   });
   d.dispatch("operation");
+}
+
+void test() {
+  int nb_tests = deepsea::cmdline::parse_or_default_int("nb_tests", 1000);
+  cmdline::dispatcher d;
+  d.add("copy", [&] {
+    checkit<pasl::pctl::consistent_copies_property>(nb_tests, "copy is correct");
+  });
+  d.add("reduce", [&] {
+    checkit<pasl::pctl::consistent_reductions_property>(nb_tests, "reduce is correct");
+  });
+  d.add("max_index", [&] {
+    checkit<pasl::pctl::consistent_max_indexes_property>(nb_tests, "max_index is correct");
+  });
+  d.add("scan", [&] {
+    checkit<pasl::pctl::consistent_scans_property>(nb_tests, "scan is correct");
+  });
+  d.add("pack", [&] {
+    checkit<pasl::pctl::consistent_packs_property>(nb_tests, "pack is correct");
+  });
+  d.add("filter", [&] {
+    checkit<pasl::pctl::consistent_filters_property>(nb_tests, "filter is correct");
+  });
+  d.dispatch("operation");
+}
+
+int main(int argc, char** argv) {
+  encore::initialize(argc, argv);
+  sequence::initialize();
+  cmdline::dispatcher d;
+  d.add("benchmark", [&] {
+    benchmark();
+  });
+  d.add("test", [&] {
+    test();
+  });
+  d.dispatch_or_default("mode", "benchmark");
   return 0;
 }

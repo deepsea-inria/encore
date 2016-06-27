@@ -1096,6 +1096,11 @@ public:
 template <class Iter, class Output_iterator>
 typename copy<Iter,Output_iterator>::cfg_type copy<Iter,Output_iterator>::cfg = copy<Iter,Output_iterator>::get_cfg();
   
+void initialize() {
+  threshold = cmdline::parse_or_default("threshold", sequence::threshold);
+  block_size = cmdline::parse_or_default("block_size", sequence::block_size);
+}
+  
 } // end namespace
 
 #endif /*! _ENCORE_PBBS_SEQUENCE_H_ */
