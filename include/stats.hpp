@@ -61,6 +61,15 @@ public:
   }
   
   static
+  void initialize() {
+    for (int counter_id = 0; counter_id < nb_counters; counter_id++) {
+      buffers.for_each([&] (int, buffer& b) {
+        b.counters[counter_id] = 0;
+      });
+    }
+  }
+  
+  static
   void report() {
     if (! enabled) {
       return;

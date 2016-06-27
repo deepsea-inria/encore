@@ -101,10 +101,17 @@ void initialize(int argc, char** argv) {
   sched::K = cmdline::parse_or_default("sharing_freq", 2 * sched::D);
   cilk_set_nb_cores();
 }
-
-void launch(sched::vertex* v, int nb_workers) {
+  
+template <class Init>
+void launch(int nb_workers, const Init& init) {
+  stats::initialize();
+  sched::vertex* v = init();
   sched::launch_scheduler(nb_workers, v);
   stats::report();
+}
+
+void launch(sched::vertex* v, int nb_workers) {
+  launch(nb_workers, [=] { return v; });
 }
   
 void launch(sched::vertex* v) {
@@ -113,13 +120,15 @@ void launch(sched::vertex* v) {
   
 template <class Shared_activation_record, class ...Args>
 void launch_interpreter(Args... args) {
-  auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
-  auto f = [=] (edsl::pcfg::stack_type st) {
-    return edsl::pcfg::push_call<Shared_activation_record>(st, args...);
-  };
-  using t = call_and_report_elapsed<typeof(f)>;
-  interp->stack = edsl::pcfg::push_call<t>(interp->stack, f);
-  launch(interp);
+  launch(cmdline::parse_or_default("proc", 1), [&] {
+    auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
+    auto f = [=] (edsl::pcfg::stack_type st) {
+      return edsl::pcfg::push_call<Shared_activation_record>(st, args...);
+    };
+    using t = call_and_report_elapsed<typeof(f)>;
+    interp->stack = edsl::pcfg::push_call<t>(interp->stack, f);
+    return interp;
+  });
 }
   
 template <class Function>
