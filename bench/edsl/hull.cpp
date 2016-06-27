@@ -337,7 +337,6 @@ void generate(size_t nb, container_wrapper<parray<point2d>>& c) {
   generate(nb, c.c);
 }
 
-
 /*---------------------------------------------------------------------*/
 /* Quickcheck properties */
 
