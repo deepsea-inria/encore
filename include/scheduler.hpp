@@ -157,19 +157,6 @@ int run_vertex(vertex* v, int fuel) {
   return v->run(fuel);
 }
   
-void initialize_scheduler() {
-  nb_active_workers.store(0);
-  status.for_each([&] (int, std::atomic<bool>& b) {
-    b.store(false);
-  });
-  request.for_each([&] (int, std::atomic<int>& r) {
-    r.store(no_request);
-  });
-  transfer.for_each([&] (int, std::atomic<frontier*>& t) {
-    t.store(no_response);
-  });
-}
-  
 // one instance of this function is to be run by each
 // participating worker thread
 void worker_loop(vertex* v) {
@@ -286,14 +273,24 @@ void worker_loop(vertex* v) {
     }
   }
   
+  assert(my_ready.empty());
+  assert(my_suspended.empty());
   cactus::empty_freelist();
 }
 
 } // end namespace
   
 void launch_scheduler(int nb_workers, vertex* v) {
-  initialize_scheduler();
-  nb_active_workers++;
+  status.for_each([&] (int, std::atomic<bool>& b) {
+    b.store(false);
+  });
+  request.for_each([&] (int, std::atomic<int>& r) {
+    r.store(no_request);
+  });
+  transfer.for_each([&] (int, std::atomic<frontier*>& t) {
+    t.store(no_response);
+  });
+  nb_active_workers.store(1);
   for (int i = 1; i < nb_workers; i++) {
     std::thread t([] {
       worker_loop(nullptr);
@@ -301,6 +298,7 @@ void launch_scheduler(int nb_workers, vertex* v) {
     t.detach();
   }
   worker_loop(v);
+  assert(nb_active_workers == 0);
 }
   
 /*---------------------------------------------------------------------*/
