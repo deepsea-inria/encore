@@ -121,6 +121,7 @@ void launch(sched::vertex* v) {
   
 template <class Shared_activation_record, class ...Args>
 void launch_interpreter(Args... args) {
+  /* thanks to buggy GCC, the code here will crash the compiler...
   launch(cmdline::parse_or_default("proc", 1), [&] {
     auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
     auto f = [=] (edsl::pcfg::stack_type st) {
@@ -130,6 +131,18 @@ void launch_interpreter(Args... args) {
     interp->stack = edsl::pcfg::push_call<t>(interp->stack, f);
     return interp;
   });
+  */
+  int nb_workers = cmdline::parse_or_default("proc", 1);
+  stats::initialize();
+  auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
+  auto f = [=] (edsl::pcfg::stack_type st) {
+    return edsl::pcfg::push_call<Shared_activation_record>(st, args...);
+  };
+  using t = call_and_report_elapsed<typeof(f)>;
+  interp->stack = edsl::pcfg::push_call<t>(interp->stack, f);
+  sched::launch_scheduler(nb_workers, interp);
+  stats::report();
+  data::perworker::reset();
 }
   
 template <class Function>
