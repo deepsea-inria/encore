@@ -418,6 +418,10 @@ public:
   
 };
   
+int abs(int x) {
+  return x >= 0 ? x : -1 * x;
+}
+  
 class consistent_filters_property : public quickcheck::Property<pack_wrapper> {
 public:
   
@@ -439,7 +443,7 @@ public:
     parray<value_type> output3(n);
     intT dest;
 //    encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.first.begin(), output3.begin(), n, p, &dest);
-    auto nb_diffs = count_diffs(output2.n, output2.A, output.A);
+    auto nb_diffs = (output.n == output2.n) ? count_diffs(output2.n, output2.A, output.A) : abs(output.n - output2.n);
 //    auto nb_diffs2 = count_diffs(output2.n, output3.begin(), output.A);
     auto nb_diffs2 = 0;
     parray<intT> output11(output.A, output.A+output.n);
