@@ -533,10 +533,9 @@ int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   sequence::initialize();
   cmdline::dispatcher d;
-  /*
   d.add("benchmark", [&] {
     benchmark();
-  }); */
+  });
   d.add("test", [&] {
     test();
   });
