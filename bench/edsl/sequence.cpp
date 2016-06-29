@@ -99,10 +99,17 @@ void bench_max_index() {
 /*---------------------------------------------------------------------*/
 /* Benchmark for scan */
 
-template <class Item>
-long count_diffs(long n, Item* trusted, Item* untrusted) {
-  long nb_diffs = 0;
-  for (long i = 0; i < n; i++) {
+template <class Num>
+Num abs(Num x) {
+  return x >= 0 ? x : -1 * x;
+}
+template <class Num, class Item>
+Num count_diffs(Num n, Num m, Item* trusted, Item* untrusted) {
+  if (n != m) {
+    return abs(n - m);
+  }
+  Num nb_diffs = 0;
+  for (Num i = 0; i < n; i++) {
     Item& t = trusted[i];
     Item& u = untrusted[i];
     if (t != u) {
@@ -110,6 +117,11 @@ long count_diffs(long n, Item* trusted, Item* untrusted) {
     }
   }
   return nb_diffs;
+}
+
+template <class Num, class Item>
+Num count_diffs(Num n, Item* trusted, Item* untrusted) {
+  return count_diffs(n, n, trusted, untrusted);
 }
 
 void bench_scan() {
@@ -410,7 +422,7 @@ public:
     auto flags = in.c.second.begin();
     encore::launch_interpreter<sequence::pack<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
     auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
-    auto nb_diffs = count_diffs(output2.n, output2.A, output.A);
+    auto nb_diffs = count_diffs(output2.n, output.n, output2.A, output.A);
     output.del();
     output2.del();
     return nb_diffs == 0;
@@ -418,43 +430,54 @@ public:
   
 };
   
-int abs(int x) {
-  return x >= 0 ? x : -1 * x;
-}
-  
-class consistent_filters_property : public quickcheck::Property<pack_wrapper> {
+class consistent_filters_property : public quickcheck::Property<int_array_wrapper> {
 public:
   
   using value_type = intT;
   
-  bool holdsFor(const pack_wrapper& _in) {
-    pack_wrapper in(_in);
+  bool holdsFor(const int_array_wrapper& _in) {
+    int_array_wrapper in(_in);
     _seq<value_type> output;
-    intT n = (intT)in.c.first.size();
-    assert(in.c.first.size() == in.c.second.size());
-    auto f = sequence::getA<value_type,intT>(in.c.first.begin());
-    auto flags = in.c.second.begin();
+    intT n = (intT)in.c.size();
     intT k = cmdline::parse_or_default("keep_probability", 33);
     auto p = [&] (value_type v) {
       return v % k == 0;
     };
-    encore::launch_interpreter<sequence::filter<value_type,intT,typeof(p)>>(in.c.first.begin(), n, p, &output);
-    auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
-    parray<value_type> output3(n);
-    intT dest;
-//    encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.first.begin(), output3.begin(), n, p, &dest);
-    auto nb_diffs = (output.n == output2.n) ? count_diffs(output2.n, output2.A, output.A) : abs(output.n - output2.n);
-//    auto nb_diffs2 = count_diffs(output2.n, output3.begin(), output.A);
-    auto nb_diffs2 = 0;
-    parray<intT> output11(output.A, output.A+output.n);
-    parray<intT> output22(output2.A, output2.A+output2.n);
+    encore::launch_interpreter<sequence::filter<value_type,intT,typeof(p)>>(in.c.begin(), n, p, &output);
+    auto output2 = from_pbbs(pbbs::sequence::filter(in.c.begin(), n, p));
+    auto nb_diffs = count_diffs(output2.n, output.n, output2.A, output.A);
     output.del();
     output2.del();
-//    output3.del();
-    std::cout << "in.c = " << in.c.first << " flags = " << in.c.second << std::endl;
-    std::cout << "untrusted output = " << output11 << std::endl;
-    std::cout << "trusted output = " << output22 << std::endl;
-    return nb_diffs == 0 && nb_diffs2 == 0;
+    return nb_diffs == 0;
+  }
+  
+};
+  
+class consistent_filterDPSs_property : public quickcheck::Property<int_array_wrapper> {
+public:
+  
+  using value_type = intT;
+  
+  bool holdsFor(const int_array_wrapper& _in) {
+    int_array_wrapper in(_in);
+    intT n = (intT)in.c.size();
+    intT k = cmdline::parse_or_default("keep_probability", 33);
+    auto p = [&] (value_type v) {
+      return v % k == 0;
+    };
+    auto output2 = from_pbbs(pbbs::sequence::filter(in.c.begin(), n, p));
+    parray<value_type> output(n);
+    intT dest;
+    encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.begin(), output.begin(), n, p, &dest);
+    auto nb_diffs = count_diffs((intT)output2.n, dest, output2.A, output.begin());
+    parray<value_type> output4(output.begin(), output.begin()+dest);
+    parray<value_type> output333(output2.A, output2.A + output2.n);
+    output2.del();
+    
+    std::cout << "untrusted = " << output4 << std::endl;
+    std::cout << "trusted = " << output333 << std::endl;
+    
+    return nb_diffs == 0;
   }
   
 };
@@ -505,6 +528,9 @@ void test() {
   });
   d.add("filter", [&] {
     checkit<pasl::pctl::consistent_filters_property>(nb_tests, "filter is correct");
+  });
+  d.add("filterDPS", [&] {
+    checkit<pasl::pctl::consistent_filterDPSs_property>(nb_tests, "filter is correct");
   });
   d.dispatch("operation");
 }
