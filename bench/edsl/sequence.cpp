@@ -470,13 +470,7 @@ public:
     intT dest;
     encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.begin(), output.begin(), n, p, &dest);
     auto nb_diffs = count_diffs((intT)output2.n, dest, output2.A, output.begin());
-    parray<value_type> output4(output.begin(), output.begin()+dest);
-    parray<value_type> output333(output2.A, output2.A + output2.n);
     output2.del();
-    
-    std::cout << "untrusted = " << output4 << std::endl;
-    std::cout << "trusted = " << output333 << std::endl;
-    
     return nb_diffs == 0;
   }
   
