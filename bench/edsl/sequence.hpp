@@ -826,7 +826,9 @@ public:
         auto ss = s.s;
         auto ee = std::min(s.e, ss + threshold);
         for (; ss < ee; ss++) {
-          if (Fl[ss]) Out[kk++] = f(ss);
+          if (Fl[ss]) {
+            Out[kk++] = f(ss);
+          }
         }
         s.s = ss;
         s.k = kk;
@@ -957,7 +959,6 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           auto Fl = s.Fl;
           auto pr = s.p;
@@ -968,8 +969,7 @@ public:
             Fl[ss] = (bool)pr(In[ss]);
           }
           p.s = ss;
-        })
-      })),
+        })),
       dc::spawn_join([] (sar& s, par& p, stt st) {
         return pack5(st, s.In, s.Out, s.Fl, s.n, &s.tmp);
       }),
