@@ -328,7 +328,7 @@ public:
     int_array_wrapper in(_in);
     parray<intT> output(in.c.size());
     encore::launch_interpreter<sequence::copy<intT*, intT*>>(in.c.begin(), in.c.end(), output.begin());
-    return count_diffs(in.c.size(), in.c.begin(), output.begin());
+    return count_diffs(in.c.size(), in.c.begin(), output.begin()) == 0;
   }
   
 };
@@ -359,11 +359,10 @@ public:
   
   bool holdsFor(const int_array_wrapper& _in) {
     int_array_wrapper in(_in);
-    value_type* input = in.c.begin();
     intT n = (intT)in.c.size();
     value_type result = 0;
-    auto f = utils::addF<value_type>();
-    auto g = sequence::getA<value_type,intT>(input);
+    auto f = pbbs::greater<intT>();
+    auto g = sequence::getA<value_type,intT>(in.c.begin());
     encore::launch_interpreter<sequence::maxIndex<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
     value_type result2 = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
     return result == result2;
@@ -411,7 +410,7 @@ public:
     auto flags = in.c.second.begin();
     encore::launch_interpreter<sequence::pack<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
     auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
-    auto nb_diffs = count_diffs(n, output2.A, output.A);
+    auto nb_diffs = count_diffs(output2.n, output2.A, output.A);
     output.del();
     output2.del();
     return nb_diffs == 0;
@@ -439,10 +438,15 @@ public:
     parray<value_type> output3(n);
     intT dest;
     encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.first.begin(), output3.begin(), n, p, &dest);
-    auto nb_diffs = count_diffs(n, output2.A, output.A);
-    auto nb_diffs2 = count_diffs(n, output3.begin(), output.A);
+    auto nb_diffs = count_diffs(output2.n, output2.A, output.A);
+    auto nb_diffs2 = count_diffs(output2.n, output3.begin(), output.A);
     output.del();
     output2.del();
+    std::cout << "in.c = " << in.c.first << " flags = " << in.c.second << std::endl;
+    parray<intT> output11(output.A, output.A+output.n);
+    parray<intT> output22(output2.A, output2.A+output2.n);
+    std::cout << "output1 = " << output11 << std::endl;
+    std::cout << "output2 = " << output22 << std::endl;
     return nb_diffs == 0 && nb_diffs2 == 0;
   }
   
@@ -502,9 +506,10 @@ int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   sequence::initialize();
   cmdline::dispatcher d;
+  /*
   d.add("benchmark", [&] {
     benchmark();
-  });
+  }); */
   d.add("test", [&] {
     test();
   });

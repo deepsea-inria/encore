@@ -408,7 +408,7 @@ public:
       return &_ar;
     }
     
-    int s; int e; intT k;
+    int s; int e; ET r; intT k;
     
   };
   
@@ -418,25 +418,34 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::stmt([] (sar& s, par& p) {
-        p.s = s.s;
+        p.s = s.s + 1;
         p.e = s.e;
-        p.k = 0;
       }),
       dc::parallel_combine_loop([] (sar&, par& p) { return p.s < p.e; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                [] (sar&, par& p) { p.k = 0; },
+                                [] (sar& s, par& p) { p.k = s.s; p.r = s.g(p.k); },
                                 [] (sar& s, par& p, par& dest) {
                                   if (s.f(s.g(p.k), s.g(dest.k))) {
+                                    dest.r = p.r;
                                     dest.k = p.k;
                                   }
                                 },
                                 dc::stmt([] (sar& s, par& p) {
         intT ss = p.s;
         intT ee = std::min(p.e, ss + threshold);
-        int k = orig::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
-        if (s.f(s.g(k), s.g(p.k))) {
-          p.k = k;
+        intT k = p.k;
+        ET r = p.r;
+        auto g = s.g;
+        auto f = s.f;
+        for (intT j = ss; j < ee; j++) {
+          ET v = g(j);
+          if (f(v, r)) {
+            r = v;
+            k = j;
+          }
         }
+        p.r = r;
+        p.k = k;
         p.s = ee;
       })),
       dc::stmt([] (sar& s, par& p) {
@@ -1001,7 +1010,6 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           auto Fl = s.Fl;
           auto pr = s.p;
@@ -1012,8 +1020,7 @@ public:
             Fl[ss] = (bool)pr(In[ss]);
           }
           p.s = ss;
-        })
-      })),
+        })),
       dc::spawn_join([] (sar& s, par& p, stt st) {
         return pack4<ET,intT>(st, s.In, s.Fl, s.n, s.dest);
       }),
