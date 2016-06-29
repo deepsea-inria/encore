@@ -120,9 +120,7 @@ public:
   quickHull(intT* I, intT* Itmp, point2d* P, intT n, intT l, intT r, intT depth, intT* dest)
   : I(I), Itmp(Itmp), P(P), n(n), l(l), r(r), depth(depth), dest(dest) { }
   
-  encore_private_activation_record_begin(encore::edsl, quickHull, 2)
-    intT s; intT e;
-  encore_private_activation_record_end(encore::edsl, quickHull, sar, par, dc, get_dc)
+  encore_dc_declare(encore::edsl, quickHull, sar, par, dc, get_dc)
   
   static
   dc get_dc() {
@@ -156,32 +154,16 @@ public:
         [] (sar& s, par&, stt st) {
           return ecall<quickHull>(st, s.Itmp+s.n1, s.I+s.n1, s.P, s.n2, s.maxP, s.r, s.depth-1, &s.m2);
         }),
-      dc::stmt([] (sar& s, par& p) {
-        p.s = 0;
-        p.e = s.m1;
+      dc::spawn_join([] (sar& s, par&, stt st) {
+        return ecall<sequence::copy<intT*, intT*>>(st, s.Itmp, s.Itmp + s.m1, s.I);
       }),
-      // later: replace loops below by a standard parallel memcpy
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) {
-          s.I[p.s] = s.Itmp[p.s];
-          p.s++;
-        })),
       dc::stmt([] (sar& s, par& p) {
         s.I[s.m1] = s.maxP;
-        p.s = 0;
-        p.e = s.m2;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
-        dc::stmt([] (sar& s, par& p) {
-          s.I[p.s + s.m1 + 1] = s.Itmp[p.s + s.n1];
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          p.s++;
-        })
-      })),
+      dc::spawn_join([] (sar& s, par&, stt st) {
+        auto Itmp = s.Itmp + s.n1;
+        return ecall<sequence::copy<intT*, intT*>>(st, Itmp, Itmp + s.m2, s.I + s.m1 + 1);
+      }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = s.m1 + 1 + s.m2;
       })
@@ -222,7 +204,7 @@ public:
   hull(point2d* P, intT n, _seq<intT>* dest)
   : P(P), n(n), dest(dest) { }
   
-  encore_private_activation_record_begin(encore::edsl, hull, 3)
+  encore_private_activation_record_begin(encore::edsl, hull, 1)
     intT s; intT e;
   encore_private_activation_record_end(encore::edsl, hull, sar, par, dc, get_dc)
   
@@ -274,26 +256,13 @@ public:
         [] (sar& s, par&, stt st) {
           return ecall<quickHull>(st, s.I + s.n1, s.Itmp + s.n1, s.P, s.n2, s.r, s.l, 5, &s.m2);
         }),
-      dc::stmt([] (sar& s, par& p) {
-        p.s = 0;
-        p.e = s.m1;
+      dc::spawn_join([] (sar& s, par&, stt st) {
+        return ecall<sequence::copy<intT*, intT*>>(st, s.I, s.I + s.m1, s.Itmp + 1);
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) {
-          s.Itmp[p.s + 1] = s.I[p.s];
-          p.s++;
-        })),
-      dc::stmt([] (sar& s, par& p) {
-        p.s = 0;
-        p.e = s.m2;
+      dc::spawn_join([] (sar& s, par&, stt st) {
+        auto I = s.I + s.n1;
+        return ecall<sequence::copy<intT*, intT*>>(st, I, I + s.m2, s.Itmp + s.m1 + 2);
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) {
-          s.Itmp[p.s + s.m1 + 2] = s.I[p.s + s.n1];
-          p.s++;
-        })),
       dc::stmt([] (sar& s, par& p) {
         free(s.I);
         s.Itmp[0] = s.l;
