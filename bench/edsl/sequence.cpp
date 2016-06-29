@@ -430,8 +430,9 @@ public:
     assert(in.c.first.size() == in.c.second.size());
     auto f = sequence::getA<value_type,intT>(in.c.first.begin());
     auto flags = in.c.second.begin();
+    intT k = cmdline::parse_or_default("keep_probability", 33);
     auto p = [&] (value_type v) {
-      return flags[v];
+      return v % k == 0;
     };
     encore::launch_interpreter<sequence::filter<value_type,intT,typeof(p)>>(in.c.first.begin(), n, p, &output);
     auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
