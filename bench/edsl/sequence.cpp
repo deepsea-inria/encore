@@ -438,16 +438,18 @@ public:
     auto output2 = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
     parray<value_type> output3(n);
     intT dest;
-    encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.first.begin(), output3.begin(), n, p, &dest);
+//    encore::launch_interpreter<sequence::filterDPS<value_type,intT,typeof(p)>>(in.c.first.begin(), output3.begin(), n, p, &dest);
     auto nb_diffs = count_diffs(output2.n, output2.A, output.A);
-    auto nb_diffs2 = count_diffs(output2.n, output3.begin(), output.A);
-    output.del();
-    output2.del();
-    std::cout << "in.c = " << in.c.first << " flags = " << in.c.second << std::endl;
+//    auto nb_diffs2 = count_diffs(output2.n, output3.begin(), output.A);
+    auto nb_diffs2 = 0;
     parray<intT> output11(output.A, output.A+output.n);
     parray<intT> output22(output2.A, output2.A+output2.n);
-    std::cout << "output1 = " << output11 << std::endl;
-    std::cout << "output2 = " << output22 << std::endl;
+    output.del();
+    output2.del();
+//    output3.del();
+    std::cout << "in.c = " << in.c.first << " flags = " << in.c.second << std::endl;
+    std::cout << "untrusted output = " << output11 << std::endl;
+    std::cout << "trusted output = " << output22 << std::endl;
     return nb_diffs == 0 && nb_diffs2 == 0;
   }
   
