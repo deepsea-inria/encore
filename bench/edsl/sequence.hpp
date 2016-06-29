@@ -955,7 +955,7 @@ public:
       dc::stmt([] (sar& s, par& p) {
         s.Fl = malloc_array<bool>(s.n);
         p.s = 0;
-        p.s = s.n;
+        p.e = s.n;
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
