@@ -417,7 +417,7 @@ public:
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
-  int nb_tests = deepsea::cmdline::parse_or_default_int("n", 1000);
+  int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
   checkit<pasl::pctl::consistent_hulls_property>(nb_tests, "quickhull is correct");
   return 0;
 }
