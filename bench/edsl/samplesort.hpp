@@ -87,15 +87,11 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) { // todo: coarsen
           intT o = utils::hash(p.s)% s.n;
           s.sampleSet[p.s] = s.A[o];
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          p.s++;
-        })
-      })),
+        p.s++;
+        })),
       dc::stmt([] (sar& s, par& p) {
         std::sort(s.sampleSet, s.sampleSet + s.sampleSetSize, s.f);
         s.pivots = malloc_array<E>(s.numSegs - 1);
@@ -104,15 +100,11 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
         dc::stmt([] (sar& s, par& p) { // todo: coarsen
           intT o = s.overSample * p.s;
           s.pivots[p.s] = s.sampleSet[o];
-        }),
-        dc::stmt([] (sar& s, par& p) {
           p.s++;
-        })
-      })),
+        })),
       dc::stmt([] (sar& s, par& p) {
         free(s.sampleSet);
         s.B = malloc_array<E>(s.numR * s.rowSize);
@@ -132,37 +124,30 @@ public:
         }),
         dc::stmt([] (sar& s, par& p) {
           mergeSeq(s.A + p.offset, s.pivots, s.segSizes + p.s*s.numSegs, p.size, s.numSegs-1, s.f);
-        }),
-        dc::stmt([] (sar& s, par& p) {
           p.s++;
-        })
+        }),
       })),
       dc::spawn_join([] (sar& s, par& p, stt st) {
-        return sequence::scan6(st, s.segSizes, s.offsetA, s.numR*s.numSegs, pbbs::plus<intT>(), 0, &p.tmp);
+        auto plus = [] (intT x, intT y) {
+          return x + y;
+        };
+        return sequence::scan6(st, s.segSizes, s.offsetA, s.numR*s.numSegs, plus, 0, &p.tmp);
       }),
       dc::spawn_join([] (sar& s, par& p, stt st) {
         return transpose2(st, s.segSizes, s.offsetB, s.numR, s.numSegs);
       }),
       dc::spawn_join([] (sar& s, par& p, stt st) {
-        return sequence::scan6(st, s.offsetB, s.offsetB, s.numR*s.numSegs, pbbs::plus<intT>(), 0, &p.tmp);
+        auto plus = [] (intT x, intT y) {
+          return x + y;
+        };
+        return sequence::scan6(st, s.offsetB, s.offsetB, s.numR*s.numSegs, plus, 0, &p.tmp);
       }),
       dc::spawn_join([] (sar& s, par& p, stt st) {
         return blockTrans2(st, s.A, s.B, s.offsetA, s.offsetB, s.segSizes, s.numR, s.numSegs);
       }),
-      dc::stmt([] (sar& s, par& p) {
-        p.s = 0;
-        p.e = s.n;
+      dc::spawn_join([] (sar& s, par&, stt st) {
+        return ecall<sequence::copy<E*, E*>>(st, s.B, s.B + s.n, s.A);
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
-        dc::stmt([] (sar& s, par& p) { // todo: use pmemcpy
-          s.A[p.s] = s.B[p.s];
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          p.s++;
-        })
-      })),
       dc::stmt([] (sar& s, par& p) {
         free(s.B);
         free(s.offsetA);
