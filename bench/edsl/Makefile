@@ -37,8 +37,8 @@ sequence.encore: $(INCLUDE_FILES)
 sequence.cilk: $(INCLUDE_FILES)
 	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(INCLUDE_DIRECTIVES) -o sequence.cilk sequence.cpp
 
-sequence.dbg: $(INCLUDE_FILES)
-	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o sequence.dbg sequence.cpp
+%.dbg: %.cpp $(INCLUDE_FILES)
+	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
 clean: pbench_clean
 	rm -f *.encore *.cilk *.dbg
