@@ -41,6 +41,8 @@ using context_type = struct {
 
 __attribute__((noreturn)) static
 void longjmp(context_type& context, void * rsp) {
+  std::cout << "longjmp rbp = " << context.stack.btm << " rsp = " << rsp << " pc = " << context.pc << std::endl;
+  assert(context.pc != nullptr);
   __asm__ ( "mov\t%1,%%rsp\n\t"
 	    "mov\t%0,%%rbp\n\t"
 	    "jmp\t*%2\n\t"
@@ -52,6 +54,26 @@ void longjmp(context_type& context, void * rsp) {
     call; \
     __asm__ ( "nop" : : : "rbx", "r12", "r13", "r14", "r15", "memory" ); \
   } while (0)
+
+static
+size_t get_page_size() {
+  int pagesize = sysconf(_SC_PAGESIZE);
+  return pagesize;
+}
+
+static
+void get_stack_size(void ** addr, size_t * size) {
+  pthread_attr_t attr;
+  pthread_getattr_np(pthread_self(), &attr);
+  pthread_attr_getstack(&attr, addr, size);
+}
+
+static
+void * stack_setup(void* stack, size_t stack_size) {
+  void ** rsp = stack + stack_size;
+  rsp -= 16; // reserve 128 bytes at the bottom
+  return rsp;
+}
 
 class activation_record {
 public:
@@ -69,6 +91,7 @@ __attribute__((always_inline)) extern inline
 void initialize_stack(stack_type& s) {
   register void * rbp asm ("rbp");
   register void * rsp asm ("rsp");
+  std::cout << "init with rbp = " << rbp << " rsp = " << rsp << std::endl;
   s.btm = rbp;
   s.top = rsp;
 }
@@ -95,8 +118,37 @@ void initialize_finish(activation_record& a) {
   a.context.operation.sync_var.in = nullptr;
 }
 
-class vertex;
+  class vertex;
 
+  void resume();
+
+    __attribute__((noinline))
+  static void doit(context_type& c) {
+    c.pc = __builtin_return_address(0);
+    longjmp(c, c.stack.top);
+  }
+
+      __attribute__((noinline))
+      static void doit2(std::function<void()> f, context_type& c) {
+    c.pc = __builtin_return_address(0);
+                      register void * rbp2 asm ("rbp");
+      register void * rsp2 asm ("rsp");
+
+      std::cout << "doit2 =  rbp = " << rbp2 << " rsp = " << rsp2 << std::endl;
+
+    f();
+    std::cout << " after fff " << std::endl;
+    resume();
+  }
+
+    __attribute__((noinline))
+  static void doit3(context_type& c) {
+    c.pc = __builtin_return_address(0);
+  }
+
+
+  void * get_pc () { return __builtin_return_address(0); }
+  
 template <class Function>
 __attribute__((noinline, hot, optimize(3)))      
 void fork(vertex*, const Function&, activation_record&);
@@ -114,27 +166,55 @@ public:
 
   std::unique_ptr<std::function<void()>> f;
 
-  static __attribute__((noinline, hot, optimize(3)))
-  void doit(vertex* v, const std::function<void()>& f) {
-    v->context.pc = __builtin_return_address(0);
-    f();
-    v->resume();
-  }
+  activation_record init_ar;
 
+  void* rrsp;
+  __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
   int run(int fuel) {
     this->fuel = fuel;
     initialize_context(context);
     if (f) {
+      std::cout << "entry = " << this << std::endl;
+      void* stack = nullptr;
+      void* dummy;
+      size_t stack_size;
+      size_t page_size = get_page_size();
+      get_stack_size(&dummy, &stack_size);
+      posix_memalign(&stack, page_size, stack_size);
+      context.stack.top = stack_setup(stack, stack_size);  
+      register void * rbp asm ("rbp");
+      register void * rsp asm ("rsp");
+      rrsp = rsp;
+      membar(doit(context));
+      context.stack.top = rrsp;
+      std::cout << "middle v = " << this << " f = " << f.get() << std::endl;
       auto ff = *f;
       f.reset();
-      doit(this, ff);
+      membar(doit2(ff, context));
+      register void * rbp2 asm ("rbp");
+      register void * rsp2 asm ("rsp");
+      std::cout << "rsp = " << rsp2 << std::endl;
     } else if (! frames.empty()) {
       assert(frames.size() == 1);
       auto ar = frames.back();
-      frames.pop_back();
-      longjmp(ar->context, ar->context.stack.top);
+      std::cout << "running from context v = " << this << " ar = " << ar << std::endl;
+      doit3(context);
+      if (! frames.empty()) { // resume suspended frame
+	frames.pop_back();
+	assert(ar->context.pc != nullptr);
+	/*      void* stack = nullptr;
+		void* dummy;
+		size_t stack_size;
+		size_t page_size = get_page_size();
+		get_stack_size(&dummy, &stack_size);
+		posix_memalign(&stack, page_size, stack_size); */
+	longjmp(ar->context, /* stack_setup(stack, stack_size) */ ar->context.stack.top);
+      }
+      // resume suspended vertex
+    } else {
+      assert(false);
     }
-    std::cout << "done = " << frames.size() << std::endl;
+    std::cout << "done v = " << this << " sz = " << frames.size() << std::endl;
     return this->fuel;
   }
 
@@ -146,7 +226,7 @@ public:
     } else {
       assert(! frames.empty());
       auto ar = frames.front();
-          std::cout << "nb_strands ar = " << &ar << std::endl;
+      std::cout << "nb_strands ar = " << &ar << " v = " << this << std::endl;
       return ar->nb_strands();
     }
   }
@@ -169,13 +249,23 @@ public:
   __attribute__((always_inline))
   inline void finish(activation_record& ar, const Function& f) {
     assert(ar.context.operation.tag == tag_finish);
+      std::cout << "call finish = " << &ar << std::endl;
+          initialize_finish(ar);
+      doit3(ar.context);
+      if (ar.context.operation.sync_var.in != nullptr) {
+	std::cout << "finish nonlocal v= " << sched::my_vertex() << std::endl;
+	return;
+      }
     frames.push_back(&ar);
-    std::cout << "finish ar = " << &ar << std::endl;
     activation_record async_ar;
     initialize_async(async_ar, ar);
     async(async_ar, f);
     if (frames.empty()) { // finish block was promoted
+      std::cout << "resume after finish v = " << sched::my_vertex()  << std::endl;
       resume();
+    } else {
+      assert(frames.back() == &ar);
+      frames.pop_back();
     }
   }
 
@@ -185,28 +275,6 @@ public:
 
 };
 
-static size_t get_page_size()
-{
-  int pagesize = sysconf(_SC_PAGESIZE);
-  return pagesize;
-}
-
-static void get_stack_size(void ** addr, size_t * size)
-{
-  pthread_attr_t attr;
-
-  pthread_getattr_np(pthread_self(), &attr);
-  pthread_attr_getstack(&attr, addr, size);
-}
-
-void * stack_setup(void* stack, size_t stack_size) {
-  void ** rsp = stack + stack_size;
-
-  /** Reserve 128 byte at the bottom. */
-  rsp -= 16;
-  return rsp;
-}
-
 void promote(vertex* v) {
   if (v->frames.empty()) {
     return;
@@ -214,25 +282,24 @@ void promote(vertex* v) {
   activation_record& ar = *(v->frames.front());
   v->frames.pop_front();
   auto tag = ar.context.operation.tag;
+  std::cout << "prom = " << &ar << std::endl;
   if (tag == tag_async) {
     vertex* v2 = new vertex;
     v2->frames.push_back(&ar);
     assert(ar.context.operation.sync_var.finish_ptr != nullptr);
-    void* stack = nullptr;
-    void* dummy;
-    size_t stack_size;
-    get_stack_size(&dummy, &stack_size);
-    posix_memalign(&stack, get_page_size(), stack_size);
-    ar.context.stack.top = stack_setup(stack, stack_size);    
-    schedule(v);
+    new_edge(v, v2);
     release(v2);
+    //    schedule(v);
+    std::cout << "promote async body = " << v << " join =  "  << v2 << " ar.pc = " << ar.context.pc << std::endl;
   } else if (tag == tag_finish) {
     vertex* v2 = new vertex;
-    v2->frames.push_back(&ar);
+    v2->init_ar = ar;
+    v2->frames.push_back(&(v2->init_ar));
     ar.context.operation.sync_var.in = v2->get_incounter();
     new_edge(v, v2);
-    schedule(v);
+    //    schedule(v);
     release(v2);
+    std::cout << "promote finish body = " << v << " cont =  "  << v2 << " ar = " << &ar << " ar.pc = " << ar.context.pc << std::endl;
   } else if (tag == tag_future) {
     assert(false);
   } else if (tag == tag_force) {
@@ -252,11 +319,14 @@ void fork(vertex* v, const Function& f, activation_record& ar) {
   }
   ar.context.pc = __builtin_return_address(0);
   v->frames.push_back(&ar);
+  std::cout << "push v = " << v << " size = " << v->frames.size() << std::endl;
   std::cout << "fork pb = " << &ar << std::endl;
   f();
   if (v->frames.empty()) { // this fork point was promoted
+    std::cout << "resume v == " << v << std::endl;
     v->resume();  // hand control back to run method of vertex v
   } else {
+    std::cout << "pop v = " << v <<  " size = " << v->frames.size() << std::endl;
     v->frames.pop_back();
     return; // hand control back to caller of f()
   }
@@ -265,6 +335,10 @@ void fork(vertex* v, const Function& f, activation_record& ar) {
 vertex* my_vertex() {
   return (vertex*)sched::my_vertex();
 }
+
+  void resume() {
+    my_vertex()->resume();
+  }
 
 } // end namespace
 } // end namespace
