@@ -124,7 +124,7 @@ public:
 namespace {
   
 // to control the rate of DAG construction
-int D = 4096;
+int D = 1;
 
 // to control the eagerness of work distribution
 int K = 2 * D;
@@ -220,6 +220,9 @@ void worker_loop(vertex* v) {
   
   // called by workers when running out of work
   auto acquire = [&] {
+    if (data::perworker::get_nb_workers() == 1) {
+      return;
+    }
     assert(my_ready.empty() && my_suspended.empty());
     nb_active_workers--;
     while (! is_finished()) {
