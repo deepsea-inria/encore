@@ -22,7 +22,7 @@ public:
   async_rec() { }
   
   async_rec(int nb, handle inc, std::pair<handle,handle> dec)
-  : nb(nb), inc(inc), dec(dec) { }
+  : nb(nb), inc(inc), dec(dec), first_dec(false) { }
   
   int run(int) {
     if (nb >= 2) {
