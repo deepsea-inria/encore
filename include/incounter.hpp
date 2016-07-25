@@ -7,6 +7,7 @@
 #include "forward.hpp"
 #include "tagged.hpp"
 #include "atomic.hpp"
+#include "perworker.hpp"
 
 #ifndef _ENCORE_SCHED_INCOUNTER_H_
 #define _ENCORE_SCHED_INCOUNTER_H_
@@ -26,7 +27,26 @@ namespace gsnzi {
     
 static constexpr int cache_align_szb = 128;
 static constexpr int nb_children = 2;
-    
+
+static unsigned int hashu(unsigned int a) {
+  a = (a+0x7ed55d16) + (a<<12);
+  a = (a^0xc761c23c) ^ (a>>19);
+  a = (a+0x165667b1) + (a<<5);
+  a = (a+0xd3a2646c) ^ (a<<9);
+  a = (a+0xfd7046c5) + (a<<3);
+  a = (a^0xb55a4f09) ^ (a>>16);
+  return a;
+}
+
+data::perworker::array<unsigned int> rng;
+
+unsigned int myrand() {
+  unsigned int& v = rng.mine();
+  unsigned int r = hashu(v);
+  v = r;
+  return r;
+}
+  
 template <int saturation_upper_bound>
 class node {
 private:
@@ -42,6 +62,12 @@ private:
   DECLARE_PADDED_FIELD(std::atomic<contents_type>, X, cache_align_szb);
   
   DECLARE_PADDED_FIELD(node*, parent, cache_align_szb);
+  
+  using children_record = std::pair<node*, node*>;
+  
+  using myty = std::atomic<children_record*>;
+  
+  DECLARE_PADDED_FIELD(myty, Children, cache_align_szb);
   
   static bool is_root_node(const node* n) {
     return tagged::tag_of(n) == root_node_tag;
@@ -61,8 +87,18 @@ public:
     init.c = 0;
     init.v = 0;
     X.store(init);
+    Children.store(nullptr);
   }
   
+  ~node() {
+    auto C = Children.load();
+    if (C != nullptr) {
+      delete C->first;
+      delete C->second;
+      delete C;
+    }
+  }
+
   bool is_saturated() const {
     return X.load().v >= saturation_upper_bound;
   }
@@ -135,6 +171,23 @@ public:
     }
   }
   
+  bool flip(float p) {
+    auto v = myrand() % 100;
+    return v < p * 100;
+  }
+  
+  children_record* touch(float p) {
+    if (! flip(p)) {
+      return Children.load();
+    }
+    children_record* pa = new children_record;
+    children_record* orig = nullptr;
+    if (! Children.compare_exchange_strong(orig, pa)) {
+      delete pa;
+    }
+    return Children.load();
+  }
+  
   template <class Item>
   static void set_root_annotation(node* n, Item x) {
     node* m = n;
@@ -169,22 +222,12 @@ public:
   
   using node_type = node<saturation_upper_bound>;
   
-private:
+//private:
   
   static constexpr int nb_leaves = 1 << max_height;
   static constexpr int heap_size = 2 * nb_leaves;
   
   static constexpr int loading_heap_tag = 1;
-  
-  static unsigned int hashu(unsigned int a) {
-    a = (a+0x7ed55d16) + (a<<12);
-    a = (a^0xc761c23c) ^ (a>>19);
-    a = (a+0x165667b1) + (a<<5);
-    a = (a+0xd3a2646c) ^ (a<<9);
-    a = (a+0xfd7046c5) + (a<<3);
-    a = (a^0xb55a4f09) ^ (a>>16);
-    return a;
-  }
   
   template <class Item>
   static unsigned int random_path_for(Item x) {
@@ -279,12 +322,13 @@ using gsnzi_tree_type = gsnzi::tree<snzi_tree_height>;
 /*---------------------------------------------------------------------*/
 /* Incounter */
   
-#if 0
+#if 1
   
 using incounter_handle = typename gsnzi_tree_type::node_type;
 
 class incounter {
-private:
+//private:
+public:
   
   gsnzi_tree_type t;
   
