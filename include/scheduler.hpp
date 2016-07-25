@@ -296,12 +296,11 @@ void launch_scheduler(int nb_workers, vertex* v) {
   });
   nb_active_workers.store(1);
   nb_running_workers.store(nb_workers);
-  std::vector<std::thread> threads(nb_workers - 1);
   for (int i = 1; i < nb_workers; i++) {
-    threads[i] = std::thread([] {
+    auto t = std::thread([] {
       worker_loop(nullptr);
     });
-    threads[i].detach();
+    t.detach();
   }
   worker_loop(v);
   while (nb_running_workers.load() > 0);
