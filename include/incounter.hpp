@@ -8,6 +8,7 @@
 #include "tagged.hpp"
 #include "atomic.hpp"
 #include "perworker.hpp"
+#include "stats.hpp"
 
 #ifndef _ENCORE_SCHED_INCOUNTER_H_
 #define _ENCORE_SCHED_INCOUNTER_H_
@@ -184,6 +185,8 @@ public:
     children_record* orig = nullptr;
     if (! Children.compare_exchange_strong(orig, pa)) {
       delete pa;
+    } else {
+      stats::on_incounter_node_create();
     }
     return Children.load();
   }

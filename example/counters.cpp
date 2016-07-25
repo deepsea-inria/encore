@@ -10,6 +10,10 @@ std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(async_re
 
 void counter_decrement(async_rec* u);
 
+#ifndef NDEBUG
+std::atomic<int> nb_async(0);
+#endif
+
 class async_rec : public sched::vertex {
 public:
   
@@ -18,14 +22,16 @@ public:
   std::pair<handle, handle> dec;
   std::atomic<bool> first_dec;
   bool left = true;
-  
-  async_rec() { }
-  
+    
   async_rec(int nb, handle inc, std::pair<handle,handle> dec)
   : nb(nb), inc(inc), dec(dec), first_dec(false) { }
   
   int run(int) {
-    if (nb >= 2) {
+    if (nb == 0) {
+      
+    } else if (nb == 1) {
+      nb_async++;
+    } else {
       int m = nb / 2;
       auto r1 = counter_increment(this);
       auto d = std::get<0>(r1);
@@ -112,8 +118,7 @@ std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(async_re
 }
 
 void counter_decrement(async_rec* u) {
-  handle d1 = claim_dec(u);
-  snzi_depart(d1);
+  snzi_depart(claim_dec(u));
 }
 
 class async : public sched::vertex {
@@ -121,18 +126,24 @@ public:
   
   int nb;
   bool first = true;
+  std::chrono::time_point<std::chrono::system_clock> start;
   
   async(int nb)
   : nb(nb) { }
   
   int run(int) {
     if (first) {
+      start = std::chrono::system_clock::now();
       auto h = &(get_incounter()->t.root);
       h->increment();
-      std::pair<handle, handle> d = std::make_pair(nullptr, nullptr);
+      std::pair<handle, handle> d = std::make_pair(h, h);
       schedule(new async_rec(nb, h, d));
       first = false;
     } else {
+      auto end = std::chrono::system_clock::now();
+      std::chrono::duration<float> diff = end - start;
+      printf ("exectime %.3lf\n", diff.count());
+      assert(nb_async.load() == nb);
       nb = 0;
     }
     return 1;
@@ -151,7 +162,7 @@ public:
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
-  int n = cmdline::parse_int("n");
+  int n = cmdline::parse<int>("n");
   threshold = cmdline::parse_or_default("threshold", threshold);
   encore::launch(new async(n));
   return 0;
