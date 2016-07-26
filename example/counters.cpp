@@ -301,7 +301,10 @@ int main(int argc, char** argv) {
     encore::launch(new dyn::async(n));
   });
 #endif
-  d.add("stat", [&] {
+  d.add("sta", [&] {
+    encore::launch(new stat::async(n));
+  });
+  d.add("sim", [&] {
     encore::launch(new stat::async(n));
   });
   d.dispatch("algo");
