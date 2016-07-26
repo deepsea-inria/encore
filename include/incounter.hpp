@@ -50,7 +50,8 @@ unsigned int myrand() {
   
 template <int saturation_upper_bound>
 class node {
-private:
+//private:
+public:
   
   static constexpr int one_half = -1;
   static constexpr int root_node_tag = 1;

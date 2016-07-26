@@ -55,6 +55,7 @@ namespace dyn {
     
     int run(int fuel) {
       fuel--;
+      std::cout << "running vertex = " << this << std::endl;
       if (nb < 2) {
         do_dummy_work();
         nb = 0;
@@ -70,6 +71,7 @@ namespace dyn {
         handle j = std::get<2>(r);
         inc = i;
         auto v = new async_rec(nb, j, d);
+        std::cout << "spawning new vertex = " << v << std::endl;
         v->left = false;
         schedule(v);
         schedule(this);
@@ -95,11 +97,14 @@ namespace dyn {
   float threshold = 100.0;
   
   void snzi_arrive(handle h) {
+    std::cout << "arrive(" << h << ")" << " counter = " << h->X.load().c << std::endl;
     h->increment();
   }
   
   void snzi_depart(handle h) {
+    std::cout << "depart(" << h << ")" << " counter = " << h->X.load().c  << std::endl;
     if (h->decrement()) {
+      std::cout << "got to zero from handle " << h << std::endl;
       sched::vertex* v = sched::incounter_handle::get_root_annotation<sched::vertex*>(h);
       schedule(v);
     }
@@ -163,14 +168,14 @@ namespace dyn {
       if (first) {
         start = std::chrono::system_clock::now();
         auto h = &(get_incounter()->t.root);
-        h->increment();
-        std::pair<handle, handle> d = std::make_pair(h, h);
-        schedule(new async_rec(nb, h, d));
+        snzi_arrive(h);
+        schedule(new async_rec(nb, h, std::make_pair(h, h)));
         first = false;
       } else {
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<float> diff = end - start;
         printf ("exectime %.3lf\n", diff.count());
+        std::cout << "nb = " << nb_async.load() << std::endl;
         assert(nb_async.load() == nb);
         nb = 0;
       }
