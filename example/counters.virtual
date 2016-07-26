@@ -1,0 +1,22 @@
+#!/bin/bash
+
+incmd=$@
+
+if [[ $incmd == *"-algo sta"* ]]
+then
+    outcmd="counters.sta $@"
+elif [[ $incmd == *"-algo dyn"* ]]
+then
+     outcmd="counters.dyn $@"
+elif [[ $incmd == *"-algo sim"* ]]
+then
+     outcmd="counters.sim $@"
+fi
+
+if hash numactl 2>/dev/null;
+then
+    outcmd="numactl --interleave=all $outcmd"
+fi
+
+$outcmd
+     
