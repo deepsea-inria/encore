@@ -35,7 +35,7 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g
 	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $<
 
 %.sta: %.cpp $(INCLUDE_FILES)
-	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -DFIXED_SIZE_INCOUNTER -o $@ $<
+	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $< # -DFIXED_SIZE_INCOUNTER
 
 %.sim: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -DENCORE_INCOUNTER_SIMPLE -o $@ $<
@@ -43,5 +43,5 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g
 %.dbg: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
-clean: pbench_clean
+clean:
 	rm -f *.dbg *.sta *.sim *.dyn
