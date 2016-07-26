@@ -181,12 +181,14 @@ public:
     if (! flip(p)) {
       return Children.load();
     }
-    children_record* pa = new children_record;
+    children_record* pa = new children_record(new node(this), new node(this));
     children_record* orig = nullptr;
-    if (! Children.compare_exchange_strong(orig, pa)) {
-      delete pa;
-    } else {
+    if (Children.compare_exchange_strong(orig, pa)) {
       stats::on_incounter_node_create();
+    } else {
+      delete pa->first;
+      delete pa->second;
+      delete pa;
     }
     return Children.load();
   }

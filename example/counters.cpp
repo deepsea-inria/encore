@@ -55,33 +55,25 @@ namespace dyn {
     
     int run(int fuel) {
       fuel--;
-      if (nb == 0) {
-        
-      } else if (nb == 1) {
+      if (nb < 2) {
         do_dummy_work();
+        nb = 0;
 #ifndef NDEBUG
         nb_async++;
 #endif
+        counter_decrement(this);
       } else {
-        int m = nb / 2;
-        auto r1 = counter_increment(this);
-        auto d = std::get<0>(r1);
-        handle i = std::get<1>(r1);
-        handle j = std::get<2>(r1);
+        nb = std::max(1, nb / 2);
+        auto r = counter_increment(this);
+        auto d = std::get<0>(r);
+        handle i = std::get<1>(r);
+        handle j = std::get<2>(r);
         inc = i;
-        auto v1 = new async_rec(m, j, d);
-        auto r2 = counter_increment(this);
-        d = std::get<0>(r2);
-        i = std::get<1>(r2);
-        j = std::get<2>(r2);
-        inc = i;
-        auto v2 = new async_rec(m, j, d);
-        v2->left = false;
-        schedule(v1);
-        schedule(v2);
+        auto v = new async_rec(nb, j, d);
+        v->left = false;
+        schedule(v);
+        schedule(this);
       }
-      nb = 0;
-      counter_decrement(this);
       return fuel;
     }
     
@@ -134,7 +126,7 @@ namespace dyn {
       a = ab->first;
       b = ab->second;
     }
-    if (a == b && a == nullptr) {
+    if (a == nullptr && a == b) {
       i1 = u->inc;
       i2 = u->inc;
       d2 = u->inc;
@@ -219,23 +211,19 @@ namespace stat {
     
     int run(int fuel) {
       fuel--;
-      if (nb == 0) {
-        
-      } else if (nb == 1) {
+      if (nb < 2) {
         do_dummy_work();
+        nb = 0;
 #ifndef NDEBUG
         nb_async++;
 #endif
       } else {
-        int m = nb / 2;
-        auto v1 = new async_rec(m, finish);
-        auto v2 = new async_rec(m, finish);
-        sched::new_edge(v1, finish);
-        sched::new_edge(v2, finish);
-        schedule(v1);
-        schedule(v2);
+        nb = std::max(1, nb / 2);
+        auto v = new async_rec(nb, finish);
+        sched::new_edge(v, finish);
+        schedule(v);
+        schedule(this);
       }
-      nb = 0;
       return fuel;
     }
     
