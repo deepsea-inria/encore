@@ -62,7 +62,9 @@ namespace dyn {
       if (nb == 0) {
         
       } else if (nb == 1) {
+#ifndef NDEBUG
         nb_async++;
+#endif
       } else {
         int m = nb / 2;
         auto r1 = counter_increment(this);
@@ -219,7 +221,9 @@ namespace stat {
       if (nb == 0) {
         
       } else if (nb == 1) {
+#ifndef NDEBUG
         nb_async++;
+#endif
       } else {
         int m = nb / 2;
         auto v1 = new async_rec(m, finish);
