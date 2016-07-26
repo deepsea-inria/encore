@@ -29,6 +29,10 @@ void do_dummy_work() {
  
 */
 
+#ifndef NDEBUG
+std::atomic<int> nb_async(0);
+#endif
+
 /*---------------------------------------------------------------------*/
 
 namespace dyn {
@@ -40,10 +44,6 @@ namespace dyn {
   std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(async_rec* u);
   
   void counter_decrement(async_rec* u);
-  
-#ifndef NDEBUG
-  std::atomic<int> nb_async(0);
-#endif
   
   class async_rec : public sched::vertex {
   public:
