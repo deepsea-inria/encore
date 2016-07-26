@@ -100,7 +100,7 @@ namespace dyn {
     
   };
   
-  float threshold = 0.1;
+  float threshold = 100.0;
   
   void snzi_arrive(handle h) {
     h->increment();
@@ -128,8 +128,12 @@ namespace dyn {
     handle i1;
     handle i2;
     auto ab = u->inc->touch(1.0 / threshold);
-    auto a = ab->first;
-    auto b = ab->second;
+    handle a = nullptr;
+    handle b = nullptr;
+    if (ab != nullptr) {
+      a = ab->first;
+      b = ab->second;
+    }
     if (a == b && a == nullptr) {
       i1 = u->inc;
       i2 = u->inc;
