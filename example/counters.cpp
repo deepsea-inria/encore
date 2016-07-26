@@ -6,7 +6,34 @@ using handle = sched::incounter_handle*;
 
 /*---------------------------------------------------------------------*/
 
+/*
+
+double workload = 0.0;
+
+void microsleep(double t) {
+  long r = 0;
+  for (long k = 0; k < (long) t; k++) {
+    r += k;
+  }
+  if (r == 1234) {
+    printf("ERROR\n");
+  }
+}
+
+void do_dummy_work() {
+  if (workload == 0.0) {
+    return;
+  }
+  microsleep(workload);
+}
+ 
+*/
+
+/*---------------------------------------------------------------------*/
+
 namespace dyn {
+  
+#ifndef ENCORE_INCOUNTER_SIMPLE
   
   class async_rec;
   
@@ -166,6 +193,8 @@ namespace dyn {
     
   };
   
+#endif
+  
 } // end namespace
 
 /*---------------------------------------------------------------------*/
@@ -262,10 +291,12 @@ int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   cmdline::dispatcher d;
+#ifndef ENCORE_INCOUNTER_SIMPLE
   d.add("dyn", [&] {
     dyn::threshold = cmdline::parse_or_default("threshold", dyn::threshold);
     encore::launch(new dyn::async(n));
   });
+#endif
   d.add("stat", [&] {
     encore::launch(new stat::async(n));
   });

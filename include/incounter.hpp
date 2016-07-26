@@ -267,9 +267,19 @@ public:
   
 public:
   
+#ifdef FIXED_SIZE_INCOUNTER
+  static constexpr bool fixed_size = true;
+#else
+  static constexpr bool fixed_size = false;
+#endif
+  
   tree() {
     assert(max_height > 1);
-    heap.store(nullptr);
+    if (fixed_size) {
+      create_heap();
+    } else {
+      heap.store(nullptr);
+    }
   }
   
   ~tree() {
@@ -286,7 +296,7 @@ public:
   
   node_type* get_target_of_path(unsigned int path) {
     node_type* h = heap.load();
-    if ((h != nullptr) && (tagged::tag_of(h) != loading_heap_tag)) {
+    if (fixed_size || ((h != nullptr) && (tagged::tag_of(h) != loading_heap_tag))) {
       int i = nb_leaves + (path & (nb_leaves - 1));
       assert(i >= 2 && i < heap_size);
       return &h[i];
@@ -325,7 +335,7 @@ using gsnzi_tree_type = gsnzi::tree<snzi_tree_height>;
 /*---------------------------------------------------------------------*/
 /* Incounter */
   
-#if 1
+#ifndef ENCORE_INCOUNTER_SIMPLE
   
 using incounter_handle = typename gsnzi_tree_type::node_type;
 
