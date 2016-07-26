@@ -6,8 +6,6 @@ using handle = sched::incounter_handle*;
 
 /*---------------------------------------------------------------------*/
 
-/*
-
 double workload = 0.0;
 
 void microsleep(double t) {
@@ -26,8 +24,6 @@ void do_dummy_work() {
   }
   microsleep(workload);
 }
- 
-*/
 
 #ifndef NDEBUG
 std::atomic<int> nb_async(0);
@@ -62,6 +58,7 @@ namespace dyn {
       if (nb == 0) {
         
       } else if (nb == 1) {
+        do_dummy_work();
 #ifndef NDEBUG
         nb_async++;
 #endif
@@ -221,6 +218,7 @@ namespace stat {
       if (nb == 0) {
         
       } else if (nb == 1) {
+        do_dummy_work();
 #ifndef NDEBUG
         nb_async++;
 #endif
@@ -294,6 +292,7 @@ namespace stat {
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
+  workload = cmdline::parse_or_default("workload", workload);
   cmdline::dispatcher d;
 #ifndef ENCORE_INCOUNTER_SIMPLE
   d.add("dyn", [&] {
