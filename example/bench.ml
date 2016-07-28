@@ -9,13 +9,14 @@ let system = XSys.command_must_succeed_or_virtual
 let arg_virtual_run = XCmd.mem_flag "virtual_run"
 let arg_virtual_build = XCmd.mem_flag "virtual_build"
 let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
-let arg_mode = "replace"   (* later: document the purpose of "mode" *)
+let arg_mode = Mk_runs.mode_from_command_line "mode"
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
+let arg_max_proc = XCmd.parse_or_default_int "max_proc" 40
 
 let run_modes =
   Mk_runs.([
-    Mode (mode_of_string arg_mode);
+    Mode arg_mode;
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
 
@@ -71,13 +72,15 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
   let (_, stddev) = XFloat.list_mean_and_stddev ps in
   stddev
 
-let nb_proc = 40
+let nb_proc = arg_max_proc
 
 let mk_proc = mk int "proc" nb_proc
 
 let mk_algo_dyn = mk string "algo" "dyn"
 
 let mk_algo_sim = mk string "algo" "sim"
+
+let mk_algo_sta = mk string "algo" "sta"
 
 let mk_n = mk int "n" 8388608
 
@@ -88,7 +91,8 @@ let formatter =
   [
    ("n", Format_custom (fun n -> sprintf "%s" n));
    ("proc", Format_custom (fun n -> sprintf "P=%s" n));
-   ("algo", Format_custom (fun n -> sprintf "%s" (if n = "dyn" then "Ours" else "F&A")));
+   ("algo", Format_custom (fun n -> sprintf "%s" (
+         if n = "dyn" then "Ours" else if n = "sim" then "F&A" else "Orig. SNZI")));
    ("threshold", Format_custom (fun n -> sprintf "T=10^%d" (mlog10 (int_of_string n))));
    ]
   ))
@@ -116,7 +120,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_proc
-    & ( mk_algo_sim ++ (mk_algo_dyn & mk_thresholds) )
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_thresholds) )
     & mk_n)]))
 
 let check = nothing  (* do something here *)
@@ -129,7 +133,7 @@ let plot() =
       Formatter formatter;
       Charts mk_unit;
       Series mk_proc;
-      X ( mk_algo_sim ++ (mk_algo_dyn & mk_thresholds) );
+      X ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_thresholds) );
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/second (per thread)";
@@ -151,7 +155,10 @@ let prog = "./counters.virtual"
 
 let mk_threshold = mk int "threshold" 1000
 
-let mk_procs = mk_list int "proc" [1;10;20;30;40;]
+let procs = [1;10;20;30;40;]
+let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
+
+let mk_procs = mk_list int "proc" procs
 
 let make() =
   build "." binaries arg_virtual_build
@@ -163,7 +170,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_procs
-    & ( mk_algo_sim ++ (mk_algo_dyn & mk_threshold) )
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
     & mk_n)]))
 
 let check = nothing  (* do something here *)
@@ -178,7 +185,7 @@ let plot() =
          Y_axis [Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_unit;
-      Series ( mk_algo_sim ++ (mk_algo_dyn & mk_threshold) );
+      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
