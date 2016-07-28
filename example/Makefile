@@ -43,5 +43,7 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g
 %.dbg: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
+bench: bench.pbench
+	ln -sf $< $@ 
 clean:
 	rm -f *.dbg *.sta *.sim *.dyn
