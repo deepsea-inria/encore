@@ -173,12 +173,11 @@ public:
     }
   }
   
-  bool flip(float p) {
-    auto v = myrand() % 100;
-    return v < p * 100;
+  bool flip(int p) {
+    return myrand() % p == 0;
   }
   
-  children_record* touch(float p) {
+  children_record* touch(int p) {
     if (! flip(p)) {
       return Children.load();
     }
