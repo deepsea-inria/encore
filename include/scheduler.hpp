@@ -83,6 +83,8 @@ public:
   }
   
   void split(int nb, frontier& other) {
+    other.vs.push_back(vs.pop_front());
+    return;
 #ifndef NDEBUG
     int n1 = nb_strands();
 #endif
