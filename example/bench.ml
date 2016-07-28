@@ -93,6 +93,7 @@ let formatter =
    ]
   ))
 
+let binaries = ["counters.sim";"counters.dyn";]
 
 (*****************************************************************************)
 (** Threshold experiment *)
@@ -106,7 +107,7 @@ let prog = "./counters.virtual"
 let mk_thresholds = mk_list int "threshold" [1;10;100;1000;10000;100000;1000000;]
 
 let make() =
-  build "." [prog] arg_virtual_build
+  build "." binaries arg_virtual_build
 
 let run() =
   Mk_runs.(call (run_modes @ [
@@ -153,7 +154,7 @@ let mk_threshold = mk int "threshold" 1000
 let mk_procs = mk_list int "proc" [1;10;20;30;40;]
 
 let make() =
-  build "." [prog] arg_virtual_build
+  build "." binaries arg_virtual_build
 
 let run() =
   Mk_runs.(call (run_modes @ [
