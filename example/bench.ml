@@ -80,24 +80,30 @@ let mk_algo_dyn = mk string "algo" "dyn"
 
 let mk_algo_sim = mk string "algo" "sim"
 
-let mk_algo_sta = mk string "algo" "sta"
+let stas = ["sta2"; "sta4"; "sta8"; "sta9"; "sta10";]
+
+let mk_algo_sta = mk_list string "algo" stas
 
 let mk_n = mk int "n" 8388608
 
 let mlog10 n = int_of_float(log10(float_of_int n))
 
+let sz_of_sta s = int_of_string (String.sub s 3 (String.length s - 3))
+
 let formatter =
  Env.format (Env.(
   [
    ("n", Format_custom (fun n -> sprintf "%s" n));
-   ("proc", Format_custom (fun n -> sprintf "P=%s" n));
+   ("proc", Format_custom (fun n -> sprintf "nb. proc=%s" n));
    ("algo", Format_custom (fun n -> sprintf "%s" (
-         if n = "dyn" then "Ours" else if n = "sim" then "F&A" else "Orig. SNZI")));
-   ("threshold", Format_custom (fun n -> sprintf "T=10^%d" (mlog10 (int_of_string n))));
+     if n = "dyn" then "Our SNZI"
+     else if n = "sim" then "Fetch & Add"
+     else (sprintf "Orig. SNZI depth=%d" (sz_of_sta n)))));
+   ("threshold", Format_custom (fun n -> sprintf "threshold=10^%d" (mlog10 (int_of_string n))));
    ]
   ))
 
-let binaries = ["counters.sim";"counters.dyn";]
+let binaries = ["counters.sim";"counters.dyn";] @ (List.map (fun n -> "counters."^n) stas)
 
 (*****************************************************************************)
 (** Threshold experiment *)
@@ -129,7 +135,7 @@ let plot() =
     Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
-         Y_axis [Axis.Lower (Some 0.)] ]);
+         Y_axis [ Axis.Is_log false;] ]);
       Formatter formatter;
       Charts mk_unit;
       Series mk_proc;
@@ -182,7 +188,7 @@ let plot() =
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         Y_axis [Axis.Is_log false;] ]);
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
        Formatter formatter;
        Charts mk_unit;
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
