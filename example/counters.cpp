@@ -485,6 +485,21 @@ void launch_fanin(int n) {
   d.add("sta", [&] {
     encore::launch(new stat::fanin(n));
   });
+  d.add("sta2", [&] {
+    encore::launch(new stat::fanin(n));
+  });
+  d.add("sta4", [&] {
+    encore::launch(new stat::fanin(n));
+  });
+  d.add("sta8", [&] {
+    encore::launch(new stat::fanin(n));
+  });
+  d.add("sta9", [&] {
+    encore::launch(new stat::fanin(n));
+  });
+  d.add("sta10", [&] {
+    encore::launch(new stat::fanin(n));
+  });
   d.add("sim", [&] {
     encore::launch(new stat::fanin(n));
   });
@@ -502,19 +517,19 @@ void launc_indegree2(int n) {
     encore::launch(new stat::indegree2(n));
   });
   d.add("sta2", [&] {
-    encore::launch(new stat::async(n));
+    encore::launch(new stat::indegree2(n));
   });
   d.add("sta4", [&] {
-    encore::launch(new stat::async(n));
+    encore::launch(new stat::indegree2(n));
   });
   d.add("sta8", [&] {
-    encore::launch(new stat::async(n));
+    encore::launch(new stat::indegree2(n));
   });
   d.add("sta9", [&] {
-    encore::launch(new stat::async(n));
+    encore::launch(new stat::indegree2(n));
   });
   d.add("sta10", [&] {
-    encore::launch(new stat::async(n));
+    encore::launch(new stat::indegree2(n));
   });
   d.add("sim", [&] {
     encore::launch(new stat::indegree2(n));

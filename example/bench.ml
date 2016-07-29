@@ -84,7 +84,9 @@ let stas = ["sta2"; "sta4"; "sta8"; "sta9"; "sta10";]
 
 let mk_algo_sta = mk_list string "algo" stas
 
-let mk_n = mk int "n" 8388608
+let n = 8388608
+
+let mk_n = mk int "n" n
 
 let mlog10 n = int_of_float(log10(float_of_int n))
 
@@ -104,6 +106,12 @@ let formatter =
   ))
 
 let binaries = ["counters.sim";"counters.dyn";] @ (List.map (fun n -> "counters."^n) stas)
+
+let mk_threshold = mk int "threshold" 100
+
+let mk_bench_fanin = mk string "bench" "fanin"
+
+let mk_bench_indegree2 = mk string "bench" "indegree2"
 
 (*****************************************************************************)
 (** Threshold experiment *)
@@ -126,6 +134,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_proc
+    & mk_bench_fanin
     & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_thresholds) )
     & mk_n)]))
 
@@ -159,7 +168,109 @@ let name = "proc"
 
 let prog = "./counters.virtual"
 
-let mk_threshold = mk int "threshold" 1000
+let procs = [1;10;20;30;40;]
+let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
+
+let mk_procs = mk_list int "proc" procs
+
+let make() =
+  build "." binaries arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_procs
+    & mk_bench_fanin
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_n)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
+       Formatter formatter;
+       Charts mk_unit;
+      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Size experiment *)
+
+module ExpSize = struct
+
+let name = "size"
+
+let prog = "./counters.virtual"
+
+let ns = Array.to_list (Array.init 10 (fun i -> (1 lsl i) * 1048576))
+
+let mk_ns = mk_list int "n" ns
+
+let make() =
+  build "." binaries arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_proc
+    & mk_bench_fanin
+    & mk_algo_dyn
+    & mk_threshold
+    & mk_ns)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+    Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
+       Formatter formatter;
+       Charts mk_unit;
+      Series (mk_algo_dyn & mk_threshold & mk_proc);
+      X mk_ns;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Indegree2 experiment *)
+
+module ExpIndegree2 = struct
+
+let name = "indegree2"
+
+let prog = "./counters.virtual"
 
 let procs = [1;10;20;30;40;]
 let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
@@ -176,6 +287,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_procs
+    & mk_bench_indegree2
     & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
     & mk_n)]))
 
@@ -211,6 +323,8 @@ let _ =
   let bindings = [
     "threshold", ExpThreshold.all;
     "proc", ExpProc.all;
+    "size", ExpSize.all;
+    "indegree2", ExpIndegree2.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
