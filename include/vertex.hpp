@@ -25,9 +25,11 @@ private:
   
 public:
   
-  vertex() {
+  vertex(bool preincr = true) {
     in.reset(new incounter(this));
-    release_handle = get_incounter()->increment(this);
+    if (preincr) {
+      release_handle = get_incounter()->increment(this);
+    }
     out_dflt.reset(new outset);
   }
   

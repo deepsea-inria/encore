@@ -59,7 +59,7 @@ namespace dyn {
     bool left = true;
     
     fanin_rec(int nb, handle inc, std::pair<handle,handle> dec)
-    : nb(nb), inc(inc), dec(dec), first_dec(false) { }
+    : nb(nb), inc(inc), dec(dec), first_dec(false), sched::vertex(false) { }
     
     int run(int fuel) {
       fuel--;
@@ -152,7 +152,7 @@ namespace dyn {
     sched::vertex* k = nullptr;
     
     indegree2_rec(int nb, handle inc, std::pair<handle,handle> dec)
-    : nb(nb), inc(inc), dec(dec), first_dec(false) { }
+    : nb(nb), inc(inc), dec(dec), first_dec(false), sched::vertex(false) { }
     
     int run(int fuel) {
       fuel--;
@@ -178,11 +178,11 @@ namespace dyn {
         auto d = std::make_pair(i, i);
         auto v1 = new indegree2_rec(nb, i, d);
         counter_increment(v1);
-        release(v1);
+        schedule(v1);
         auto v2 = new indegree2_rec(nb, i, d);
         counter_increment(v2);
         v2->left = false;
-        release(v2);
+        schedule(v2);
         first = false;
       }
       return fuel;
@@ -221,7 +221,7 @@ namespace dyn {
         snzi_arrive(h);
         auto v = new indegree2_rec(nb, h, std::make_pair(h, h));
         v->k = this;
-        release(v);
+        schedule(v);
         first = false;
       } else {
         auto end = std::chrono::system_clock::now();
