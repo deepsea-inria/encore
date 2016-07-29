@@ -149,6 +149,7 @@ namespace dyn {
     std::atomic<bool> first_dec;
     bool left = true;
     bool first = true;
+    sched::vertex* k = nullptr;
     
     indegree2_rec(int nb, handle inc, std::pair<handle,handle> dec)
     : nb(nb), inc(inc), dec(dec), first_dec(false) { }
@@ -156,7 +157,11 @@ namespace dyn {
     int run(int fuel) {
       fuel--;
       if (! first) {
+        nb = 0;
         counter_decrement(this);
+        if (k != nullptr) {
+          schedule(k);
+        }
         return fuel;
       }
       if (nb < 2) {
@@ -172,11 +177,11 @@ namespace dyn {
         auto d = std::make_pair(i, i);
         auto v1 = new indegree2_rec(nb, i, d);
         counter_increment(v1);
-        schedule(v1);
+        release(v1);
         auto v2 = new indegree2_rec(nb, i, d);
         counter_increment(v2);
         v2->left = false;
-        schedule(v2);
+        release(v2);
         first = false;
       }
       return fuel;
@@ -213,13 +218,15 @@ namespace dyn {
         start = std::chrono::system_clock::now();
         auto h = &(get_incounter()->t.root);
         snzi_arrive(h);
-        schedule(new indegree2_rec(nb, h, std::make_pair(h, h)));
+        auto v = new indegree2_rec(nb, h, std::make_pair(h, h));
+        v->k = this;
+        release(v);
         first = false;
       } else {
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<float> diff = end - start;
         printf ("exectime %.3lf\n", diff.count());
-        assert(nb_fanin.load() == nb);
+        assert(nb_indegree2.load() == nb);
         nb = 0;
       }
       return fuel;
@@ -392,15 +399,15 @@ namespace stat {
   public:
     
     int nb;
-    sched::vertex* finish;
     bool first = true;
     
-    indegree2_rec(int nb, sched::vertex* finish)
-    : nb(nb), finish(finish) { }
+    indegree2_rec(int nb)
+    : nb(nb) { }
     
     int run(int fuel) {
       fuel--;
       if (! first) {
+        nb = 0;
         return fuel;
       }
       if (nb < 2) {
@@ -411,12 +418,13 @@ namespace stat {
 #endif
       } else {
         nb = std::max(1, nb / 2);
-        auto v1 = new indegree2_rec(nb, this);
-        auto v2 = new indegree2_rec(nb, this);
+        auto v1 = new indegree2_rec(nb);
+        auto v2 = new indegree2_rec(nb);
         sched::new_edge(v1, this);
         sched::new_edge(v2, this);
-        schedule(v1);
-        schedule(v2);
+        release(v1);
+        release(v2);
+        first = false;
       }
       return fuel;
     }
@@ -446,15 +454,15 @@ namespace stat {
       fuel--;
       if (first) {
         start = std::chrono::system_clock::now();
-        auto v = new indegree2_rec(nb, this);
+        auto v = new indegree2_rec(nb);
         sched::new_edge(v, this);
-        schedule(v);
+        release(v);
         first = false;
       } else {
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<float> diff = end - start;
         printf ("exectime %.3lf\n", diff.count());
-        assert(nb_fanin.load() == nb);
+        assert(nb_indegree2.load() == nb);
         nb = 0;
       }
       return fuel;
