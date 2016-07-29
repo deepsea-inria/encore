@@ -26,7 +26,11 @@ void do_dummy_work() {
 }
 
 #ifndef NDEBUG
-std::atomic<int> nb_async(0);
+
+std::atomic<int> nb_fanin(0);
+
+std::atomic<int> nb_indegree2(0);
+
 #endif
 
 /*---------------------------------------------------------------------*/
@@ -35,13 +39,17 @@ namespace dyn {
   
 #ifndef ENCORE_INCOUNTER_SIMPLE
   
-  class async_rec;
+  class fanin_rec;
   
-  std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(async_rec* u);
+  template <class T>
+  std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(T* u);
   
-  void counter_decrement(async_rec* u);
+  template <class T>
+  void counter_decrement(T* u);
   
-  class async_rec : public sched::vertex {
+  void snzi_arrive(handle h);
+  
+  class fanin_rec : public sched::vertex {
   public:
     
     int nb;
@@ -50,7 +58,7 @@ namespace dyn {
     std::atomic<bool> first_dec;
     bool left = true;
     
-    async_rec(int nb, handle inc, std::pair<handle,handle> dec)
+    fanin_rec(int nb, handle inc, std::pair<handle,handle> dec)
     : nb(nb), inc(inc), dec(dec), first_dec(false) { }
     
     int run(int fuel) {
@@ -59,7 +67,7 @@ namespace dyn {
         do_dummy_work();
         nb = 0;
 #ifndef NDEBUG
-        nb_async++;
+        nb_fanin++;
 #endif
         counter_decrement(this);
       } else {
@@ -70,7 +78,7 @@ namespace dyn {
         handle j = std::get<2>(r);
         dec = d;
         inc = i;
-        auto v = new async_rec(nb, j, d);
+        auto v = new fanin_rec(nb, j, d);
         v->left = false;
         schedule(v);
         schedule(this);
@@ -80,6 +88,141 @@ namespace dyn {
     
     bool is_left_child() {
       return left;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class fanin : public sched::vertex {
+  public:
+    
+    int nb;
+    bool first = true;
+    std::chrono::time_point<std::chrono::system_clock> start;
+    
+    fanin(int nb)
+    : nb(nb) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (first) {
+        start = std::chrono::system_clock::now();
+        auto h = &(get_incounter()->t.root);
+        snzi_arrive(h);
+        schedule(new fanin_rec(nb, h, std::make_pair(h, h)));
+        first = false;
+      } else {
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<float> diff = end - start;
+        printf ("exectime %.3lf\n", diff.count());
+        assert(nb_fanin.load() == nb);
+        nb = 0;
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class indegree2_rec : public sched::vertex {
+  public:
+    
+    int nb;
+    handle inc;
+    std::pair<handle, handle> dec;
+    std::atomic<bool> first_dec;
+    bool left = true;
+    bool first = true;
+    
+    indegree2_rec(int nb, handle inc, std::pair<handle,handle> dec)
+    : nb(nb), inc(inc), dec(dec), first_dec(false) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (! first) {
+        counter_decrement(this);
+        return fuel;
+      }
+      if (nb < 2) {
+        do_dummy_work();
+        nb = 0;
+#ifndef NDEBUG
+        nb_indegree2++;
+#endif
+        counter_decrement(this);
+      } else {
+        nb = std::max(1, nb / 2);
+        auto i = &(get_incounter()->t.root);
+        auto d = std::make_pair(i, i);
+        auto v1 = new indegree2_rec(nb, i, d);
+        counter_increment(v1);
+        schedule(v1);
+        auto v2 = new indegree2_rec(nb, i, d);
+        counter_increment(v2);
+        v2->left = false;
+        schedule(v2);
+        first = false;
+      }
+      return fuel;
+    }
+    
+    bool is_left_child() {
+      return left;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class indegree2 : public sched::vertex {
+  public:
+    
+    int nb;
+    bool first = true;
+    std::chrono::time_point<std::chrono::system_clock> start;
+    
+    indegree2(int nb)
+    : nb(nb) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (first) {
+        start = std::chrono::system_clock::now();
+        auto h = &(get_incounter()->t.root);
+        snzi_arrive(h);
+        schedule(new indegree2_rec(nb, h, std::make_pair(h, h)));
+        first = false;
+      } else {
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<float> diff = end - start;
+        printf ("exectime %.3lf\n", diff.count());
+        assert(nb_fanin.load() == nb);
+        nb = 0;
+      }
+      return fuel;
     }
     
     int nb_strands() {
@@ -106,7 +249,8 @@ namespace dyn {
     }
   }
   
-  handle claim_dec(async_rec* u) {
+  template <class T>
+  handle claim_dec(T* u) {
     bool orig = false;
     if (u->first_dec.compare_exchange_strong(orig, true)) {
       return u->dec.first;
@@ -115,7 +259,8 @@ namespace dyn {
     }
   }
   
-  std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(async_rec* u) {
+  template <class T>
+  std::tuple<std::pair<handle, handle>, handle, handle> counter_increment(T* u) {
     handle d1;
     handle d2;
     handle i1;
@@ -145,48 +290,10 @@ namespace dyn {
     return std::make_tuple(std::make_pair(d1, d2), i1, i2);
   }
   
-  void counter_decrement(async_rec* u) {
+  template <class T>
+  void counter_decrement(T* u) {
     snzi_depart(claim_dec(u));
   }
-  
-  class async : public sched::vertex {
-  public:
-    
-    int nb;
-    bool first = true;
-    std::chrono::time_point<std::chrono::system_clock> start;
-    
-    async(int nb)
-    : nb(nb) { }
-    
-    int run(int fuel) {
-      fuel--;
-      if (first) {
-        start = std::chrono::system_clock::now();
-        auto h = &(get_incounter()->t.root);
-        snzi_arrive(h);
-        schedule(new async_rec(nb, h, std::make_pair(h, h)));
-        first = false;
-      } else {
-        auto end = std::chrono::system_clock::now();
-        std::chrono::duration<float> diff = end - start;
-        printf ("exectime %.3lf\n", diff.count());
-        assert(nb_async.load() == nb);
-        nb = 0;
-      }
-      return fuel;
-    }
-    
-    int nb_strands() {
-      return (nb == 0) ? 0 : 1;
-    }
-    
-    std::pair<vertex*, vertex*> split(int nb) {
-      assert(false);
-      return std::make_pair(nullptr, nullptr);
-    }
-    
-  };
   
 #endif
   
@@ -197,16 +304,20 @@ namespace dyn {
 namespace stat {
   
 #ifndef NDEBUG
-  std::atomic<int> nb_async(0);
+  
+  std::atomic<int> nb_fanin(0);
+  
+  std::atomic<int> nb_indegree2(0);
+  
 #endif
   
-  class async_rec : public sched::vertex {
+  class fanin_rec : public sched::vertex {
   public:
     
     int nb;
     sched::vertex* finish;
     
-    async_rec(int nb, sched::vertex* finish)
+    fanin_rec(int nb, sched::vertex* finish)
     : nb(nb), finish(finish) { }
     
     int run(int fuel) {
@@ -215,11 +326,11 @@ namespace stat {
         do_dummy_work();
         nb = 0;
 #ifndef NDEBUG
-        nb_async++;
+        nb_fanin++;
 #endif
       } else {
         nb = std::max(1, nb / 2);
-        auto v = new async_rec(nb, finish);
+        auto v = new fanin_rec(nb, finish);
         sched::new_edge(v, finish);
         schedule(v);
         schedule(this);
@@ -238,21 +349,21 @@ namespace stat {
     
   };
   
-  class async : public sched::vertex {
+  class fanin : public sched::vertex {
   public:
     
     int nb;
     bool first = true;
     std::chrono::time_point<std::chrono::system_clock> start;
     
-    async(int nb)
+    fanin(int nb)
     : nb(nb) { }
     
     int run(int fuel) {
       fuel--;
       if (first) {
         start = std::chrono::system_clock::now();
-        auto v = new async_rec(nb, this);
+        auto v = new fanin_rec(nb, this);
         sched::new_edge(v, this);
         schedule(v);
         first = false;
@@ -260,7 +371,90 @@ namespace stat {
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<float> diff = end - start;
         printf ("exectime %.3lf\n", diff.count());
-        assert(nb_async.load() == nb);
+        assert(nb_fanin.load() == nb);
+        nb = 0;
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class indegree2_rec : public sched::vertex {
+  public:
+    
+    int nb;
+    sched::vertex* finish;
+    bool first = true;
+    
+    indegree2_rec(int nb, sched::vertex* finish)
+    : nb(nb), finish(finish) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (! first) {
+        return fuel;
+      }
+      if (nb < 2) {
+        do_dummy_work();
+        nb = 0;
+#ifndef NDEBUG
+        nb_indegree2++;
+#endif
+      } else {
+        nb = std::max(1, nb / 2);
+        auto v1 = new indegree2_rec(nb, this);
+        auto v2 = new indegree2_rec(nb, this);
+        sched::new_edge(v1, this);
+        sched::new_edge(v2, this);
+        schedule(v1);
+        schedule(v2);
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class indegree2 : public sched::vertex {
+  public:
+    
+    int nb;
+    bool first = true;
+    std::chrono::time_point<std::chrono::system_clock> start;
+    
+    indegree2(int nb)
+    : nb(nb) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (first) {
+        start = std::chrono::system_clock::now();
+        auto v = new indegree2_rec(nb, this);
+        sched::new_edge(v, this);
+        schedule(v);
+        first = false;
+      } else {
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<float> diff = end - start;
+        printf ("exectime %.3lf\n", diff.count());
+        assert(nb_fanin.load() == nb);
         nb = 0;
       }
       return fuel;
@@ -281,23 +475,52 @@ namespace stat {
 
 /*---------------------------------------------------------------------*/
 
+void launch_fanin(int n) {
+  cmdline::dispatcher d;
+#ifndef ENCORE_INCOUNTER_SIMPLE
+  d.add("dyn", [&] {
+    encore::launch(new dyn::fanin(n));
+  });
+#endif
+  d.add("sta", [&] {
+    encore::launch(new stat::fanin(n));
+  });
+  d.add("sim", [&] {
+    encore::launch(new stat::fanin(n));
+  });
+  d.dispatch("algo");
+}
+
+void launc_indegree2(int n) {
+  cmdline::dispatcher d;
+#ifndef ENCORE_INCOUNTER_SIMPLE
+  d.add("dyn", [&] {
+    encore::launch(new dyn::indegree2(n));
+  });
+#endif
+  d.add("sta", [&] {
+    encore::launch(new stat::indegree2(n));
+  });
+  d.add("sim", [&] {
+    encore::launch(new stat::indegree2(n));
+  });
+  d.dispatch("algo");
+}
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   workload = cmdline::parse_or_default("workload", workload);
-  cmdline::dispatcher d;
 #ifndef ENCORE_INCOUNTER_SIMPLE
-  d.add("dyn", [&] {
-    dyn::threshold = cmdline::parse_or_default("threshold", dyn::threshold);
-    encore::launch(new dyn::async(n));
-  });
+  dyn::threshold = cmdline::parse_or_default("threshold", dyn::threshold);
 #endif
-  d.add("sta", [&] {
-    encore::launch(new stat::async(n));
+  cmdline::dispatcher d;
+  d.add("fanin", [&] {
+    launch_fanin(n);
   });
-  d.add("sim", [&] {
-    encore::launch(new stat::async(n));
+  d.add("indegree2", [&] {
+    launc_indegree2(n);
   });
-  d.dispatch("algo");
+  d.dispatch("bench");
   return 0;
 }
