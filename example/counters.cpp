@@ -158,9 +158,10 @@ namespace dyn {
       fuel--;
       if (! first) {
         nb = 0;
-        counter_decrement(this);
         if (k != nullptr) {
-          schedule(k);
+          release(k);
+        } else {
+          counter_decrement(this);
         }
         return fuel;
       }
