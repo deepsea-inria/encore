@@ -501,6 +501,21 @@ void launc_indegree2(int n) {
   d.add("sta", [&] {
     encore::launch(new stat::indegree2(n));
   });
+  d.add("sta2", [&] {
+    encore::launch(new stat::async(n));
+  });
+  d.add("sta4", [&] {
+    encore::launch(new stat::async(n));
+  });
+  d.add("sta8", [&] {
+    encore::launch(new stat::async(n));
+  });
+  d.add("sta9", [&] {
+    encore::launch(new stat::async(n));
+  });
+  d.add("sta10", [&] {
+    encore::launch(new stat::async(n));
+  });
   d.add("sim", [&] {
     encore::launch(new stat::indegree2(n));
   });

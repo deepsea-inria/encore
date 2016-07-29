@@ -325,10 +325,14 @@ public:
 };
   
 } // end namespace
+
+#ifndef SNZI_TREE_HEIGHT
+#define SNZI_TREE_HEIGHT 9
+#endif
   
 namespace {
   
-constexpr int snzi_tree_height = 9;
+constexpr int snzi_tree_height = SNZI_TREE_HEIGHT;
   
 using gsnzi_tree_type = gsnzi::tree<snzi_tree_height>;
   
