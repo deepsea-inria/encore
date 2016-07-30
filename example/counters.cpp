@@ -177,10 +177,13 @@ namespace dyn {
         auto i = &(get_incounter()->t.root);
         auto d = std::make_pair(i, i);
         auto v1 = new indegree2_rec(nb, i, d);
-        counter_increment(v1);
+        auto r1 = counter_increment(v1);
+        i = std::get<1>(r1);
+        v1->dec = std::get<0>(r1);
         schedule(v1);
         auto v2 = new indegree2_rec(nb, i, d);
-        counter_increment(v2);
+        auto r2 = counter_increment(v2);
+        v2->dec = std::get<0>(r2);
         v2->left = false;
         schedule(v2);
         first = false;
