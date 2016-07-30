@@ -96,12 +96,12 @@ let formatter =
  Env.format (Env.(
   [
    ("n", Format_custom (fun n -> sprintf "%s" n));
-   ("proc", Format_custom (fun n -> sprintf "nb. proc=%s" n));
+   ("proc", Format_custom (fun n -> ""));
    ("algo", Format_custom (fun n -> sprintf "%s" (
-     if n = "dyn" then "Our SNZI"
+     if n = "dyn" then "Incounter"
      else if n = "sim" then "Fetch & Add"
-     else (sprintf "Orig. SNZI depth=%d" (sz_of_sta n)))));
-   ("threshold", Format_custom (fun n -> sprintf "threshold=10^%d" (mlog10 (int_of_string n))));
+     else (sprintf "SNZI depth=%d" (sz_of_sta n)))));
+   ("threshold", Format_custom (fun n -> sprintf "threshold=%s" n));
    ]
   ))
 
@@ -151,7 +151,7 @@ let plot() =
       X ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_thresholds) );
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
+      Y_label "Number of operations per second per core";
       Y eval_nb_operations_per_second;
   ]))
 
@@ -192,18 +192,18 @@ let check = nothing  (* do something here *)
 let plot() =
   Mk_scatter_plot.(call ([
     Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Top_right]);
+      Legend_opt Legend.([Legend_pos Bottom_left]);
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_unit;
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
+      Y_label "Number of operations per second per core";
       Y eval_nb_operations_per_second;
   ]))
 
@@ -244,7 +244,7 @@ let check = nothing  (* do something here *)
 let plot() =
     Mk_scatter_plot.(call ([
     Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Top_right]);
+      Legend_opt Legend.([Legend_pos Bottom_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
@@ -255,7 +255,60 @@ let plot() =
       X mk_ns;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
+      Y_label "Number of operations per second per core";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Workload experiment *)
+
+module ExpWorkload = struct
+
+let name = "workload"
+
+let prog = "./counters.virtual"
+
+let workloads = [1;10;100;1000;10000;100000;]
+
+let mk_workloads = mk_list int "workload" workloads
+
+let make() =
+  build "." binaries arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_proc
+    & mk_bench_fanin
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_workloads
+    & mk_n)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
+       Formatter formatter;
+       Charts mk_proc;
+      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      X mk_workloads;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "Number of operations per second per core";
       Y eval_nb_operations_per_second;
   ]))
 
@@ -274,6 +327,11 @@ let prog = "./counters.virtual"
 
 let procs = [1;10;20;30;40;]
 let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
+
+let stas = ["sta2"; "sta4"; (*"sta8"; "sta9"; "sta10"; *)]
+
+let mk_algo_sta = mk_list string "algo" stas
+
 
 let mk_procs = mk_list int "proc" procs
 
@@ -300,14 +358,14 @@ let plot() =
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_unit;
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
+      Y_label "Number of operations per second per core";
       Y eval_nb_operations_per_second;
   ]))
 
@@ -325,6 +383,7 @@ let _ =
     "proc", ExpProc.all;
     "size", ExpSize.all;
     "indegree2", ExpIndegree2.all;
+    "workload", ExpWorkload.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
