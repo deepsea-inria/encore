@@ -96,7 +96,7 @@ let formatter =
  Env.format (Env.(
   [
    ("n", Format_custom (fun n -> sprintf "%s" n));
-   ("proc", Format_custom (fun n -> ""));
+   ("proc", Format_custom (fun n -> sprintf "Nb. cores %s" n));
    ("algo", Format_custom (fun n -> sprintf "%s" (
      if n = "dyn" then "Incounter"
      else if n = "sim" then "Fetch & Add"
@@ -192,7 +192,7 @@ let check = nothing  (* do something here *)
 let plot() =
   Mk_scatter_plot.(call ([
     Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Bottom_left]);
+      Legend_opt Legend.([Legend_pos Top_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
