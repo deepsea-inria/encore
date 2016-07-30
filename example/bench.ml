@@ -271,7 +271,7 @@ end
 (*****************************************************************************)
 (** Workload fanin experiment *)
 
-module ExpWorkload = struct
+module ExpWorkloadFanin = struct
 
 let name = "workload_fanin"
 
@@ -308,7 +308,7 @@ let plot() =
          X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
-       Charts (mk_proc & mk_bench_fanin);
+       Charts mk_proc;
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_workloads;
       Input (file_results name);
@@ -361,7 +361,7 @@ let plot() =
          X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
-       Charts (mk_proc & mk_bench_indegree2);
+       Charts mk_proc;
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_workloads;
       Input (file_results name);
@@ -440,8 +440,8 @@ let _ =
     "proc", ExpProc.all;
     "size", ExpSize.all;
     "indegree2", ExpIndegree2.all;
-    "workload_fanin", ExpWorkload.all;
-    "workload_indegree2", ExpWorkload.all;
+    "workload_fanin", ExpWorkloadFanin.all;
+    "workload_indegree2", ExpWorkloadIndegree2.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
