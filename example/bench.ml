@@ -269,11 +269,11 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
-(** Workload experiment *)
+(** Workload fanin experiment *)
 
 module ExpWorkload = struct
 
-let name = "workload"
+let name = "workload_fanin"
 
 let prog = "./counters.virtual"
 
@@ -291,7 +291,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_proc
-    & (mk_bench_fanin ++ mk_bench_indegree2)
+    & mk_bench_fanin
     & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
     & mk_workloads
     & mk_n)]))
@@ -308,7 +308,60 @@ let plot() =
          X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
-       Charts (mk_proc & (mk_bench_fanin ++ mk_bench_indegree2));
+       Charts (mk_proc & mk_bench_fanin);
+      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      X mk_workloads;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "Number of operations per second per core";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Workload indegree2 experiment *)
+
+module ExpWorkloadIndegree2 = struct
+
+let name = "workload_indegree2"
+
+let prog = "./counters.virtual"
+
+let workloads = [1;10;100;1000;10000;100000;]
+
+let mk_workloads = mk_list int "workload" workloads
+
+let make() =
+  build "." binaries arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_proc
+    & (mk_bench_indegree2)
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_workloads
+    & mk_n)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
+       Formatter formatter;
+       Charts (mk_proc & mk_bench_indegree2);
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_workloads;
       Input (file_results name);
@@ -387,7 +440,8 @@ let _ =
     "proc", ExpProc.all;
     "size", ExpSize.all;
     "indegree2", ExpIndegree2.all;
-    "workload", ExpWorkload.all;
+    "workload_fanin", ExpWorkload.all;
+    "workload_indegree2", ExpWorkload.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
