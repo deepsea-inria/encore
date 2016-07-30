@@ -224,6 +224,11 @@ let ns = Array.to_list (Array.init 10 (fun i -> (1 lsl i) * 1048576))
 
 let mk_ns = mk_list int "n" ns
 
+let procs = [1;10;20;30;40;]
+let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
+
+let mk_procs = mk_list int "proc" procs
+
 let make() =
   build "." binaries arg_virtual_build
 
@@ -233,7 +238,7 @@ let run() =
     Timeout 400;
     Args (
       mk_prog prog
-    & mk_proc
+    & mk_procs
     & mk_bench_fanin
     & mk_algo_dyn
     & mk_threshold
@@ -251,7 +256,7 @@ let plot() =
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
        Formatter formatter;
        Charts mk_unit;
-      Series (mk_algo_dyn & mk_threshold & mk_proc);
+      Series (mk_algo_dyn & mk_threshold & mk_procs);
       X mk_ns;
       Input (file_results name);
       Output (file_plots name);
@@ -286,7 +291,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_proc
-    & mk_bench_fanin
+    & (mk_bench_fanin ++ mk_bench_indegree2)
     & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
     & mk_workloads
     & mk_n)]))
@@ -303,7 +308,7 @@ let plot() =
          X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
-       Charts mk_proc;
+       Charts (mk_proc & (mk_bench_fanin ++ mk_bench_indegree2));
       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_workloads;
       Input (file_results name);
@@ -331,7 +336,6 @@ let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
 let stas = ["sta2"; "sta4"; (*"sta8"; "sta9"; "sta10"; *)]
 
 let mk_algo_sta = mk_list string "algo" stas
-
 
 let mk_procs = mk_list int "proc" procs
 
