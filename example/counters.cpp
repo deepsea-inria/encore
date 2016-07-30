@@ -403,7 +403,9 @@ namespace ori {
     bool first = true;
     
     indegree2_rec(int nb)
-    : nb(nb), sched::vertex(false) { }
+    : nb(nb), sched::vertex(false) {
+      get_incounter()->create_heap();
+    }
     
     int run(int fuel) {
       fuel--;

@@ -371,6 +371,10 @@ public:
     }
   }
   
+  void create_heap() {
+    t.create_heap();
+  }
+  
 };
   
 #else
@@ -417,6 +421,10 @@ public:
       vertex* v = h->v;
       schedule(v);
     }
+  }
+  
+  void create_heap() {
+
   }
   
 };
