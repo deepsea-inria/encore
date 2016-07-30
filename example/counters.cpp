@@ -312,6 +312,184 @@ namespace dyn {
 
 /*---------------------------------------------------------------------*/
 
+namespace ori {
+  
+  class fanin_rec : public sched::vertex {
+  public:
+    
+    int nb;
+    sched::vertex* finish;
+    handle h;
+    
+    fanin_rec(int nb, sched::vertex* finish)
+    : nb(nb), finish(finish), sched::vertex(false) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (nb < 2) {
+        do_dummy_work();
+        nb = 0;
+#ifndef NDEBUG
+        nb_fanin++;
+#endif
+//        auto h1 = finish->get_incounter()->t.get_target_of_value(this);
+//        assert(h1 == h);
+        finish->get_incounter()->decrement(h);
+      } else {
+        nb = std::max(1, nb / 2);
+        auto v = new fanin_rec(nb, finish);
+        v->h = finish->get_incounter()->increment(v);
+        schedule(v);
+        schedule(this);
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class fanin : public sched::vertex {
+  public:
+    
+    int nb;
+    bool first = true;
+    std::chrono::time_point<std::chrono::system_clock> start;
+    
+    fanin(int nb)
+    : nb(nb) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (first) {
+        start = std::chrono::system_clock::now();
+        auto v = new fanin_rec(nb, this);
+        v->h = get_incounter()->increment(v);
+        schedule(v);
+        first = false;
+      } else {
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<float> diff = end - start;
+        printf ("exectime %.3lf\n", diff.count());
+        assert(nb_fanin.load() == nb);
+        nb = 0;
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class indegree2_rec : public sched::vertex {
+  public:
+    
+    int nb;
+    handle h = nullptr;
+    bool first = true;
+    
+    indegree2_rec(int nb)
+    : nb(nb), sched::vertex(false) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (! first) {
+        nb = 0;
+        if (h != nullptr) {
+//          auto h = k->get_incounter()->t.get_target_of_value(this);
+          get_incounter()->decrement(h);
+        }
+        return fuel;
+      }
+      if (nb < 2) {
+        do_dummy_work();
+        nb = 0;
+#ifndef NDEBUG
+        nb_indegree2++;
+#endif
+//        auto h = k->get_incounter()->t.get_target_of_value(this);
+        get_incounter()->decrement(h);
+      } else {
+        nb = std::max(1, nb / 2);
+        auto v1 = new indegree2_rec(nb);
+        v1->h = get_incounter()->increment(v1);
+        schedule(v1);
+        auto v2 = new indegree2_rec(nb);
+        v2->h = get_incounter()->increment(v2);
+        schedule(v2);
+        first = false;
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+  class indegree2 : public sched::vertex {
+  public:
+    
+    int nb;
+    bool first = true;
+    std::chrono::time_point<std::chrono::system_clock> start;
+    
+    indegree2(int nb)
+    : nb(nb) { }
+    
+    int run(int fuel) {
+      fuel--;
+      if (first) {
+        start = std::chrono::system_clock::now();
+        auto v = new indegree2_rec(nb);
+        sched::new_edge(v, this);
+        schedule(v);
+        first = false;
+      } else {
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<float> diff = end - start;
+        printf ("exectime %.3lf\n", diff.count());
+        assert(nb_indegree2.load() == nb);
+        nb = 0;
+      }
+      return fuel;
+    }
+    
+    int nb_strands() {
+      return (nb == 0) ? 0 : 1;
+    }
+    
+    std::pair<vertex*, vertex*> split(int nb) {
+      assert(false);
+      return std::make_pair(nullptr, nullptr);
+    }
+    
+  };
+  
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+
 namespace stat {
   
 #ifndef NDEBUG
@@ -495,25 +673,25 @@ void launch_fanin(int n) {
   });
 #endif
   d.add("sta", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.add("sta2", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.add("sta4", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.add("sta8", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.add("sta9", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.add("sta10", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.add("sim", [&] {
-    encore::launch(new stat::fanin(n));
+    encore::launch(new ori::fanin(n));
   });
   d.dispatch("algo");
 }
@@ -526,25 +704,25 @@ void launc_indegree2(int n) {
   });
 #endif
   d.add("sta", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.add("sta2", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.add("sta4", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.add("sta8", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.add("sta9", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.add("sta10", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.add("sim", [&] {
-    encore::launch(new stat::indegree2(n));
+    encore::launch(new ori::indegree2(n));
   });
   d.dispatch("algo");
 }
