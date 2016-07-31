@@ -677,10 +677,25 @@ void launch_fanin(int n) {
   d.add("sta", [&] {
     encore::launch(new ori::fanin(n));
   });
+  d.add("sta1", [&] {
+    encore::launch(new ori::fanin(n));
+  });
   d.add("sta2", [&] {
     encore::launch(new ori::fanin(n));
   });
+  d.add("sta3", [&] {
+    encore::launch(new ori::fanin(n));
+  });
   d.add("sta4", [&] {
+    encore::launch(new ori::fanin(n));
+  });
+  d.add("sta5", [&] {
+    encore::launch(new ori::fanin(n));
+  });
+  d.add("sta6", [&] {
+    encore::launch(new ori::fanin(n));
+  });
+  d.add("sta7", [&] {
     encore::launch(new ori::fanin(n));
   });
   d.add("sta8", [&] {
@@ -708,10 +723,25 @@ void launc_indegree2(int n) {
   d.add("sta", [&] {
     encore::launch(new ori::indegree2(n));
   });
+  d.add("sta1", [&] {
+    encore::launch(new ori::indegree2(n));
+  });
   d.add("sta2", [&] {
     encore::launch(new ori::indegree2(n));
   });
+  d.add("sta3", [&] {
+    encore::launch(new ori::indegree2(n));
+  });
   d.add("sta4", [&] {
+    encore::launch(new ori::indegree2(n));
+  });
+  d.add("sta5", [&] {
+    encore::launch(new ori::indegree2(n));
+  });
+  d.add("sta6", [&] {
+    encore::launch(new ori::indegree2(n));
+  });
+  d.add("sta7", [&] {
     encore::launch(new ori::indegree2(n));
   });
   d.add("sta8", [&] {
