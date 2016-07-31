@@ -88,8 +88,6 @@ let n = 8388608
 
 let mk_n = mk int "n" n
 
-let mlog10 n = int_of_float(log10(float_of_int n))
-
 let sz_of_sta s = int_of_string (String.sub s 3 (String.length s - 3))
 
 let formatter =
@@ -170,6 +168,57 @@ let prog = "./counters.virtual"
 
 let procs = [1;10;20;30;40;]
 let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
+
+let mk_procs = mk_list int "proc" procs
+
+let make() =
+  build "." binaries arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_procs
+    & mk_bench_fanin
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_n)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
+       Formatter formatter;
+       Charts mk_unit;
+      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "Number of operations per second per core";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Proc 1 to 10 experiment *)
+
+module ExpProc10 = struct
+
+let name = "proc10"
+
+let prog = "./counters.virtual"
+
+let procs = [1;2;3;4;5;6;7;8;9;10;]
 
 let mk_procs = mk_list int "proc" procs
 
@@ -438,6 +487,7 @@ let _ =
   let bindings = [
     "threshold", ExpThreshold.all;
     "proc", ExpProc.all;
+    "proc10", ExpProc10.all;
     "size", ExpSize.all;
     "indegree2", ExpIndegree2.all;
     "workload_fanin", ExpWorkloadFanin.all;
