@@ -69,7 +69,9 @@ public:
   
   using myty = std::atomic<children_record*>;
   
+#ifndef ENCORE_SNZI_NO_CHILDREN
   DECLARE_PADDED_FIELD(myty, Children, cache_align_szb);
+#endif
   
   static bool is_root_node(const node* n) {
     return tagged::tag_of(n) == root_node_tag;
@@ -89,16 +91,20 @@ public:
     init.c = 0;
     init.v = 0;
     X.store(init);
+#ifndef ENCORE_SNZI_NO_CHILDREN
     Children.store(nullptr);
+#endif
   }
   
   ~node() {
+#ifndef ENCORE_SNZI_NO_CHILDREN
     auto C = Children.load();
     if (C != nullptr) {
       delete C->first;
       delete C->second;
       delete C;
     }
+#endif
   }
 
   bool is_saturated() const {
@@ -178,6 +184,7 @@ public:
   }
   
   children_record* touch(int p) {
+#ifndef ENCORE_SNZI_NO_CHILDREN
     if (! flip(p)) {
       return Children.load();
     }
@@ -191,6 +198,9 @@ public:
       delete pa;
     }
     return Children.load();
+#else
+    return nullptr;
+#endif
   }
   
   template <class Item>
@@ -254,7 +264,7 @@ public:
   // pre: assume tagged::tag_of(heap.load()) == loading_heap_tag
   // post: heap.load() points to an array of pre-initialized SNZI nodes
   void create_heap() {
-    assert(tagged::tag_of(heap.load()) == loading_heap_tag);
+//    assert(tagged::tag_of(heap.load()) == loading_heap_tag);
     size_t szb = heap_size * sizeof(node_type);
     node_type* h = (node_type*)malloc(szb);
     // cells at indices 0 and 1 are not used
