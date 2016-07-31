@@ -107,7 +107,7 @@ let formatter =
 
 let binaries = ["counters.sim";"counters.dyn";] @ (List.map (fun n -> "counters."^n) stas)
 
-let mk_threshold = mk int "threshold" 100
+let mk_threshold = mk int "threshold" (40000 / nb_proc)
 
 let mk_bench_fanin = mk string "bench" "fanin"
 
