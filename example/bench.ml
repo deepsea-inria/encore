@@ -80,7 +80,7 @@ let mk_algo_dyn = mk string "algo" "dyn"
 
 let mk_algo_sim = mk string "algo" "sim"
 
-let stas = ["sta2"; "sta4"; "sta8"; "sta9"; "sta10";]
+let stas = ["sta1"; "sta2"; "sta3"; "sta4"; "sta5"; "sta6"; "sta7"; "sta8"; "sta9";]
 
 let mk_algo_sta = mk_list string "algo" stas
 
@@ -350,6 +350,7 @@ let check = nothing  (* do something here *)
 let plot() =
   Mk_scatter_plot.(call ([
     Chart_opt Chart.([
+      Chart.Title "";
       Legend_opt Legend.([Legend_pos Top_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
@@ -403,7 +404,8 @@ let check = nothing  (* do something here *)
 let plot() =
   Mk_scatter_plot.(call ([
     Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Top_right]);
+        Chart.Title "";
+        Legend_opt Legend.([Legend_pos Top_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 

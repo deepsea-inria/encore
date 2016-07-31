@@ -2,12 +2,27 @@
 
 incmd=$@
 
-if [[ $incmd == *"-algo sta2"* ]]
+if [[ $incmd == *"-algo sta1"* ]]
 then
-    outcmd="counters.sta2 $@"
+    outcmd="counters.sta1 $@"
+elif [[ $incmd == *"-algo sta2"* ]]
+then
+     outcmd="counters.sta2 $@"
+elif [[ $incmd == *"-algo sta3"* ]]
+then
+     outcmd="counters.sta3 $@"
 elif [[ $incmd == *"-algo sta4"* ]]
 then
      outcmd="counters.sta4 $@"
+elif [[ $incmd == *"-algo sta5"* ]]
+then
+     outcmd="counters.sta5 $@"
+elif [[ $incmd == *"-algo sta6"* ]]
+then
+     outcmd="counters.sta6 $@"
+elif [[ $incmd == *"-algo sta7"* ]]
+then
+     outcmd="counters.sta7 $@"
 elif [[ $incmd == *"-algo sta8"* ]]
 then
      outcmd="counters.sta8 $@"
