@@ -101,7 +101,7 @@ let formatter =
      if n = "dyn" then "Incounter"
      else if n = "sim" then "Fetch & Add"
      else (sprintf "SNZI depth=%d" (sz_of_sta n)))));
-   ("threshold", Format_custom (fun n -> sprintf "threshold=%s" n));
+   ("threshold", Format_custom (fun n -> "" (*sprintf "threshold=%s" n *) ));
    ]
   ))
 
