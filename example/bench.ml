@@ -166,7 +166,7 @@ let name = "proc"
 
 let prog = "./counters.virtual"
 
-let procs = [1;10;20;30;40;]
+let procs = [1;2;3;4;5;6;7;8;9;10;20;30;40;]
 let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
 
 let mk_procs = mk_list int "proc" procs
