@@ -80,7 +80,7 @@ let mk_algo_dyn = mk string "algo" "dyn"
 
 let mk_algo_sim = mk string "algo" "sim"
 
-let stas = ["sta1"; "sta2"; "sta3"; "sta4"; "sta5"; "sta6"; "sta7"; "sta8"; "sta9";]
+let stas = ["sta1";"sta2"; "sta3"; "sta4"; "sta5"; "sta6"; "sta7"; "sta8"; "sta9";]
 
 let mk_algo_sta = mk_list string "algo" stas
 
@@ -105,11 +105,18 @@ let formatter =
 
 let binaries = ["counters.sim";"counters.dyn";] @ (List.map (fun n -> "counters."^n) stas)
 
+let threshold_of p = (40000 / p)
+
 let mk_threshold = mk int "threshold" (40000 / nb_proc)
 
 let mk_bench_fanin = mk string "bench" "fanin"
 
 let mk_bench_indegree2 = mk string "bench" "indegree2"
+
+let mk_thresholds_and_procs procs =
+  let mk p = (mk int "proc" p) & (mk int "threshold" (threshold_of p))
+  in
+  List.fold_left (fun acc p -> acc ++ (mk p)) (mk (List.hd procs)) (List.tl procs)
 
 (*****************************************************************************)
 (** Threshold experiment *)
@@ -171,6 +178,8 @@ let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
 
 let mk_procs = mk_list int "proc" procs
 
+let mk_all = (mk_algo_sim & mk_procs) ++ (mk_algo_sta & mk_procs) ++ (mk_algo_dyn & (mk_thresholds_and_procs procs))
+
 let make() =
   build "." binaries arg_virtual_build
 
@@ -180,9 +189,8 @@ let run() =
     Timeout 400;
     Args (
       mk_prog prog
-    & mk_procs
     & mk_bench_fanin
-    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_all
     & mk_n)]))
 
 let check = nothing  (* do something here *)
@@ -197,58 +205,7 @@ let plot() =
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_unit;
-      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
-      X mk_procs;
-      Input (file_results name);
-      Output (file_plots name);
-      Y_label "Number of operations per second per core";
-      Y eval_nb_operations_per_second;
-  ]))
-
-let all () = select make run check plot
-
-end
-
-(*****************************************************************************)
-(** Proc 1 to 10 experiment *)
-
-module ExpProc10 = struct
-
-let name = "proc10"
-
-let prog = "./counters.virtual"
-
-let procs = [1;2;3;4;5;6;7;8;9;10;]
-
-let mk_procs = mk_list int "proc" procs
-
-let make() =
-  build "." binaries arg_virtual_build
-
-let run() =
-  Mk_runs.(call (run_modes @ [
-    Output (file_results name);
-    Timeout 400;
-    Args (
-      mk_prog prog
-    & mk_procs
-    & mk_bench_fanin
-    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
-    & mk_n)]))
-
-let check = nothing  (* do something here *)
-
-let plot() =
-  Mk_scatter_plot.(call ([
-    Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Top_right]);
-      ]);
-     Scatter_plot_opt Scatter_plot.([
-         Draw_lines true; 
-         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
-       Formatter formatter;
-       Charts mk_unit;
-      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      Series ( mk_algo_sim ++ mk_algo_sta ++ mk_algo_dyn );
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
@@ -287,10 +244,9 @@ let run() =
     Timeout 400;
     Args (
       mk_prog prog
-    & mk_procs
     & mk_bench_fanin
     & mk_algo_dyn
-    & mk_threshold
+    & (mk_thresholds_and_procs procs)
     & mk_ns)]))
 
 let check = nothing  (* do something here *)
@@ -305,7 +261,7 @@ let plot() =
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
        Formatter formatter;
        Charts mk_unit;
-      Series (mk_algo_dyn & mk_threshold & mk_procs);
+      Series (mk_algo_dyn & mk_procs);
       X mk_ns;
       Input (file_results name);
       Output (file_plots name);
@@ -437,12 +393,14 @@ let prog = "./counters.virtual"
 let procs = [1;10;20;30;40;]
 let procs = if nb_proc = 40 then procs else procs @ [nb_proc]
 
+let mk_procs = mk_list int "proc" procs
+
 let stas = ["sta2"; "sta4"; (*"sta8"; "sta9"; "sta10"; *)]
 
 let mk_algo_sta = mk_list string "algo" stas
-
-let mk_procs = mk_list int "proc" procs
-
+                       
+let mk_all = (mk_algo_sim & mk_procs) ++ (mk_algo_sta & mk_procs) ++ (mk_algo_dyn & (mk_thresholds_and_procs procs))
+                                                                       
 let make() =
   build "." binaries arg_virtual_build
 
@@ -452,9 +410,8 @@ let run() =
     Timeout 400;
     Args (
       mk_prog prog
-    & mk_procs
     & mk_bench_indegree2
-    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_all
     & mk_n)]))
 
 let check = nothing  (* do something here *)
@@ -469,7 +426,7 @@ let plot() =
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_unit;
-      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      Series ( mk_algo_sim ++ mk_algo_sta ++ mk_algo_dyn );
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
@@ -489,7 +446,6 @@ let _ =
   let bindings = [
     "threshold", ExpThreshold.all;
     "proc", ExpProc.all;
-    "proc10", ExpProc10.all;
     "size", ExpSize.all;
     "indegree2", ExpIndegree2.all;
     "workload_fanin", ExpWorkloadFanin.all;
