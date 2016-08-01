@@ -258,7 +258,7 @@ let plot() =
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true;
-         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
+         Y_axis [Axis.Lower (Some 0.); Axis.Upper(Some 3500000.); ] ]);
        Formatter formatter;
        Charts mk_unit;
       Series (mk_algo_dyn & mk_procs);
