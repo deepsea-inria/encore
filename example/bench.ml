@@ -226,7 +226,7 @@ let name = "size"
 
 let prog = "./counters.virtual"
 
-let ns = Array.to_list (Array.init 10 (fun i -> (1 lsl i) * 1048576))
+let ns = Array.to_list (Array.init 7 (fun i -> (1 lsl (i+3)) * 1048576))
 
 let mk_ns = mk_list int "n" ns
 
@@ -257,8 +257,8 @@ let plot() =
       Legend_opt Legend.([Legend_pos Bottom_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
-         Draw_lines true; 
-         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;] ]);
+         Draw_lines true;
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_unit;
       Series (mk_algo_dyn & mk_procs);
