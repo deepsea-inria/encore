@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <deque>
 #include <unistd.h>
+#include <memory>
 
 #include "vertex.hpp"
 #include "stats.hpp"
@@ -8,45 +9,70 @@
 namespace encore {
 namespace native {
 
+class vertex;
+vertex* my_vertex();
+void resume_my_vertex();
+void promote_if_needed();
+void promote(vertex* v);
+
 using operation_tag_type = enum {
     tag_async,
     tag_finish,
     tag_future,
     tag_force,
-    nb_operations
+    tag_not_an_operation
 };
 
-class operation_type {
+class operation_descriptor_type {
 public:
-  operation_tag_type tag;
+  
+  operation_tag_type tag = tag_not_an_operation;
+  
   union {
-    operation_type*    finish_ptr;
+    // to store either a pointer to the record of the finish block 
+    // enclosing an async call, if the finish block was already 
+    // promoted, or the null pointer otherwise.
+    operation_descriptor_type*    finish_ptr;
+    // to store either a pointer to the incounter associated with
+    // the continuation of a finish block, if the finish block
+    // was already promoted, or the null pointer otherwise
     sched::incounter*  in;
+    // to store either a pointer to the outset associated with
+    // a parallel future, if the future was already promoted, or
+    // the null pointer otherwise
     sched::outset*     out;
-    operation_type**   future_ptr;
+    // to store either a pointer to the record of a future that
+    // is being targeted by a force operation, if the future has
+    // already been promoted, or the null pointer otherwise
+    operation_descriptor_type**   future_ptr;
   } sync_var;
+
+    operation_descriptor_type() {
+      sync_var.finish_ptr = nullptr;
+    }
+
 };
 
-using stack_type = struct {
-  void* btm; // frame pointer
-  void* top; // stack pointer
-  void* ptr; // pointer to starting address of stack
+class stack_linkage_type {
+public:
+  void* btm = nullptr; // frame pointer
+  void* top = nullptr; // stack pointer
 };
 
-using context_type = struct {
-  operation_type operation;
-  stack_type stack;
-  void* pc; // program counter
+class continuation_type {
+public:
+  stack_linkage_type stack;
+  void* pc = nullptr; // program counter
 };
 
 __attribute__((noreturn)) static
-void longjmp(context_type& context, void * rsp) {
-  std::cout << "longjmp rbp = " << context.stack.btm << " rsp = " << rsp << " pc = " << context.pc << std::endl;
-  assert(context.pc != nullptr);
+void longjmp(continuation_type& c, void* rsp) {
+  //  std::cout << "longjmp rbp = " << c.stack.btm << " rsp = " << rsp << " pc = " << c.pc << std::endl;
+  assert(c.stack.btm != nullptr && c.pc != nullptr && rsp != nullptr);
   __asm__ ( "mov\t%1,%%rsp\n\t"
 	    "mov\t%0,%%rbp\n\t"
 	    "jmp\t*%2\n\t"
-	    : : "r" (context.stack.btm), "r" (rsp), "r" (context.pc) : "memory");
+	    : : "r" (c.stack.btm), "r" (rsp), "r" (c.pc) : "memory");
   __builtin_unreachable();
 }
 
@@ -57,28 +83,49 @@ void longjmp(context_type& context, void * rsp) {
 
 static
 size_t get_page_size() {
-  int pagesize = sysconf(_SC_PAGESIZE);
-  return pagesize;
+  return sysconf(_SC_PAGESIZE);
 }
-
+  
 static
-void get_stack_size(void ** addr, size_t * size) {
+size_t get_stack_size() {
+  size_t stack_size;
+#ifdef TARGET_MAC_OS
+  stack_size = 1048576; //pthread_get_stacksize_np(pthread_self());
+#else
+  void* dummy;
   pthread_attr_t attr;
   pthread_getattr_np(pthread_self(), &attr);
-  pthread_attr_getstack(&attr, addr, size);
+  pthread_attr_getstack(&attr, &dummy, size);
+#endif
+  return stack_size;
 }
 
 static
-void * stack_setup(void* stack, size_t stack_size) {
-  void ** rsp = stack + stack_size;
+void* new_stack() {
+  void* stack = nullptr;
+  size_t page_size = get_page_size();
+  size_t stack_size = get_stack_size();
+  posix_memalign(&stack, page_size, stack_size);
+  return stack;
+}
+
+static
+void* stack_setup(void* stack, size_t stack_size) {
+  void ** rsp = (void**)((char*)stack + stack_size);
   rsp -= 16; // reserve 128 bytes at the bottom
   return rsp;
+}
+
+void* stack_setup(void* stack) {
+  return stack_setup(stack, get_stack_size());
 }
 
 class activation_record {
 public:
 
-  context_type context;
+  operation_descriptor_type operation;
+  
+  continuation_type continuation;
 
   virtual
   int nb_strands() {
@@ -88,146 +135,138 @@ public:
 };
 
 __attribute__((always_inline)) extern inline
-void initialize_stack(stack_type& s) {
+void capture_stack_linkage(stack_linkage_type& s) {
   register void * rbp asm ("rbp");
   register void * rsp asm ("rsp");
-  std::cout << "init with rbp = " << rbp << " rsp = " << rsp << std::endl;
   s.btm = rbp;
   s.top = rsp;
 }
-
-__attribute__((always_inline)) extern inline
-void initialize_context(context_type& c) {
-  initialize_stack(c.stack);
-  c.pc = nullptr;
-  c.operation.tag = nb_operations;
-  c.operation.sync_var.finish_ptr = nullptr; // any field of sync_var should do
-}
-
-__attribute__((always_inline)) extern inline
-void initialize_async(activation_record& ar, activation_record& finish_ar) {
-  initialize_context(ar.context);
-  ar.context.operation.tag = tag_async;
-  ar.context.operation.sync_var.finish_ptr = &(finish_ar.context.operation);
-}
-
-__attribute__((always_inline)) extern inline
-void initialize_finish(activation_record& a) {
-  initialize_context(a.context);
-  a.context.operation.tag = tag_finish;
-  a.context.operation.sync_var.in = nullptr;
-}
-
-  class vertex;
-
-  void resume();
-
-    __attribute__((noinline))
-  static void doit(context_type& c) {
-    c.pc = __builtin_return_address(0);
-    longjmp(c, c.stack.top);
-  }
-
-      __attribute__((noinline))
-      static void doit2(std::function<void()> f, context_type& c) {
-    c.pc = __builtin_return_address(0);
-                      register void * rbp2 asm ("rbp");
-      register void * rsp2 asm ("rsp");
-
-      std::cout << "doit2 =  rbp = " << rbp2 << " rsp = " << rsp2 << std::endl;
-
-    f();
-    std::cout << " after fff " << std::endl;
-    resume();
-  }
-
-    __attribute__((noinline))
-  static void doit3(context_type& c) {
-    c.pc = __builtin_return_address(0);
-  }
-
-
-  void * get_pc () { return __builtin_return_address(0); }
   
-template <class Function>
-__attribute__((noinline, hot, optimize(3)))      
-void fork(vertex*, const Function&, activation_record&);
+__attribute__((noinline, optimize("no-omit-frame-pointer")))
+void capture_return_pointer(continuation_type& c) {
+  c.pc = __builtin_return_address(0);
+}
 
-void promote(vertex*);
+__attribute__((noinline, optimize("no-omit-frame-pointer")))
+void capture_return_pointer_and_longjmp(continuation_type& c, void* rsp) {
+  c.pc = __builtin_return_address(0);
+  longjmp(c, rsp);
+}
+
+template <class Function>
+__attribute__((optimize("no-omit-frame-pointer")))
+void call_using_stack(void* s, continuation_type& c, const Function& f) {
+  continuation_type c2;
+  capture_stack_linkage(c2.stack);
+  membar(capture_return_pointer_and_longjmp(c2, stack_setup(s)));
+  f();
+  resume_my_vertex();
+}
+
+template <class Item>
+using channel = std::unique_ptr<Item>;
+
+template <class Item>
+Item recv(channel<Item>& c) {
+  assert(c);
+  Item result = *c;
+  c.reset();
+  return result;
+}
 
 class vertex : public sched::vertex {
 public:
-
+  
   int fuel = 0;
 
-  context_type context;
+  continuation_type trampoline;
 
-  std::deque<activation_record*> frames;
+  std::deque<activation_record*> markers;
 
-  std::unique_ptr<std::function<void()>> f;
+  struct mailbox_struct {
+    // to represent a new encore computation to that is to be run by
+    // this vertex
+    channel<std::function<void()>> start_function;
+    // to represent the activation record that is to resume the body of a
+    // promoted join point
+    channel<activation_record> promoted_join_body;
+    // to represent the activation record that is to resume the continuation
+    // of a promoted join point
+    channel<activation_record> promoted_join_cont;
+    // to represent the activation record that is to resume the body of
+    // a fork point
+    channel<activation_record> promoted_fork_body;
+    // to represent the activation record that is to resume the continuation
+    // of a fork point
+    channel<activation_record> promoted_fork_cont;
+    // to represent the first phase of a promotion
+    channel<activation_record> promotion;
+  } mailbox;
 
-  activation_record init_ar;
+  static
+  int nb_messages(const struct mailbox_struct& m) {
+    int nb = 0;
+    if (m.start_function)     nb++;
+    if (m.promoted_join_body) nb++;
+    if (m.promoted_join_cont) nb++;
+    if (m.promoted_fork_body) nb++;
+    if (m.promoted_fork_cont) nb++;
+    if (m.promotion)          nb++;
+    return nb;
+  }
 
-  void* rrsp;
+  bool empty_mailbox() const {
+    return nb_messages(mailbox) == 0;
+  }
+
   __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
   int run(int fuel) {
+    activation_record a;
     this->fuel = fuel;
-    initialize_context(context);
-    if (f) {
-      std::cout << "entry = " << this << std::endl;
-      void* stack = nullptr;
-      void* dummy;
-      size_t stack_size;
-      size_t page_size = get_page_size();
-      get_stack_size(&dummy, &stack_size);
-      posix_memalign(&stack, page_size, stack_size);
-      context.stack.top = stack_setup(stack, stack_size);  
-      register void * rbp asm ("rbp");
-      register void * rsp asm ("rsp");
-      rrsp = rsp;
-      membar(doit(context));
-      context.stack.top = rrsp;
-      std::cout << "middle v = " << this << " f = " << f.get() << std::endl;
-      auto ff = *f;
-      f.reset();
-      membar(doit2(ff, context));
-      register void * rbp2 asm ("rbp");
-      register void * rsp2 asm ("rsp");
-      std::cout << "rsp = " << rsp2 << std::endl;
-    } else if (! frames.empty()) {
-      assert(frames.size() == 1);
-      auto ar = frames.back();
-      std::cout << "running from context v = " << this << " ar = " << ar << std::endl;
-      doit3(context);
-      if (! frames.empty()) { // resume suspended frame
-	frames.pop_back();
-	assert(ar->context.pc != nullptr);
-	/*      void* stack = nullptr;
-		void* dummy;
-		size_t stack_size;
-		size_t page_size = get_page_size();
-		get_stack_size(&dummy, &stack_size);
-		posix_memalign(&stack, page_size, stack_size); */
-	longjmp(ar->context, /* stack_setup(stack, stack_size) */ ar->context.stack.top);
+    assert(markers.empty());
+    capture_stack_linkage(trampoline.stack);
+    while (true) {
+      assert(! empty_mailbox());
+      membar(capture_return_pointer(trampoline));
+      if (mailbox.start_function) {
+        auto f = recv(mailbox.start_function);
+        void* s = new_stack();
+        call_using_stack(s, trampoline, f);
+      } else if (mailbox.promoted_join_body) {
+        a = recv(mailbox.promoted_join_body);
+        longjmp(a.continuation, a.continuation.stack.top);
+      } else if (mailbox.promoted_join_cont) {
+        a = recv(mailbox.promoted_join_cont);
+        longjmp(a.continuation, a.continuation.stack.top);
+      } else if (mailbox.promoted_fork_body) {
+        a = recv(mailbox.promoted_fork_body);
+        longjmp(a.continuation, a.continuation.stack.top);
+      } else if (mailbox.promoted_fork_cont) {
+        a = recv(mailbox.promoted_fork_cont);
+        assert(a.continuation.stack.top == nullptr);
+        void* s = new_stack();
+        longjmp(a.continuation, stack_setup(s));
+      } else if (mailbox.promotion) {
+        a = recv(mailbox.promotion);
+        promote(this);
+        longjmp(a.continuation, a.continuation.stack.top);
+      } else {
+        break;
       }
-      // resume suspended vertex
-    } else {
-      assert(false);
     }
-    std::cout << "done v = " << this << " sz = " << frames.size() << std::endl;
+    assert(markers.empty());
     return this->fuel;
   }
 
   int nb_strands() {
-    if (f) {
+    if (! empty_mailbox()) {
       return 1;
-    } else if (frames.empty()) {
+    } else if (markers.empty()) {
       return 0;
     } else {
-      assert(! frames.empty());
-      auto ar = frames.front();
-      std::cout << "nb_strands ar = " << &ar << " v = " << this << std::endl;
-      return ar->nb_strands();
+      assert(! markers.empty());
+      auto a = markers.front();
+      return a->nb_strands();
     }
   }
 
@@ -239,67 +278,76 @@ public:
 
   template <class Function>
   __attribute__((always_inline))
-  inline void async(activation_record& ar, const Function& f) {
-    assert(ar.context.operation.tag == tag_async);
-    assert(ar.context.operation.sync_var.finish_ptr != nullptr);
-    membar(fork(this, f, ar));
+  inline void async(activation_record& finish, activation_record& a, const Function& f) {
+    promote_if_needed();
+    a.operation.tag = tag_async;
+    a.operation.sync_var.finish_ptr = &(finish.operation);
+    markers.push_back(&a);
+    membar(capture_return_pointer(a.continuation));
+    if (a.operation.sync_var.finish_ptr == nullptr) {
+      // take this non-local exit because this async call was promoted
+      return;
+    }
+    f();    
   }
 
   template <class Function>
   __attribute__((always_inline))
-  inline void finish(activation_record& ar, const Function& f) {
-    assert(ar.context.operation.tag == tag_finish);
-      std::cout << "call finish = " << &ar << std::endl;
-          initialize_finish(ar);
-      doit3(ar.context);
-      if (ar.context.operation.sync_var.in != nullptr) {
-	std::cout << "finish nonlocal v= " << sched::my_vertex() << std::endl;
-	return;
-      }
-    frames.push_back(&ar);
-    activation_record async_ar;
-    initialize_async(async_ar, ar);
-    async(async_ar, f);
-    if (frames.empty()) { // finish block was promoted
-      std::cout << "resume after finish v = " << sched::my_vertex()  << std::endl;
-      resume();
+  inline void finish(activation_record& a, const Function& f) {
+    promote_if_needed();
+    a.operation.tag = tag_finish;
+    a.operation.sync_var.in = nullptr;
+    capture_stack_linkage(a.continuation.stack);
+    membar(capture_return_pointer(a.continuation));
+    if (a.operation.sync_var.in != nullptr) {
+      // take this non-local exit because this finish block was promoted
+      return;
+    }
+    markers.push_back(&a);
+    activation_record root_async;
+    async(a, root_async, f);
+    if (markers.empty()) {
+      // finish block was promoted; hand control back to the vertex
+      resume_my_vertex();
     } else {
-      assert(frames.back() == &ar);
-      frames.pop_back();
+      assert(markers.back() == &a);
+      markers.pop_back();
     }
   }
 
   void resume() {
-    longjmp(context, context.stack.top);
+    longjmp(trampoline, trampoline.stack.top);
   }
 
 };
 
 void promote(vertex* v) {
-  if (v->frames.empty()) {
+  if (v->markers.empty()) {
     return;
   }
-  activation_record& ar = *(v->frames.front());
-  v->frames.pop_front();
-  auto tag = ar.context.operation.tag;
-  std::cout << "prom = " << &ar << std::endl;
+  activation_record a = *(v->markers.front());
+  v->markers.pop_front();
+  auto tag = a.operation.tag;
   if (tag == tag_async) {
     vertex* v2 = new vertex;
-    v2->frames.push_back(&ar);
-    assert(ar.context.operation.sync_var.finish_ptr != nullptr);
-    new_edge(v, v2);
+    v2->mailbox.promoted_fork_cont.reset(new activation_record(a));
+    v->mailbox.promoted_fork_body.swap(v->mailbox.promotion);
+    auto finish_ptr = a.operation.sync_var.finish_ptr;
+    // to force the associated call to async() method to take non-local exit
+    a.operation.sync_var.finish_ptr = nullptr;
+    assert(finish_ptr != nullptr);
+    assert(finish_ptr->tag == tag_finish);
+    assert(finish_ptr->sync_var.in != nullptr);
+    sched::incounter* finish_in = finish_ptr->sync_var.in;
+    new_edge(v2, finish_in);
     release(v2);
-    //    schedule(v);
-    std::cout << "promote async body = " << v << " join =  "  << v2 << " ar.pc = " << ar.context.pc << std::endl;
   } else if (tag == tag_finish) {
     vertex* v2 = new vertex;
-    v2->init_ar = ar;
-    v2->frames.push_back(&(v2->init_ar));
-    ar.context.operation.sync_var.in = v2->get_incounter();
+    v->mailbox.promoted_join_body.swap(v->mailbox.promotion);
+    v2->mailbox.promoted_join_cont.reset(new activation_record(a));
+    a.operation.sync_var.in = v2->get_incounter();
     new_edge(v, v2);
-    //    schedule(v);
     release(v2);
-    std::cout << "promote finish body = " << v << " cont =  "  << v2 << " ar = " << &ar << " ar.pc = " << ar.context.pc << std::endl;
   } else if (tag == tag_future) {
     assert(false);
   } else if (tag == tag_force) {
@@ -310,25 +358,20 @@ void promote(vertex* v) {
   stats::on_promotion();
 }
 
-template <class Function>
-__attribute__((noinline, hot, optimize(3)))
-void fork(vertex* v, const Function& f, activation_record& ar) {
+__attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
+void promote_if_needed() {
+  vertex* v = my_vertex();
   if (--v->fuel == 0) {
-    promote(v);
     v->fuel = sched::D;
-  }
-  ar.context.pc = __builtin_return_address(0);
-  v->frames.push_back(&ar);
-  std::cout << "push v = " << v << " size = " << v->frames.size() << std::endl;
-  std::cout << "fork pb = " << &ar << std::endl;
-  f();
-  if (v->frames.empty()) { // this fork point was promoted
-    std::cout << "resume v == " << v << std::endl;
-    v->resume();  // hand control back to run method of vertex v
-  } else {
-    std::cout << "pop v = " << v <<  " size = " << v->frames.size() << std::endl;
-    v->frames.pop_back();
-    return; // hand control back to caller of f()
+    bool first = true;
+    activation_record a;
+    capture_stack_linkage(a.continuation.stack);
+    membar(capture_return_pointer(a.continuation));
+    if (first) {
+      first = false;
+      v->mailbox.promotion.reset(new activation_record(a));
+      v->resume();
+    }
   }
 }
 
@@ -336,9 +379,23 @@ vertex* my_vertex() {
   return (vertex*)sched::my_vertex();
 }
 
-  void resume() {
-    my_vertex()->resume();
-  }
+void resume_my_vertex() {
+  my_vertex()->resume();
+}
+  
+template <class Function>
+__attribute__((always_inline))
+inline void async(activation_record& finish, activation_record& a, const Function& f) {
+  my_vertex()->async(finish, a, f);
+}
+
+template <class Function>
+__attribute__((always_inline))
+inline void finish(activation_record& a, const Function& f) {
+  my_vertex()->finish(a, f);
+}
+
+#undef membar
 
 } // end namespace
 } // end namespace

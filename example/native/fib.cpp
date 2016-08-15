@@ -6,55 +6,35 @@
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
-namespace nt = encore::native;
+namespace par = encore::native;
 
-__attribute__((optimize("no-omit-frame-pointer")))
 int fib(int n) {
-
-                  register void * rbp2 asm ("rbp");
-      register void * rsp2 asm ("rsp");
-
-      std::cout << "fib = " << n << " rbp = " << rbp2 << " rsp = " << rsp2 << std::endl;
-
   if (n <= 1) {
     return n;
   }
-  int n1 = 0; int n2 = 0;
-  nt::activation_record fb, a1;
-  nt::initialize_finish(fb);
-  nt::initialize_async(a1, fb);
-  nt::my_vertex()->finish(fb, [&] {
-
-        std::cout << "enter finish v = " << nt::my_vertex() << std::endl;
-    nt::my_vertex()->async(a1, [&] {
-	      std::cout << "enter b1 v = " << nt::my_vertex() << std::endl;
+  int n1, n2;
+  par::activation_record arf, ara1, ara2;
+  par::finish(arf, [&] {
+    par::async(arf, ara1, [&] {
       n1 = fib(n - 1);
-      	      std::cout << "exit b1 v = " << nt::my_vertex() << std::endl;
     });
-          	      std::cout << "enter b2 v = " << nt::my_vertex() << std::endl;
-    n2 = fib(n - 2);
-              	      std::cout << "exit b2 v = " << nt::my_vertex() << std::endl;
+    par::async(arf, ara2, [&] {
+      n2 = fib(n - 2);
+    });
   });
-  std::cout << "exit finish v = " << nt::my_vertex() << " n = " << n << " res = " << (n1+n2) << " fa = " << __builtin_frame_address(1) << std::endl;
-    return n1 + n2;
+  return n1 + n2;
 }
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
-  int r = -1;
-  auto v = new encore::native::vertex;
-  v->f.reset(new std::function<void()> ([&] {
-	                  register void * rbp2 asm ("rbp");
-      register void * rsp2 asm ("rsp");
-
-      std::cout << "entrypoint = " << n << " rbp = " << rbp2 << " rsp = " << rsp2 << std::endl;
-
+  auto f = [&] {
+    int r;
     r = fib(n);
-
-    nt::my_vertex()->resume();
-  }));
+    std::cout << "fib(" << n << ") = " << r << std::endl;
+  };
+  auto v = new encore::native::vertex;
+  v->mailbox.start_function.reset(new std::function<void()> (f));
   encore::launch(v);
-  std::cout << "fib(" << n << ") = " << r << std::endl;
   return 0;
 }
