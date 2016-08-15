@@ -67,7 +67,7 @@ public:
 
 __attribute__((noreturn)) static
 void longjmp(continuation_type& c, void* rsp) {
-  //  std::cout << "longjmp rbp = " << c.stack.btm << " rsp = " << rsp << " pc = " << c.pc << std::endl;
+  //  std::cerr << "longjmp rbp = " << c.stack.btm << " rsp = " << rsp << " pc = " << c.pc << std::endl;
   assert(c.stack.btm != nullptr && c.pc != nullptr && rsp != nullptr);
   __asm__ ( "mov\t%1,%%rsp\n\t"
 	    "mov\t%0,%%rbp\n\t"
@@ -92,10 +92,12 @@ size_t get_stack_size() {
 #ifdef TARGET_MAC_OS
   stack_size = 1048576; //pthread_get_stacksize_np(pthread_self());
 #else
+  /*
   void* dummy;
   pthread_attr_t attr;
   pthread_getattr_np(pthread_self(), &attr);
-  pthread_attr_getstack(&attr, &dummy, size);
+  pthread_attr_getstack(&attr, &dummy, stack_size); */
+  stack_size = 1048576;
 #endif
   return stack_size;
 }
@@ -251,10 +253,12 @@ public:
         promote(this);
         longjmp(a.continuation, a.continuation.stack.top);
       } else {
+            std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
         break;
       }
     }
     assert(markers.empty());
+    std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
     return this->fuel;
   }
 
@@ -288,7 +292,8 @@ public:
       // take this non-local exit because this async call was promoted
       return;
     }
-    f();    
+    f();
+    markers.pop_back();
   }
 
   template <class Function>
@@ -299,10 +304,12 @@ public:
     a.operation.sync_var.in = nullptr;
     capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
+    std::cerr << "finish before fork v = " << this << " a = " << &a << std::endl;
     if (a.operation.sync_var.in != nullptr) {
       // take this non-local exit because this finish block was promoted
       return;
     }
+        std::cerr << "finish after fork v = " << this << " a = " << &a << std::endl;
     markers.push_back(&a);
     activation_record root_async;
     async(a, root_async, f);
@@ -329,12 +336,13 @@ void promote(vertex* v) {
   v->markers.pop_front();
   auto tag = a.operation.tag;
   if (tag == tag_async) {
+        std::cerr << "promote async v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
-    v2->mailbox.promoted_fork_cont.reset(new activation_record(a));
-    v->mailbox.promoted_fork_body.swap(v->mailbox.promotion);
     auto finish_ptr = a.operation.sync_var.finish_ptr;
     // to force the associated call to async() method to take non-local exit
     a.operation.sync_var.finish_ptr = nullptr;
+    v2->mailbox.promoted_fork_cont.reset(new activation_record(a));
+    v->mailbox.promoted_fork_body.swap(v->mailbox.promotion);
     assert(finish_ptr != nullptr);
     assert(finish_ptr->tag == tag_finish);
     assert(finish_ptr->sync_var.in != nullptr);
@@ -342,12 +350,14 @@ void promote(vertex* v) {
     new_edge(v2, finish_in);
     release(v2);
   } else if (tag == tag_finish) {
+            std::cerr << "promote finish v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
+    a.operation.sync_var.in = v2->get_incounter();
     v->mailbox.promoted_join_body.swap(v->mailbox.promotion);
     v2->mailbox.promoted_join_cont.reset(new activation_record(a));
-    a.operation.sync_var.in = v2->get_incounter();
     new_edge(v, v2);
     release(v2);
+    std::cerr << "promote finish222 v = " << v << " a = " << &a << " nb = " << v->nb_strands() << std::endl;    
   } else if (tag == tag_future) {
     assert(false);
   } else if (tag == tag_force) {
