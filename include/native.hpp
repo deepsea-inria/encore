@@ -10,10 +10,11 @@ namespace encore {
 namespace native {
 
 class vertex;
+class activation_record;
 vertex* my_vertex();
 void resume_my_vertex();
 void promote_if_needed();
-void promote(vertex* v);
+void promote(vertex* v, activation_record&);
 
 using operation_tag_type = enum {
     tag_async,
@@ -173,6 +174,7 @@ Item recv(channel<Item>& c) {
   assert(c);
   Item result = *c;
   c.reset();
+  //std::cerr << "recv " << std::endl;
   return result;
 }
 
@@ -225,10 +227,9 @@ public:
   int run(int fuel) {
     activation_record a;
     this->fuel = fuel;
-    assert(markers.empty());
     capture_stack_linkage(trampoline.stack);
     while (true) {
-      assert(! empty_mailbox());
+      //assert(! empty_mailbox());
       membar(capture_return_pointer(trampoline));
       if (mailbox.start_function) {
         auto f = recv(mailbox.start_function);
@@ -236,6 +237,7 @@ public:
         call_using_stack(s, trampoline, f);
       } else if (mailbox.promoted_join_body) {
         a = recv(mailbox.promoted_join_body);
+            //std::cerr << "promoted join body n = " << nb_strands() << " v = " << this << std::endl;
         longjmp(a.continuation, a.continuation.stack.top);
       } else if (mailbox.promoted_join_cont) {
         a = recv(mailbox.promoted_join_cont);
@@ -245,20 +247,18 @@ public:
         longjmp(a.continuation, a.continuation.stack.top);
       } else if (mailbox.promoted_fork_cont) {
         a = recv(mailbox.promoted_fork_cont);
-        assert(a.continuation.stack.top == nullptr);
         void* s = new_stack();
         longjmp(a.continuation, stack_setup(s));
       } else if (mailbox.promotion) {
         a = recv(mailbox.promotion);
-        promote(this);
-        longjmp(a.continuation, a.continuation.stack.top);
+        promote(this, a);
+        break;
+                //std::cerr << "exit run1 n = " << nb_strands() << " v = " << this << " s = " << mailbox.promoted_join_body.get() << std::endl;
       } else {
-            std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
         break;
       }
     }
-    assert(markers.empty());
-    std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
+    //std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
     return this->fuel;
   }
 
@@ -287,38 +287,49 @@ public:
     a.operation.tag = tag_async;
     a.operation.sync_var.finish_ptr = &(finish.operation);
     markers.push_back(&a);
+    capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
     if (a.operation.sync_var.finish_ptr == nullptr) {
       // take this non-local exit because this async call was promoted
       return;
     }
     f();
-    markers.pop_back();
+    if (a.operation.sync_var.finish_ptr == nullptr) {
+      // take this non-local exit because this async call was promoted
+      resume_my_vertex();
+    } else {
+      my_vertex()->markers.pop_back();
+    }
   }
 
   template <class Function>
   __attribute__((always_inline))
   inline void finish(activation_record& a, const Function& f) {
-    promote_if_needed();
+    //    promote_if_needed();
     a.operation.tag = tag_finish;
     a.operation.sync_var.in = nullptr;
     capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
-    std::cerr << "finish before fork v = " << this << " a = " << &a << std::endl;
+    //std::cerr << "finish before fork v = " << this << " a = " << &a << std::endl;
     if (a.operation.sync_var.in != nullptr) {
       // take this non-local exit because this finish block was promoted
+      //std::cerr << "nonlocal v = " << this << std::endl;
       return;
+    } else {
+            //std::cerr << "local v = " << this << std::endl;
     }
-        std::cerr << "finish after fork v = " << this << " a = " << &a << std::endl;
+        //std::cerr << "finish after fork v = " << this << " a = " << &a << std::endl;
     markers.push_back(&a);
     activation_record root_async;
     async(a, root_async, f);
-    if (markers.empty()) {
+    if (my_vertex()->markers.empty()) {
+      assert(a.operation.sync_var.in != nullptr);
       // finish block was promoted; hand control back to the vertex
       resume_my_vertex();
     } else {
-      assert(markers.back() == &a);
-      markers.pop_back();
+      assert(a.operation.sync_var.in == nullptr);
+      assert(my_vertex()->markers.back() == &a);
+      my_vertex()->markers.pop_back();
     }
   }
 
@@ -328,36 +339,42 @@ public:
 
 };
 
-void promote(vertex* v) {
+void promote(vertex* v, activation_record& b) {
   if (v->markers.empty()) {
     return;
   }
-  activation_record a = *(v->markers.front());
+  activation_record& a = *(v->markers.front());
   v->markers.pop_front();
   auto tag = a.operation.tag;
   if (tag == tag_async) {
-        std::cerr << "promote async v = " << v << " a = " << &a << std::endl;    
+        //std::cerr << "promote async v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
     auto finish_ptr = a.operation.sync_var.finish_ptr;
     // to force the associated call to async() method to take non-local exit
     a.operation.sync_var.finish_ptr = nullptr;
+    v->mailbox.promoted_fork_body.reset(new activation_record(b));
     v2->mailbox.promoted_fork_cont.reset(new activation_record(a));
-    v->mailbox.promoted_fork_body.swap(v->mailbox.promotion);
     assert(finish_ptr != nullptr);
     assert(finish_ptr->tag == tag_finish);
     assert(finish_ptr->sync_var.in != nullptr);
     sched::incounter* finish_in = finish_ptr->sync_var.in;
     new_edge(v2, finish_in);
     release(v2);
+    schedule(v);
   } else if (tag == tag_finish) {
-            std::cerr << "promote finish v = " << v << " a = " << &a << std::endl;    
+            //std::cerr << "promote finish v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
     a.operation.sync_var.in = v2->get_incounter();
-    v->mailbox.promoted_join_body.swap(v->mailbox.promotion);
+    //std::cerr << "before jb " << v->mailbox.promoted_join_body.get() << std::endl;
+    //std::cerr << "before prob " << v->mailbox.promotion.get() << std::endl;
+    v->mailbox.promoted_join_body.reset(new activation_record(b));
     v2->mailbox.promoted_join_cont.reset(new activation_record(a));
+    //std::cerr << "after jb " << v->mailbox.promoted_join_body.get() << std::endl;
+    //std::cerr << "after prob " << v->mailbox.promotion.get() << std::endl;
     new_edge(v, v2);
     release(v2);
-    std::cerr << "promote finish222 v = " << v << " a = " << &a << " nb = " << v->nb_strands() << std::endl;    
+    schedule(v);
+    //std::cerr << "promote finish222 v = " << v << " a = " << &a << " nb = " << v->nb_strands() << std::endl;    
   } else if (tag == tag_future) {
     assert(false);
   } else if (tag == tag_force) {
@@ -370,17 +387,16 @@ void promote(vertex* v) {
 
 __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
 void promote_if_needed() {
-  vertex* v = my_vertex();
-  if (--v->fuel == 0) {
-    v->fuel = sched::D;
+  if (--my_vertex()->fuel == 0) {
+    my_vertex()->fuel = sched::D;
     bool first = true;
     activation_record a;
     capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
     if (first) {
       first = false;
-      v->mailbox.promotion.reset(new activation_record(a));
-      v->resume();
+      my_vertex()->mailbox.promotion.reset(new activation_record(a));
+      resume_my_vertex();
     }
   }
 }
