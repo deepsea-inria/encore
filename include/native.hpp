@@ -48,9 +48,9 @@ public:
     operation_descriptor_type**   future_ptr;
   } sync_var;
 
-    operation_descriptor_type() {
-      sync_var.finish_ptr = nullptr;
-    }
+  operation_descriptor_type() {
+    sync_var.finish_ptr = nullptr;
+  }
 
 };
 
@@ -93,12 +93,12 @@ size_t get_stack_size() {
 #ifdef TARGET_MAC_OS
   stack_size = 1048576; //pthread_get_stacksize_np(pthread_self());
 #else
-  /*
-  void* dummy;
+  pthread_t self;
   pthread_attr_t attr;
-  pthread_getattr_np(pthread_self(), &attr);
-  pthread_attr_getstack(&attr, &dummy, stack_size); */
-  stack_size = 1048576;
+  void *stack_addr;
+  self = pthread_self();
+  pthread_getattr_np(self, &attr);
+  pthread_attr_getstack(&attr, &stack_addr, &stack_size);
 #endif
   return stack_size;
 }
@@ -114,7 +114,7 @@ void* new_stack() {
 
 static
 void* stack_setup(void* stack, size_t stack_size) {
-  void ** rsp = (void**)((char*)stack + stack_size);
+  void** rsp = stack + stack_size;
   rsp -= 16; // reserve 128 bytes at the bottom
   return rsp;
 }
@@ -158,8 +158,9 @@ void capture_return_pointer_and_longjmp(continuation_type& c, void* rsp) {
 
 template <class Function>
 __attribute__((optimize("no-omit-frame-pointer")))
-void call_using_stack(void* s, continuation_type& c, const Function& f) {
+void call_using_stack(void* s, const Function& f) {
   continuation_type c2;
+  // this instruction puts us on a new stack pointer and nothing else
   capture_stack_linkage(c2.stack);
   membar(capture_return_pointer_and_longjmp(c2, stack_setup(s)));
   f();
@@ -174,6 +175,7 @@ Item recv(channel<Item>& c) {
   assert(c);
   Item result = *c;
   c.reset();
+  assert(!c);
   //std::cerr << "recv " << std::endl;
   return result;
 }
@@ -216,6 +218,7 @@ public:
     if (m.promoted_fork_body) nb++;
     if (m.promoted_fork_cont) nb++;
     if (m.promotion)          nb++;
+    assert(nb == 1 || nb == 0);
     return nb;
   }
 
@@ -228,35 +231,29 @@ public:
     activation_record a;
     this->fuel = fuel;
     capture_stack_linkage(trampoline.stack);
-    while (true) {
-      //assert(! empty_mailbox());
-      membar(capture_return_pointer(trampoline));
-      if (mailbox.start_function) {
-        auto f = recv(mailbox.start_function);
-        void* s = new_stack();
-        call_using_stack(s, trampoline, f);
-      } else if (mailbox.promoted_join_body) {
-        a = recv(mailbox.promoted_join_body);
-            //std::cerr << "promoted join body n = " << nb_strands() << " v = " << this << std::endl;
-        longjmp(a.continuation, a.continuation.stack.top);
-      } else if (mailbox.promoted_join_cont) {
-        a = recv(mailbox.promoted_join_cont);
-        longjmp(a.continuation, a.continuation.stack.top);
-      } else if (mailbox.promoted_fork_body) {
-        a = recv(mailbox.promoted_fork_body);
-        longjmp(a.continuation, a.continuation.stack.top);
-      } else if (mailbox.promoted_fork_cont) {
-        a = recv(mailbox.promoted_fork_cont);
-        void* s = new_stack();
-        longjmp(a.continuation, stack_setup(s));
-      } else if (mailbox.promotion) {
-        a = recv(mailbox.promotion);
-        promote(this, a);
-        break;
-                //std::cerr << "exit run1 n = " << nb_strands() << " v = " << this << " s = " << mailbox.promoted_join_body.get() << std::endl;
-      } else {
-        break;
-      }
+    membar(capture_return_pointer(trampoline));
+    if (mailbox.start_function) {
+      auto f = recv(mailbox.start_function);
+      void* s = new_stack();
+      call_using_stack(s, f);
+    } else if (mailbox.promoted_join_body) {
+      a = recv(mailbox.promoted_join_body);
+      //std::cerr << "promoted join body n = " << nb_strands() << " v = " << this << std::endl;
+      longjmp(a.continuation, a.continuation.stack.top);
+    } else if (mailbox.promoted_join_cont) {
+      a = recv(mailbox.promoted_join_cont);
+      longjmp(a.continuation, a.continuation.stack.top);
+    } else if (mailbox.promoted_fork_body) {
+      a = recv(mailbox.promoted_fork_body);
+      longjmp(a.continuation, a.continuation.stack.top);
+    } else if (mailbox.promoted_fork_cont) {
+      a = recv(mailbox.promoted_fork_cont);
+      void* s = new_stack();
+      longjmp(a.continuation, stack_setup(s));
+    } else if (mailbox.promotion) {
+      a = recv(mailbox.promotion);
+      promote(this, a);
+      //std::cerr << "exit run1 n = " << nb_strands() << " v = " << this << " s = " << mailbox.promoted_join_body.get() << std::endl;
     }
     //std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
     return this->fuel;
@@ -282,11 +279,13 @@ public:
 
   template <class Function>
   __attribute__((always_inline))
-  inline void async(activation_record& finish, activation_record& a, const Function& f) {
+  inline void async(activation_record& finish, activation_record& a, const Function& f, bool is_root=false) {
     promote_if_needed();
     a.operation.tag = tag_async;
     a.operation.sync_var.finish_ptr = &(finish.operation);
-    markers.push_back(&a);
+    if (! is_root) {
+      markers.push_back(&a);
+    }
     capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
     if (a.operation.sync_var.finish_ptr == nullptr) {
@@ -297,7 +296,7 @@ public:
     if (a.operation.sync_var.finish_ptr == nullptr) {
       // take this non-local exit because this async call was promoted
       resume_my_vertex();
-    } else {
+    } else if (! is_root) {
       my_vertex()->markers.pop_back();
     }
   }
@@ -321,11 +320,12 @@ public:
         //std::cerr << "finish after fork v = " << this << " a = " << &a << std::endl;
     markers.push_back(&a);
     activation_record root_async;
-    async(a, root_async, f);
+    async(a, root_async, f, true);
     if (my_vertex()->markers.empty()) {
+      //      std::cerr << "finish nonlocal after async v = " << this << std::endl;
       assert(a.operation.sync_var.in != nullptr);
       // finish block was promoted; hand control back to the vertex
-      resume_my_vertex();
+      resume_my_vertex(); // what happens after this???
     } else {
       assert(a.operation.sync_var.in == nullptr);
       assert(my_vertex()->markers.back() == &a);
@@ -340,13 +340,12 @@ public:
 };
 
 void promote(vertex* v, activation_record& b) {
-  if (v->markers.empty()) {
-    return;
-  }
+  assert(! v->markers.empty());
   activation_record& a = *(v->markers.front());
   v->markers.pop_front();
   auto tag = a.operation.tag;
   if (tag == tag_async) {
+    // a == continuation of the async call to be promoted; b == whatever piece of the body of the async call which triggered the promotion
         //std::cerr << "promote async v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
     auto finish_ptr = a.operation.sync_var.finish_ptr;
@@ -362,6 +361,7 @@ void promote(vertex* v, activation_record& b) {
     release(v2);
     schedule(v);
   } else if (tag == tag_finish) {
+    // a == continuation of finish block; b == whatever piece of the body of the finish block which triggered the promotion
             //std::cerr << "promote finish v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
     a.operation.sync_var.in = v2->get_incounter();
@@ -387,7 +387,7 @@ void promote(vertex* v, activation_record& b) {
 
 __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
 void promote_if_needed() {
-  if (--my_vertex()->fuel == 0) {
+  if (! my_vertex()->markers.empty() && --my_vertex()->fuel == 0) {
     my_vertex()->fuel = sched::D;
     bool first = true;
     activation_record a;
@@ -421,7 +421,7 @@ inline void finish(activation_record& a, const Function& f) {
   my_vertex()->finish(a, f);
 }
 
-#undef membar
+  //#undef membar
 
 } // end namespace
 } // end namespace
