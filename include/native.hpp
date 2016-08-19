@@ -78,6 +78,7 @@ void longjmp(continuation_type& c, void* rsp) {
 }
 
 #define membar(call) do { \
+    __asm__ ( "nop" : : : "rbx", "r12", "r13", "r14", "r15", "memory" ); \
     call; \
     __asm__ ( "nop" : : : "rbx", "r12", "r13", "r14", "r15", "memory" ); \
   } while (0)
@@ -364,16 +365,24 @@ void promote(vertex* v, activation_record& b) {
     // a == continuation of finish block; b == whatever piece of the body of the finish block which triggered the promotion
             //std::cerr << "promote finish v = " << v << " a = " << &a << std::endl;    
     vertex* v2 = new vertex;
-    a.operation.sync_var.in = v2->get_incounter();
+    //a.operation.sync_var.in = v2->get_incounter();
+    a.operation.sync_var.in = v->get_incounter();
     //std::cerr << "before jb " << v->mailbox.promoted_join_body.get() << std::endl;
     //std::cerr << "before prob " << v->mailbox.promotion.get() << std::endl;
-    v->mailbox.promoted_join_body.reset(new activation_record(b));
-    v2->mailbox.promoted_join_cont.reset(new activation_record(a));
+    v->mailbox.promoted_join_cont.reset(new activation_record(a));
+    v2->mailbox.promoted_join_body.reset(new activation_record(b));
+    std::swap(v->fuel, v2->fuel);
+    v->markers.swap(v2->markers);
+    //v->mailbox.promoted_join_body.reset(new activation_record(b));
+    //v2->mailbox.promoted_join_cont.reset(new activation_record(a));
     //std::cerr << "after jb " << v->mailbox.promoted_join_body.get() << std::endl;
     //std::cerr << "after prob " << v->mailbox.promotion.get() << std::endl;
-    new_edge(v, v2);
+    new_edge(v2, v);
     release(v2);
-    schedule(v);
+    //new_edge(v, v2);
+    //release(v2);
+    //schedule(v);
+
     //std::cerr << "promote finish222 v = " << v << " a = " << &a << " nb = " << v->nb_strands() << std::endl;    
   } else if (tag == tag_future) {
     assert(false);
