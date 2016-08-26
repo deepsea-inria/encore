@@ -76,12 +76,11 @@ int fib(int n) {
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
-
-  auto f = [&] {
+  auto v = new encore::native::vertex;
+  v->mailbox.tag = encore::native::tag_start_function;
+  v->mailbox.start_function = [&] {
     r = fib(n);
   };
-  auto v = new encore::native::vertex;
-  v->mailbox.start_function.reset(new std::function<void()> (f));
   membar(encore::launch(v));
   std::cout << "fib(" << n << ") = " << r << std::endl;
   return 0;

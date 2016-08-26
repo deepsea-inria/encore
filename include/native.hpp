@@ -10,11 +10,11 @@ namespace encore {
 namespace native {
 
 class vertex;
-class activation_record;
+class continuation_type;
 vertex* my_vertex();
 void resume_my_vertex();
 void promote_if_needed();
-void promote(vertex* v, activation_record&);
+void promote(vertex* v, continuation_type&);
 
 using operation_tag_type = enum {
     tag_async,
@@ -68,7 +68,6 @@ public:
 
 __attribute__((noreturn)) static
 void longjmp(continuation_type& c, void* rsp) {
-  //  std::cerr << "longjmp rbp = " << c.stack.btm << " rsp = " << rsp << " pc = " << c.pc << std::endl;
   assert(c.stack.btm != nullptr && c.pc != nullptr && rsp != nullptr);
   __asm__ ( "mov\t%1,%%rsp\n\t"
 	    "mov\t%0,%%rbp\n\t"
@@ -78,7 +77,6 @@ void longjmp(continuation_type& c, void* rsp) {
 }
 
 #define membar(call) do { \
-    __asm__ ( "nop" : : : "rbx", "r12", "r13", "r14", "r15", "memory" ); \
     call; \
     __asm__ ( "nop" : : : "rbx", "r12", "r13", "r14", "r15", "memory" ); \
   } while (0)
@@ -120,6 +118,7 @@ void* stack_setup(void* stack, size_t stack_size) {
   return rsp;
 }
 
+static
 void* stack_setup(void* stack) {
   return stack_setup(stack, get_stack_size());
 }
@@ -168,18 +167,57 @@ void call_using_stack(void* s, const Function& f) {
   resume_my_vertex();
 }
 
-template <class Item>
-using channel = std::unique_ptr<Item>;
+using mailbox_message_tag = enum {
+  tag_start_function,
+  tag_promoted_join_body,
+  tag_promoted_join_cont,
+  tag_promoted_fork_body,
+  tag_promoted_fork_cont,
+  tag_promotion,
+  tag_not_a_message
+};
 
-template <class Item>
-Item recv(channel<Item>& c) {
-  assert(c);
-  Item result = *c;
-  c.reset();
-  assert(!c);
-  //std::cerr << "recv " << std::endl;
-  return result;
-}
+class mailbox_type {
+public:
+
+  mailbox_message_tag tag = tag_not_a_message;
+  // to represent a new encore computation to that is to be run by
+  // this vertex
+  std::function<void()> start_function;
+  // to represent the activation record that is to resume the body of a
+  // promoted join point
+  continuation_type promoted_join_body;
+  // to represent the activation record that is to resume the continuation
+  // of a promoted join point
+  continuation_type promoted_join_cont;
+  // to represent the activation record that is to resume the body of
+  // a fork point
+  continuation_type promoted_fork_body;
+  // to represent the activation record that is to resume the continuation
+  // of a fork point
+  continuation_type promoted_fork_cont;
+  // to represent the first phase of a promotion
+  continuation_type promotion;
+
+  bool empty() const {
+    return tag == tag_not_a_message;
+  }
+
+  template <class Item>
+  void send(mailbox_message_tag t, Item& src, Item& dst) {
+    assert(empty());
+    tag = t;
+    dst = src;
+  }
+
+  template <class Item>
+  Item recv(mailbox_message_tag t, Item& x) {
+    assert(tag == t);
+    tag = tag_not_a_message;
+    return x;
+  }
+
+};
 
 class vertex : public sched::vertex {
 public:
@@ -189,79 +227,40 @@ public:
   continuation_type trampoline;
 
   std::deque<activation_record*> markers;
-
-  struct mailbox_struct {
-    // to represent a new encore computation to that is to be run by
-    // this vertex
-    channel<std::function<void()>> start_function;
-    // to represent the activation record that is to resume the body of a
-    // promoted join point
-    channel<activation_record> promoted_join_body;
-    // to represent the activation record that is to resume the continuation
-    // of a promoted join point
-    channel<activation_record> promoted_join_cont;
-    // to represent the activation record that is to resume the body of
-    // a fork point
-    channel<activation_record> promoted_fork_body;
-    // to represent the activation record that is to resume the continuation
-    // of a fork point
-    channel<activation_record> promoted_fork_cont;
-    // to represent the first phase of a promotion
-    channel<activation_record> promotion;
-  } mailbox;
-
-  static
-  int nb_messages(const struct mailbox_struct& m) {
-    int nb = 0;
-    if (m.start_function)     nb++;
-    if (m.promoted_join_body) nb++;
-    if (m.promoted_join_cont) nb++;
-    if (m.promoted_fork_body) nb++;
-    if (m.promoted_fork_cont) nb++;
-    if (m.promotion)          nb++;
-    assert(nb == 1 || nb == 0);
-    return nb;
-  }
-
-  bool empty_mailbox() const {
-    return nb_messages(mailbox) == 0;
-  }
+  
+  mailbox_type mailbox;
 
   __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
   int run(int fuel) {
-    activation_record a;
     this->fuel = fuel;
     capture_stack_linkage(trampoline.stack);
     membar(capture_return_pointer(trampoline));
-    if (mailbox.start_function) {
-      auto f = recv(mailbox.start_function);
+    if (mailbox.tag == tag_start_function) {
+      auto f = mailbox.recv(tag_start_function, mailbox.start_function);
       void* s = new_stack();
       call_using_stack(s, f);
-    } else if (mailbox.promoted_join_body) {
-      a = recv(mailbox.promoted_join_body);
-      //std::cerr << "promoted join body n = " << nb_strands() << " v = " << this << std::endl;
-      longjmp(a.continuation, a.continuation.stack.top);
-    } else if (mailbox.promoted_join_cont) {
-      a = recv(mailbox.promoted_join_cont);
-      longjmp(a.continuation, a.continuation.stack.top);
-    } else if (mailbox.promoted_fork_body) {
-      a = recv(mailbox.promoted_fork_body);
-      longjmp(a.continuation, a.continuation.stack.top);
-    } else if (mailbox.promoted_fork_cont) {
-      a = recv(mailbox.promoted_fork_cont);
+    } else if (mailbox.tag == tag_promoted_join_body) {
+      auto c = mailbox.recv(tag_promoted_join_body, mailbox.promoted_join_body);
+      longjmp(c, c.stack.top);
+    } else if (mailbox.tag == tag_promoted_join_cont) {
+      auto c = mailbox.recv(tag_promoted_join_cont, mailbox.promoted_join_cont);;
+      longjmp(c, c.stack.top);
+    } else if (mailbox.tag == tag_promoted_fork_body) {
+      auto c = mailbox.recv(tag_promoted_fork_body, mailbox.promoted_fork_body);
+      longjmp(c, c.stack.top);
+    } else if (mailbox.tag == tag_promoted_fork_cont) {
+      auto c = mailbox.recv(tag_promoted_fork_cont, mailbox.promoted_fork_cont);
       void* s = new_stack();
-      longjmp(a.continuation, stack_setup(s));
-    } else if (mailbox.promotion) {
-      a = recv(mailbox.promotion);
-      promote(this, a);
-      //std::cerr << "exit run1 n = " << nb_strands() << " v = " << this << " s = " << mailbox.promoted_join_body.get() << std::endl;
+      longjmp(c, stack_setup(s));
+    } else if (mailbox.tag == tag_promotion) {
+      auto c = mailbox.recv(tag_promotion, mailbox.promotion);
+      promote(this, c);
     }
-    //std::cerr << "exit run n = " << nb_strands() << " v = " << this << std::endl;
     return this->fuel;
   }
 
   int nb_strands() {
-    if (! empty_mailbox()) {
+    if (! mailbox.empty()) {
       return 1;
     } else if (markers.empty()) {
       return 0;
@@ -305,28 +304,21 @@ public:
   template <class Function>
   __attribute__((always_inline))
   inline void finish(activation_record& a, const Function& f) {
-    //    promote_if_needed();
     a.operation.tag = tag_finish;
     a.operation.sync_var.in = nullptr;
     capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
-    //std::cerr << "finish before fork v = " << this << " a = " << &a << std::endl;
     if (a.operation.sync_var.in != nullptr) {
       // take this non-local exit because this finish block was promoted
-      //std::cerr << "nonlocal v = " << this << std::endl;
       return;
-    } else {
-            //std::cerr << "local v = " << this << std::endl;
     }
-        //std::cerr << "finish after fork v = " << this << " a = " << &a << std::endl;
     markers.push_back(&a);
     activation_record root_async;
     async(a, root_async, f, true);
     if (my_vertex()->markers.empty()) {
-      //      std::cerr << "finish nonlocal after async v = " << this << std::endl;
       assert(a.operation.sync_var.in != nullptr);
       // finish block was promoted; hand control back to the vertex
-      resume_my_vertex(); // what happens after this???
+      resume_my_vertex();
     } else {
       assert(a.operation.sync_var.in == nullptr);
       assert(my_vertex()->markers.back() == &a);
@@ -340,20 +332,20 @@ public:
 
 };
 
-void promote(vertex* v, activation_record& b) {
+void promote(vertex* v, continuation_type& b) {
   assert(! v->markers.empty());
   activation_record& a = *(v->markers.front());
   v->markers.pop_front();
   auto tag = a.operation.tag;
   if (tag == tag_async) {
-    // a == continuation of the async call to be promoted; b == whatever piece of the body of the async call which triggered the promotion
-        //std::cerr << "promote async v = " << v << " a = " << &a << std::endl;    
+    // a == continuation of the async call to be promoted;
+    // b == whatever piece of the body of the async call which triggered the promotion
     vertex* v2 = new vertex;
     auto finish_ptr = a.operation.sync_var.finish_ptr;
     // to force the associated call to async() method to take non-local exit
     a.operation.sync_var.finish_ptr = nullptr;
-    v->mailbox.promoted_fork_body.reset(new activation_record(b));
-    v2->mailbox.promoted_fork_cont.reset(new activation_record(a));
+    v->mailbox.send(tag_promoted_fork_body, b, v->mailbox.promoted_fork_body);
+    v2->mailbox.send(tag_promoted_fork_cont, a.continuation, v2->mailbox.promoted_fork_cont);
     assert(finish_ptr != nullptr);
     assert(finish_ptr->tag == tag_finish);
     assert(finish_ptr->sync_var.in != nullptr);
@@ -362,28 +354,16 @@ void promote(vertex* v, activation_record& b) {
     release(v2);
     schedule(v);
   } else if (tag == tag_finish) {
-    // a == continuation of finish block; b == whatever piece of the body of the finish block which triggered the promotion
-            //std::cerr << "promote finish v = " << v << " a = " << &a << std::endl;    
+    // a == continuation of finish block;
+    // b == whatever piece of the body of the finish block which triggered the promotion
     vertex* v2 = new vertex;
-    //a.operation.sync_var.in = v2->get_incounter();
     a.operation.sync_var.in = v->get_incounter();
-    //std::cerr << "before jb " << v->mailbox.promoted_join_body.get() << std::endl;
-    //std::cerr << "before prob " << v->mailbox.promotion.get() << std::endl;
-    v->mailbox.promoted_join_cont.reset(new activation_record(a));
-    v2->mailbox.promoted_join_body.reset(new activation_record(b));
+    v->mailbox.send(tag_promoted_join_cont, a.continuation, v->mailbox.promoted_join_cont);
+    v2->mailbox.send(tag_promoted_join_body, b, v2->mailbox.promoted_join_body);
     std::swap(v->fuel, v2->fuel);
     v->markers.swap(v2->markers);
-    //v->mailbox.promoted_join_body.reset(new activation_record(b));
-    //v2->mailbox.promoted_join_cont.reset(new activation_record(a));
-    //std::cerr << "after jb " << v->mailbox.promoted_join_body.get() << std::endl;
-    //std::cerr << "after prob " << v->mailbox.promotion.get() << std::endl;
     new_edge(v2, v);
     release(v2);
-    //new_edge(v, v2);
-    //release(v2);
-    //schedule(v);
-
-    //std::cerr << "promote finish222 v = " << v << " a = " << &a << " nb = " << v->nb_strands() << std::endl;    
   } else if (tag == tag_future) {
     assert(false);
   } else if (tag == tag_force) {
@@ -399,12 +379,12 @@ void promote_if_needed() {
   if (! my_vertex()->markers.empty() && --my_vertex()->fuel == 0) {
     my_vertex()->fuel = sched::D;
     bool first = true;
-    activation_record a;
-    capture_stack_linkage(a.continuation.stack);
-    membar(capture_return_pointer(a.continuation));
+    continuation_type c;
+    capture_stack_linkage(c.stack);
+    membar(capture_return_pointer(c));
     if (first) {
       first = false;
-      my_vertex()->mailbox.promotion.reset(new activation_record(a));
+      my_vertex()->mailbox.send(tag_promotion, c, my_vertex()->mailbox.promotion);
       resume_my_vertex();
     }
   }
