@@ -12,7 +12,7 @@ using namespace encore::native;
 
 __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
 int fib(int n) {
-  //  std::cerr << "fib(" << n << ")" << std::endl;
+  //  std::cout << "fib(" << n << ")" << std::endl;
   if (n <= 1) {
     return n;
   }
