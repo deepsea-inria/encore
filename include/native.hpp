@@ -108,6 +108,7 @@ void* new_stack() {
   size_t page_size = get_page_size();
   size_t stack_size = get_stack_size();
   posix_memalign(&stack, page_size, stack_size);
+  VALGRIND_STACK_REGISTER(stack, stack + stack_size);
   return stack;
 }
 
@@ -159,10 +160,8 @@ void capture_return_pointer_and_longjmp(continuation_type& c, void* rsp) {
 template <class Function>
 __attribute__((optimize("no-omit-frame-pointer")))
 void call_using_stack(void* s, const Function& f) {
-  continuation_type c2;
-  // this instruction puts us on a new stack pointer and nothing else
-  capture_stack_linkage(c2.stack);
-  membar(capture_return_pointer_and_longjmp(c2, stack_setup(s)));
+  __asm__ ( "mov\t%0,%%rsp\n\t"
+            : : "r" (stack_setup(s)) : "memory");
   f();
   resume_my_vertex();
 }
@@ -279,13 +278,11 @@ public:
 
   template <class Function>
   __attribute__((always_inline))
-  inline void async(activation_record& finish, activation_record& a, const Function& f, bool is_root=false) {
+  inline void async(activation_record& finish, activation_record& a, const Function& f) {
     promote_if_needed();
     a.operation.tag = tag_async;
     a.operation.sync_var.finish_ptr = &(finish.operation);
-    if (! is_root) {
-      markers.push_back(&a);
-    }
+    my_vertex()->markers.push_back(&a);
     capture_stack_linkage(a.continuation.stack);
     membar(capture_return_pointer(a.continuation));
     if (a.operation.sync_var.finish_ptr == nullptr) {
@@ -296,7 +293,7 @@ public:
     if (a.operation.sync_var.finish_ptr == nullptr) {
       // take this non-local exit because this async call was promoted
       resume_my_vertex();
-    } else if (! is_root) {
+    } else {
       my_vertex()->markers.pop_back();
     }
   }
@@ -312,20 +309,21 @@ public:
       // take this non-local exit because this finish block was promoted
       return;
     }
-    markers.push_back(&a);
-    activation_record root_async;
-    async(a, root_async, f, true);
-    if (my_vertex()->markers.empty()) {
-      assert(a.operation.sync_var.in != nullptr);
+    my_vertex()->markers.push_back(&a);
+    f();
+    if (a.operation.sync_var.in != nullptr) {
+      //assert(my_vertex()->markers.empty());
       // finish block was promoted; hand control back to the vertex
       resume_my_vertex();
     } else {
-      assert(a.operation.sync_var.in == nullptr);
-      assert(my_vertex()->markers.back() == &a);
+      //assert(a.operation.sync_var.in == nullptr);
+      //assert(! my_vertex()->markers.empty());
+      //assert(my_vertex()->markers.back() == &a);
       my_vertex()->markers.pop_back();
     }
   }
 
+  __attribute__((always_inline))
   void resume() {
     longjmp(trampoline, trampoline.stack.top);
   }

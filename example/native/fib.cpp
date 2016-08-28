@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <valgrind/valgrind.h>
 
 #include "encore.hpp"
 #include "native.hpp"
@@ -10,6 +11,7 @@ namespace par = encore::native;
 
 using namespace encore::native;
 
+#if 0
 __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
 int fib(int n) {
   //  std::cout << "fib(" << n << ")" << std::endl;
@@ -35,6 +37,7 @@ int fib(int n) {
     }
     my_vertex()->markers.push_back(&arf);
 
+    auto foo123 = [&] {
     do {
       promote_if_needed();
       ara.operation.tag = tag_async;
@@ -56,12 +59,19 @@ int fib(int n) {
     } while (false);
 
     n2 = fib(n - 2);
+    __asm__ ( "mov\t%0,%%rsp\n\t"
+              : : "r" (ara.continuation.stack.top) : "memory");
+
+    };
+    foo123();
     
-    if (my_vertex()->markers.empty()) {
-      assert(arf.operation.sync_var.in != nullptr);
+    if (arf.operation.sync_var.in != nullptr) {
+      //      assert(arf.operation.sync_var.in != nullptr);
+      //      assert(my_vertex()->markers.empty());
       // finish block was promoted; hand control back to the vertex
       resume_my_vertex(); // what happens after this???
     } else {
+            assert(! my_vertex()->markers.empty());
       assert(arf.operation.sync_var.in == nullptr);
       assert(my_vertex()->markers.back() == &arf);
       my_vertex()->markers.pop_back();
@@ -70,8 +80,29 @@ int fib(int n) {
   //  });
   return n1 + n2;
 }
+#else
 
-  int r = 0xdeadbeef;
+__attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
+int fib(int n) {
+  if (n <= 1) {
+    return n;
+  }
+  int n1, n2;
+  par::activation_record arf, ara;
+  par::finish(arf, [&] {
+    par::async(arf, ara, [&] {
+      n1 = fib(n - 1);
+    });
+    n2 = fib(n - 2);
+    __asm__ ( "mov\t%0,%%rsp\n\t"
+              : : "r" (ara.continuation.stack.top) : "memory");
+  });
+  return n1 + n2;
+}
+
+#endif
+
+int r = 0xdeadbeef;
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);

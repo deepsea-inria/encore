@@ -38,6 +38,9 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g -Winline
 %.dbg: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
+%.s: %.cpp $(INCLUDE_FILES)
+	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -S $<
+
 %.opt: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(INCLUDE_DIRECTIVES) -fno-omit-frame-pointer -o $@ $<
 
