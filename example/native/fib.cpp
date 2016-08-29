@@ -82,7 +82,7 @@ int fib(int n) {
 }
 #else
 
-__attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
+encore_function
 int fib(int n) {
   if (n <= 1) {
     return n;

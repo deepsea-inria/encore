@@ -103,16 +103,6 @@ size_t get_stack_size() {
 }
 
 static
-void* new_stack() {
-  void* stack = nullptr;
-  size_t page_size = get_page_size();
-  size_t stack_size = get_stack_size();
-  posix_memalign(&stack, page_size, stack_size);
-  VALGRIND_STACK_REGISTER(stack, stack + stack_size);
-  return stack;
-}
-
-static
 void* stack_setup(void* stack, size_t stack_size) {
   void** rsp = stack + stack_size;
   rsp -= 16; // reserve 128 bytes at the bottom
@@ -229,6 +219,30 @@ public:
   
   mailbox_type mailbox;
 
+  std::unique_ptr<void*> stack;
+
+#ifndef NDEBUG
+  unsigned int stack_id;
+#endif
+
+  void new_stack() {
+    assert(! stack);
+    void* s = nullptr;
+    size_t psz = get_page_size();
+    size_t sz = get_stack_size();
+    posix_memalign(&s, psz, sz);
+    stack.reset(s);
+#ifndef NDEBUG
+    stack_id = VALGRIND_STACK_REGISTER(s, s + sz);
+#endif
+  }
+
+#ifndef NDEBUG
+  ~vertex() {
+    VALGRIND_STACK_DEREGISTER(stack_id);
+  }
+#endif
+
   __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
   int run(int fuel) {
     this->fuel = fuel;
@@ -236,8 +250,8 @@ public:
     membar(capture_return_pointer(trampoline));
     if (mailbox.tag == tag_start_function) {
       auto f = mailbox.recv(tag_start_function, mailbox.start_function);
-      void* s = new_stack();
-      call_using_stack(s, f);
+      new_stack();
+      call_using_stack(stack.get(), f);
     } else if (mailbox.tag == tag_promoted_join_body) {
       auto c = mailbox.recv(tag_promoted_join_body, mailbox.promoted_join_body);
       longjmp(c, c.stack.top);
@@ -249,8 +263,8 @@ public:
       longjmp(c, c.stack.top);
     } else if (mailbox.tag == tag_promoted_fork_cont) {
       auto c = mailbox.recv(tag_promoted_fork_cont, mailbox.promoted_fork_cont);
-      void* s = new_stack();
-      longjmp(c, stack_setup(s));
+      new_stack();
+      longjmp(c, stack_setup(stack.get()));
     } else if (mailbox.tag == tag_promotion) {
       auto c = mailbox.recv(tag_promotion, mailbox.promotion);
       promote(this, c);
@@ -408,7 +422,10 @@ inline void finish(activation_record& a, const Function& f) {
   my_vertex()->finish(a, f);
 }
 
-  //#undef membar
+//#undef membar
+
+#define encore_function \
+  __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
 
 } // end namespace
 } // end namespace
