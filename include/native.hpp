@@ -127,7 +127,7 @@ public:
   }
 
 };
-
+    
 __attribute__((always_inline)) extern inline
 void capture_stack_linkage(stack_linkage_type& s) {
   register void * rbp asm ("rbp");
@@ -426,6 +426,19 @@ inline void finish(activation_record& a, const Function& f) {
 
 #define encore_function \
   __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
+
+__attribute__((always_inline)) extern inline
+void begin_region(activation_record& a) {
+  register void * rsp asm ("rsp");
+  a.continuation.stack.top = rsp;
+}
+
+__attribute__((always_inline)) extern inline
+void end_region(activation_record& a) {
+  __asm__ ( "mov\t%0,%%rsp\n\t"
+            : : "r" (a.continuation.stack.top) : "memory");
+}
+
 
 } // end namespace
 } // end namespace

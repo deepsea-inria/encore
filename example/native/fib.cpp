@@ -88,14 +88,14 @@ int fib(int n) {
     return n;
   }
   int n1, n2;
-  par::activation_record arf, ara;
+  par::activation_record arf, arr, ara;
   par::finish(arf, [&] {
+    par::begin_region(arr);
     par::async(arf, ara, [&] {
       n1 = fib(n - 1);
     });
     n2 = fib(n - 2);
-    __asm__ ( "mov\t%0,%%rsp\n\t"
-              : : "r" (ara.continuation.stack.top) : "memory");
+    par::end_region(arr);
   });
   return n1 + n2;
 }
