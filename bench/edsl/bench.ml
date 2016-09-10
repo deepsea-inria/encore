@@ -307,18 +307,22 @@ let mk_encore_setting threshold block_size dag_freq =
   & mk int "dag_freq" dag_freq
 
 let mk_encore_settings = (
-    mk_encore_setting 1024 2048 1024
- ++ mk_encore_setting 2048 4096 1024
- ++ mk_encore_setting 4098 8192 1024)
+    mk_encore_setting 512  1024 1024
+ ++ mk_encore_setting 1024 2048 1024
+ ++ mk_encore_setting 2048 4096 1024)
 
+let mk_pbbs_algorithm = mk_prog prog_cilk & mk string "algorithm" "pbbs"
+                           
 let mk_algorithms = (
-     (mk_prog prog_encore & mk string "algorithm" "sequential")
-  ++ (mk_prog prog_cilk   & mk string "algorithm" "pbbs")
+(*     (mk_prog prog_encore & mk string "algorithm" "sequential")
+  ++ *) mk_pbbs_algorithm
+(*  ++ (  (mk_prog prog_encore & mk string "algorithm" "encore_sequential")
+      & mk_encore_settings) *)
   ++ (  (mk_prog prog_encore & mk string "algorithm" "encore")
       & mk_encore_settings)
 )
 
-let mk_operations = mk_list string "operation" ["reduce"; "max_index"; "scan"; "pack"; "filter"; ]
+let mk_operations = mk_list string "operation" [ "reduce"; "max_index"; "scan"; "pack"; "filter"; ] 
 
 let mk_input_sizes = mk_list int "n" [ 400000000 ]
 
@@ -341,7 +345,7 @@ let plot() =
       Bar_plot_opt Bar_plot.([
                               (*                                       Chart_opt Chart.([Dimensions (12.,8.) ]);*)
                               X_titles_dir Vertical;
-         Y_axis [ Axis.Lower (Some 0.); Axis.Upper (Some 8.);
+         Y_axis [ Axis.Lower (Some 0.); Axis.Upper (Some 2.5);
                   Axis.Is_log false ] 
          ]);
       Formatter default_formatter;
