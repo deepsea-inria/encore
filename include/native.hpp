@@ -54,6 +54,18 @@ public:
 
 };
 
+/* TODO
+
+- test stack fragility by 
+
+rec(n)
+ if n==0 then return
+ else rec(n-1)
+
+- work on loops
+
+   */
+
 class stack_linkage_type {
 public:
   void* btm = nullptr; // frame pointer
@@ -81,6 +93,35 @@ void longjmp(continuation_type& c, void* rsp) {
     __asm__ ( "nop" : : : "rbx", "r12", "r13", "r14", "r15", "memory" ); \
   } while (0)
 
+class shared_stack_ptr {
+public:
+
+  void* ptr;
+
+  std::atomic<int> ctr;
+
+  shared_stack_ptr(void* s) : ptr(s), ctr(1) { }
+
+  void inc() {
+    ctr++;
+  }
+
+  void dec() {
+    int v = --ctr;
+    if (v == 0) {
+      free(ptr);
+      ptr = nullptr;
+      delete this;
+    }
+  }
+
+  void* get_ptr() {
+    assert(ctr.load() > 0);
+    return ptr;
+  }
+  
+};
+  
 static
 size_t get_page_size() {
   return sysconf(_SC_PAGESIZE);
@@ -89,7 +130,8 @@ size_t get_page_size() {
 static
 size_t get_stack_size() {
   size_t stack_size;
-#ifdef TARGET_MAC_OS
+  //#ifdef TARGET_MAC_OS
+  #if 1
   stack_size = 1048576; //pthread_get_stacksize_np(pthread_self());
 #else
   pthread_t self;
@@ -219,29 +261,43 @@ public:
   
   mailbox_type mailbox;
 
-  std::unique_ptr<void*> stack;
+  shared_stack_ptr* stack = nullptr;
+  
+  shared_stack_ptr* parent_stack = nullptr;
 
 #ifndef NDEBUG
   unsigned int stack_id;
 #endif
 
+  void release_stack_ptr(shared_stack_ptr* p) {
+    if (p == nullptr) {
+      return;
+    }
+    p->dec();
+  }
+
   void new_stack() {
-    assert(! stack);
+    assert(stack == nullptr);
     void* s = nullptr;
     size_t psz = get_page_size();
     size_t sz = get_stack_size();
     posix_memalign(&s, psz, sz);
-    stack.reset(s);
+    stack = new shared_stack_ptr(s);
 #ifndef NDEBUG
     stack_id = VALGRIND_STACK_REGISTER(s, s + sz);
 #endif
   }
 
-#ifndef NDEBUG
+
   ~vertex() {
+#ifndef NDEBUG
     VALGRIND_STACK_DEREGISTER(stack_id);
-  }
 #endif
+    release_stack_ptr(stack);
+    release_stack_ptr(parent_stack);
+    stack = nullptr;
+    parent_stack = nullptr;
+  }
 
   __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
   int run(int fuel) {
@@ -251,7 +307,7 @@ public:
     if (mailbox.tag == tag_start_function) {
       auto f = mailbox.recv(tag_start_function, mailbox.start_function);
       new_stack();
-      call_using_stack(stack.get(), f);
+      call_using_stack(stack->get_ptr(), f);
     } else if (mailbox.tag == tag_promoted_join_body) {
       auto c = mailbox.recv(tag_promoted_join_body, mailbox.promoted_join_body);
       longjmp(c, c.stack.top);
@@ -264,7 +320,7 @@ public:
     } else if (mailbox.tag == tag_promoted_fork_cont) {
       auto c = mailbox.recv(tag_promoted_fork_cont, mailbox.promoted_fork_cont);
       new_stack();
-      longjmp(c, stack_setup(stack.get()));
+      longjmp(c, stack_setup(stack->get_ptr()));
     } else if (mailbox.tag == tag_promotion) {
       auto c = mailbox.recv(tag_promotion, mailbox.promotion);
       promote(this, c);
@@ -358,6 +414,10 @@ void promote(vertex* v, continuation_type& b) {
     a.operation.sync_var.finish_ptr = nullptr;
     v->mailbox.send(tag_promoted_fork_body, b, v->mailbox.promoted_fork_body);
     v2->mailbox.send(tag_promoted_fork_cont, a.continuation, v2->mailbox.promoted_fork_cont);
+    if (v->stack != nullptr) {
+      v->stack->inc();
+      v2->parent_stack = v->stack;
+    }
     assert(finish_ptr != nullptr);
     assert(finish_ptr->tag == tag_finish);
     assert(finish_ptr->sync_var.in != nullptr);

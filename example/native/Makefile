@@ -33,7 +33,7 @@ ALLFL=-fauto-inc-dec -fbranch-count-reg -fcombine-stack-adjustments -fcompare-el
 ALLSL=-fthread-jumps -falign-functions  -falign-jumps -falign-loops  -falign-labels -fcaller-saves -fcrossjumping -fcse-follow-jumps  -fcse-skip-blocks -fdelete-null-pointer-checks -fdevirtualize -fdevirtualize-speculatively -fexpensive-optimizations -fgcse  -fgcse-lm  -fhoist-adjacent-loads -finline-small-functions -findirect-inlining -fipa-cp -fipa-cp-alignment -fipa-sra -fipa-icf -fisolate-erroneous-paths-dereference -flra-remat -foptimize-sibling-calls -foptimize-strlen -fpartial-inlining -fpeephole2 -freorder-blocks-algorithm=stc -freorder-blocks-and-partition -freorder-functions -frerun-cse-after-loop  -fsched-interblock  -fsched-spec -fschedule-insns  -fschedule-insns2 -fstrict-aliasing -fstrict-overflow -ftree-builtin-call-dce -ftree-switch-conversion -ftree-tail-merge  -ftree-pre -ftree-vrp -fipa-ra
 
 COMMON_PREFIX= -fpermissive -pthread -std=gnu++11  $(ALLFL) $(ALLSL) -DNDEBUG # $(HWLOC_DIRECTIVES)
-DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g -Winline
+DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g -Winline #-DENCORE_RANDOMIZE_SCHEDULE
 
 %.dbg: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
