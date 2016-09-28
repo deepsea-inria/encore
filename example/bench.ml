@@ -96,7 +96,7 @@ let formatter =
    ("n", Format_custom (fun n -> sprintf "%s" n));
    ("proc", Format_custom (fun n -> sprintf "Nb. cores %s" n));
    ("algo", Format_custom (fun n -> sprintf "%s" (
-     if n = "dyn" then "Incounter"
+     if n = "dyn" then "in-counter"
      else if n = "sim" then "Fetch & Add"
      else (sprintf "SNZI depth=%d" (sz_of_sta n)))));
    ("threshold", Format_custom (fun n -> "" (*sprintf "threshold=%s" n *) ));
@@ -129,8 +129,24 @@ let prog = "./counters.virtual"
 
 let mk_thresholds = mk_list int "threshold" [1;10;100;1000;10000;100000;1000000;]
 
+let formatter =
+ Env.format (Env.(
+  [
+   ("n", Format_custom (fun n -> sprintf "%s" n));
+   ("proc", Format_custom (fun n -> sprintf "Nb. cores %s" n));
+   ("algo", Format_custom (fun n -> sprintf "%s" (
+     if n = "dyn" then ""
+     else if n = "sim" then "Fetch & Add"
+     else (sprintf "SNZI depth=%d" (sz_of_sta n)))));
+   ("threshold", Format_custom (fun n -> sprintf "threshold=%s" n  ));
+   ]
+  ))
+
+
 let make() =
   build "." binaries arg_virtual_build
+
+let mk_structures = (*mk_algo_sim ++ mk_algo_sta ++*) (mk_algo_dyn & mk_thresholds)
 
 let run() =
   Mk_runs.(call (run_modes @ [
@@ -140,7 +156,7 @@ let run() =
       mk_prog prog
     & mk_proc
     & mk_bench_fanin
-    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_thresholds) )
+    & mk_structures
     & mk_n)]))
 
 let check = nothing  (* do something here *)
@@ -153,7 +169,7 @@ let plot() =
       Formatter formatter;
       Charts mk_unit;
       Series mk_proc;
-      X ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_thresholds) );
+      X mk_structures;
       Input (file_results name);
       Output (file_plots name);
       Y_label "Number of operations per second per core";
