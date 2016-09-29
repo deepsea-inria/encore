@@ -502,3 +502,22 @@ void end_region(activation_record& a) {
 
 } // end namespace
 } // end namespace
+
+#define encore_begin_finish(a) \
+  do { \
+    a.operation.tag = tag_finish; \
+    a.operation.sync_var.in = nullptr; \
+    capture_stack_linkage(a.continuation.stack); \
+    membar(capture_return_pointer(a.continuation)); \
+    if (a.operation.sync_var.in != nullptr) { \
+      break; \
+    } \
+    my_vertex()->markers.push_back(&a); \
+
+#define encore_end_finish(a) \
+    if (a.operation.sync_var.in != nullptr) { \
+      resume_my_vertex(); \
+    } else { \
+      my_vertex()->markers.pop_back(); \
+    } \
+  } while (false); \

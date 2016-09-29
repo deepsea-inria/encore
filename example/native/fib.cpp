@@ -14,7 +14,7 @@ using namespace encore::native;
 #if 0
 __attribute__((noinline, hot, optimize("no-omit-frame-pointer")))
 int fib(int n) {
-  //  std::cout << "fib(" << n << ")" << std::endl;
+    std::cout << "fib(" << n << ")" << std::endl;
   if (n <= 1) {
     return n;
   }
@@ -37,7 +37,9 @@ int fib(int n) {
     }
     my_vertex()->markers.push_back(&arf);
 
-    auto foo123 = [&] {
+    //    auto foo123 = [&] {
+    //        register void * rsp asm ("rsp");
+    //        void* ptr = rsp;
     do {
       promote_if_needed();
       ara.operation.tag = tag_async;
@@ -59,11 +61,13 @@ int fib(int n) {
     } while (false);
 
     n2 = fib(n - 2);
-    __asm__ ( "mov\t%0,%%rsp\n\t"
-              : : "r" (ara.continuation.stack.top) : "memory");
+    //    __asm__ ( "mov\t%0,%%rsp\n\t"
+    //              : : "r" (ara.continuation.stack.top) : "memory");
+    //        __asm__ ( "mov\t%0,%%rsp\n\t"
+    //                  : : "r" (ptr) : "memory");
 
-    };
-    foo123();
+    //    };
+    //    foo123();
     
     if (arf.operation.sync_var.in != nullptr) {
       //      assert(arf.operation.sync_var.in != nullptr);
@@ -89,14 +93,12 @@ int fib(int n) {
   }
   int n1, n2;
   par::activation_record arf, arr, ara;
-  par::finish(arf, [&] {
-    par::begin_region(arr);
+  encore_begin_finish(arf) {
     par::async(arf, ara, [&] {
       n1 = fib(n - 1);
     });
     n2 = fib(n - 2);
-    par::end_region(arr);
-  });
+  } encore_end_finish(arf)
   return n1 + n2;
 }
 
