@@ -4,27 +4,29 @@ PBENCH_PATH=../../pbench
 
 include $(PBENCH_PATH)/Makefile_common
 
-TCMALLOC_HOME=-L $(HOME)/Installs/gperftools/lib/
+#TCMALLOC_HOME=-L $(HOME)/Installs/gperftools/lib/
 
-CHUNKEDSEQ_HOME=$(HOME)/chunkedseq/include
-ENCORE_INCLUDE_HOME=$(HOME)/concurrent-counters/include
-CMDLINE_HOME=$(HOME)/cmdline/include
-PBBS_INCLUDE_HOME=$(HOME)/pbbs-include
-PCTL_INCLUDE_HOME=$(HOME)/pctl/include
-PBBS_PCTL_INCLUDE_HOME=$(HOME)/pbbs-pctl/include
-PBBS_PCTL_TEST_INCLUDE_HOME=$(HOME)/pbbs-pctl/test/include
-QUICKCHECK_INCLUDE_HOME=$(HOME)/quickcheck/quickcheck
+INSTALL_DIR=../../
+
+CHUNKEDSEQ_HOME=$(INSTALL_DIR)/chunkedseq/include
+ENCORE_INCLUDE_HOME=../include
+CMDLINE_HOME=$(INSTALL_DIR)/cmdline/include
+PBBS_INCLUDE_HOME=$(INSTALL_DIR)/pbbs-include
+PCTL_INCLUDE_HOME=$(INSTALL_DIR)/pctl/include
+PBBS_PCTL_INCLUDE_HOME=$(INSTALL_DIR)/pbbs-pctl/include
+PBBS_PCTL_TEST_INCLUDE_HOME=$(INSTALL_DIR)/pbbs-pctl/test/include
+QUICKCHECK_INCLUDE_HOME=$(INSTALL_DIR)/quickcheck/quickcheck
 #HWLOC_HOME=$(HOME)/hwloc/
 
 HWLOC_FLAGS=$(pkg-config --cflags hwloc)
 HWLOC_LIBS=$(pkg-config --libs hwloc)
-HWLOC_DIRECTIVES=-DHAVE_HWLOC $(HWLOC_FLAGS) -lhwloc # $(HWLOC_LIBS)
+HWLOC_DIRECTIVES= #-DHAVE_HWLOC $(HWLOC_FLAGS) -lhwloc # $(HWLOC_LIBS)
 
 INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp) $(wildcard $(PCTL_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_INLCUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_TEST_INCLUDE_HOME)/*.hpp) $(wildcard $(QUICKCHECK_INCLUDE_HOME)/*.hpp)
 
-INCLUDE_DIRECTIVES= -I $(CHUNKEDSEQ_HOME) -I $(ENCORE_INCLUDE_HOME) -I $(CMDLINE_HOME) -I $(PBBS_INCLUDE_HOME) -I $(PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_TEST_INCLUDE_HOME) -I $(QUICKCHECK_INCLUDE_HOME)
+INCLUDE_DIRECTIVES= -I $(CHUNKEDSEQ_HOME) -I $(ENCORE_INCLUDE_HOME) -I $(CMDLINE_HOME) -I $(PBBS_INCLUDE_HOME) -I $(PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_TEST_INCLUDE_HOME) #-I $(QUICKCHECK_INCLUDE_HOME)
 
-TCMALLOC= $(TCMALLOC_HOME) -ltcmalloc
+TCMALLOC=  -ltcmalloc #$(TCMALLOC_HOME)
 
 CILK_PLUS= -DUSE_CILK_PLUS -DUSE_CILK_PLUS_RUNTIME -fcilkplus -lcilkrts
 
