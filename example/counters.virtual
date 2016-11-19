@@ -43,6 +43,8 @@ then
      outcmd="counters.sim $@"
 fi
 
+outcmd="./$outcmd"
+
 if hash numactl 2>/dev/null;
 then
     outcmd="numactl --interleave=all $outcmd"
