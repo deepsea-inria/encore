@@ -759,6 +759,17 @@ void launc_indegree2(int n) {
   d.dispatch("algo");
 }
 
+void launch_workload(int n) {
+  std::chrono::time_point<std::chrono::system_clock> start;
+  start = std::chrono::system_clock::now();
+  for (int i = 0; i < n; i++) {
+    do_dummy_work();
+  }
+  auto end = std::chrono::system_clock::now();
+  std::chrono::duration<float> diff = end - start;
+  printf ("exectime %.3lf\n", diff.count());
+}
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
@@ -772,6 +783,9 @@ int main(int argc, char** argv) {
   });
   d.add("indegree2", [&] {
     launc_indegree2(n);
+  });
+  d.add("workload", [&] {
+    launch_workload(n);
   });
   d.dispatch("bench");
   return 0;

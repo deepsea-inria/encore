@@ -100,6 +100,9 @@ let formatter =
      else if n = "sim" then "Fetch & Add"
      else (sprintf "SNZI depth=%d" (sz_of_sta n)))));
    ("threshold", Format_custom (fun n -> "" (*sprintf "threshold=%s" n *) ));
+   ("workload", Format_custom (fun n ->
+                               let m = if n = "1" then "nanosecond" else "nanoseconds" in
+                               sprintf "%s %s of dummy work per task" n m ));
    ]
   ))
 
@@ -298,9 +301,13 @@ let name = "workload_fanin"
 
 let prog = "./counters.virtual"
 
-let workloads = [1;10;100;1000;10000;100000;]
+let workloads = [1;10;100;1000;10000;100000;(*1000000;*)]
 
 let mk_workloads = mk_list int "workload" workloads
+
+let stas = ["sta9"]
+
+let mk_algo_sta = mk_list string "algo" stas
 
 let make() =
   build "." binaries arg_virtual_build
@@ -319,6 +326,16 @@ let run() =
 
 let check = nothing  (* do something here *)
 
+let eval_speedup mk_seq = fun env all_results results ->
+     let baseline_results =  ~~ Results.filter_by_params all_results (
+       (from_env (Env.filter_keys ["workload";"n";] env)
+     & mk_seq ))
+     in 
+   if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+   let tp = Results.get_mean_of "exectime" results in
+   let t1 = Results.get_mean_of "exectime" baseline_results in
+   t1 /. tp
+         
 let plot() =
   Mk_scatter_plot.(call ([
     Chart_opt Chart.([
@@ -331,12 +348,86 @@ let plot() =
          Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
        Formatter formatter;
        Charts mk_proc;
-      Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
       X mk_workloads;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "Number of operations per second per core";
-      Y eval_nb_operations_per_second;
+      Y_label "Speedup of in-counter vs. Fetch & Add cell";
+      X_label "Nanoseconds of dummy work per task (approximate)"; 
+      Y (eval_speedup (mk_algo_sim));
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Workload fanin experiment *)
+
+module ExpWorkloadFaninSpeedup = struct
+
+let name = "workload_fanin_speedup"
+
+let prog = "./counters.virtual"
+
+(*let workloads = [1;10;100;1000;10000;100000;(*1000000;*)] *)
+
+let workloads = [1;10;100;1000;10000]
+
+let mk_workloads = mk_list int "workload" workloads
+
+let stas = ["sta9"]
+
+let mk_algo_sta = mk_list string "algo" stas
+
+let mk_proc = mk_list int "proc" [1;4;8;12;16;20;24;28;32;36;40]
+
+let make() =
+  build "." binaries arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args (
+      mk_prog prog
+    & mk_proc
+    & mk_bench_fanin
+    & ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) )
+    & mk_workloads
+    & mk_n)]))
+
+let check = nothing  (* do something here *)
+
+let eval_speedup mk_seq = fun env all_results results ->
+     let baseline_results =  ~~ Results.filter_by_params all_results (
+       (from_env (Env.filter_keys ["n";"workload";] env)
+     & mk_seq ))
+     in 
+   if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+   let tp = Results.get_mean_of "exectime" results in
+   let t1 = Results.get_mean_of "exectime" baseline_results in
+   t1 /. tp
+         
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Chart.Title "";
+      Legend_opt Legend.([Legend_pos Top_left]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         X_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log true;];
+         Y_axis [(*Axis.Lower (Some 0.); Axis.Upper(Some 5000000.); *) Axis.Is_log false;] ]);
+       Formatter formatter;
+       Charts mk_workloads;
+       Series ( mk_algo_sim ++ mk_algo_sta ++ (mk_algo_dyn & mk_threshold) );
+      X mk_proc;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "Speedup of in-counter vs. Fetch & Add cell (@ 1 core)";
+      X_label "Number of cores"; 
+      Y (eval_speedup (mk_algo_sim & (mk int "proc" 1)));
   ]))
 
 let all () = select make run check plot
@@ -465,6 +556,7 @@ let _ =
     "size", ExpSize.all;
     "indegree2", ExpIndegree2.all;
     "workload_fanin", ExpWorkloadFanin.all;
+    "workload_fanin_speedup", ExpWorkloadFaninSpeedup.all;
     "workload_indegree2", ExpWorkloadIndegree2.all;
   ]
   in
