@@ -1,4 +1,5 @@
 
+
 #include <vector>
 #include <deque>
 #include <thread>
@@ -220,6 +221,9 @@ void worker_loop(vertex* v) {
   
   // called by workers when running out of work
   auto acquire = [&] {
+    if (data::perworker::get_nb_workers() == 1) {
+      return;
+    }
     assert(my_ready.empty() && my_suspended.empty());
     nb_active_workers--;
     while (! is_finished()) {
@@ -271,6 +275,9 @@ void worker_loop(vertex* v) {
     } else if (my_suspended.size() >= 1) {
       communicate();
       promote();
+    } else if (data::perworker::get_nb_workers() == 1) {
+      nb_active_workers--;
+      break;
     } else {
       acquire();
     }
