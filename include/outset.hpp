@@ -226,7 +226,7 @@ data::perworker::array<std::mt19937> outset_rngs;  // random-number generators
 /*---------------------------------------------------------------------*/
 /* Outset */
   
-#if 0
+#ifndef ENCORE_USE_SIMPLE_SYNCHRONIZATION
   
 class outset {
 private:

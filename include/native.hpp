@@ -146,9 +146,14 @@ size_t get_stack_size() {
 
 static
 void* stack_setup(void* stack, size_t stack_size) {
+#if 1
+  assert(false);
+  return nullptr;
+#else
   void** rsp = stack + stack_size;
   rsp -= 16; // reserve 128 bytes at the bottom
   return rsp;
+#endif
 }
 
 static
@@ -284,14 +289,18 @@ public:
     posix_memalign(&s, psz, sz);
     stack = new shared_stack_ptr(s);
 #ifndef NDEBUG
+#ifdef USE_VALGRIND
     stack_id = VALGRIND_STACK_REGISTER(s, s + sz);
+#endif
 #endif
   }
 
 
   ~vertex() {
 #ifndef NDEBUG
+#ifdef USE_VALGRIND
     VALGRIND_STACK_DEREGISTER(stack_id);
+#endif
 #endif
     release_stack_ptr(stack);
     release_stack_ptr(parent_stack);

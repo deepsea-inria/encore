@@ -279,7 +279,7 @@ using gsnzi_tree_type = gsnzi::tree<snzi_tree_height>;
 /*---------------------------------------------------------------------*/
 /* Incounter */
   
-#if 0
+#ifndef ENCORE_USE_SIMPLE_SYNCHRONIZATION
   
 using incounter_handle = typename gsnzi_tree_type::node_type;
 
