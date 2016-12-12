@@ -14,42 +14,30 @@ namespace cactus {
 
 namespace {
   
-static constexpr int lg_K = 12;
+struct chunk_struct;
 
+static constexpr int lg_K = 12;
+// size in bytes of a chunk
 static constexpr int K = 1 << lg_K;
   
-struct chunk_struct;
+using chunk_tag_type = enum { trunk_tag, branch_tag };
   
-static constexpr int F = K - sizeof(chunk_struct*);
+using chunk_header = struct {
+  chunk_tag_type tag;
+  char* sp;      // used only if trunk
+  std::atomic<int> refcount;
+};
   
+// objects of this type must be K-byte aligned
 using chunk_type = struct chunk_struct {
-  char frames[F];
-  struct chunk_struct* next;
+  chunk_header hdr;
+  char frames[K - sizeof(chunk_header)];
 };
   
 using stack_type = struct stack_struct {
-             // to point at the first byte:
-  char* fp;  // - of the newest frame
-  char* sp;  // - after the newest frame
-  char* top; // - of the oldest frame
-};
-  
-using descriptor_type = struct {
-  
-  enum { empty_tag, frame_tag, overflow_tag, initial_tag } tag;
-  
-  union {
-    
-    struct {
-      char* fp;
-      char* sp;
-    } frame;
-    
-    struct {
-      chunk_type* c;
-    } overflow;
-    
-  };
+  char* fp;  // points to the first byte of the newest frame
+  char* sp;  // points to the first byte after the newest frame
+  char* top; // points to the first byte of the oldest frame
 };
   
 void* aligned_alloc(size_t alignment, size_t size) {
@@ -61,10 +49,15 @@ void* aligned_alloc(size_t alignment, size_t size) {
   return p;
 }
   
-chunk_type* allocate_chunk() {
+char* first_free_byte_of_chunk(chunk_type* c) {
+  return &(c->frames[0]);
+}
+  
+chunk_type* new_chunk(chunk_tag_type tag, char* sp) {
   chunk_type* c = (chunk_type*)aligned_alloc(K, K);
   new (c) chunk_type();
-  c->next = nullptr;
+  c->hdr.tag = tag;
+  c->hdr.sp = sp;
   stats::on_stacklet_allocation();
   return c;
 }
@@ -76,53 +69,18 @@ chunk_type* chunk_of(char* p) {
   return res;
 }
   
-static constexpr int freelist_min_refill_size = 5;
-  
-data::perworker::array<chunk_type*> freelist(nullptr);
-  
-void fill_freelist_if_empty() {
-  chunk_type*& head = freelist.mine();
-  if (head != nullptr) {
-    return;
-  }
-  for (int i = 0; i < freelist_min_refill_size; i++) {
-    chunk_type* c = allocate_chunk();
-    c->next = head;
-    head = c;
-  }
-  assert(head != nullptr);
+void incr_refcount(chunk_type* c) {
+  c->hdr.refcount++;
 }
 
-chunk_type* new_chunk() {
-  chunk_type* c = nullptr;
-  fill_freelist_if_empty();
-  chunk_type*& head = freelist.mine();
-  c = head;
-  head = c->next;
-  c->next = nullptr;
-  return c;
-}
-
-void delete_chunk(chunk_type* c) {
-  chunk_type*& head = freelist.mine();
-  c->next = head;
-  head = c;
+void decr_refcount(chunk_type* c) {
+  if (--c->hdr.refcount == 0) {
+    free(c);
+  }
 }
   
-void create_overflow(descriptor_type*& d, char*& fp) {
-  chunk_type* next_chunk = new_chunk();
-  d->tag = descriptor_type::overflow_tag;
-  d->overflow.c = next_chunk;
-  d = (descriptor_type*)next_chunk;
-  fp = (char*)next_chunk + sizeof(descriptor_type);
-}
-  
-stack_type new_null_stack() {
-  stack_type s;
-  s.top = nullptr;
-  s.fp = nullptr;
-  s.sp = nullptr;
-  return s;
+char* first_byte_of_frame(char* fp) {
+  return fp + sizeof(char*);
 }
   
 } // end namespace
@@ -132,110 +90,57 @@ bool empty(struct stack_struct s) {
   return s.fp == nullptr;
 }
   
-inline
-bool overflow(stack_type s) {
-  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
-  return current_descriptor->tag == descriptor_type::overflow_tag;
-}
-
-void empty_freelist() {
-  chunk_type*& head = freelist.mine();
-  chunk_type* c = head;
-  while (c != nullptr) {
-    chunk_type* t = c->next;
-    free(c);
-    c = t;
-  }
-  head = nullptr;
-}
-  
 stack_type new_stack() {
   stack_struct s;
-  chunk_type* c = new_chunk();
-  s.sp = (char*)c;
-  s.top = s.sp;
   s.fp = nullptr;
-  ((descriptor_type*)s.sp)->tag = descriptor_type::initial_tag;
+  s.sp = first_free_byte_of_chunk(new_chunk(trunk_tag, s.fp));
+  s.top = s.sp;
   return s;
 }
   
 void delete_stack(stack_type s) {
-  // only need to handle the case in which the stack has never been
-  // target of a push operation
-  if (s.sp == nullptr) {
-    return;
-  }
-  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
-  if (current_descriptor->tag == descriptor_type::initial_tag) {
-    delete_chunk(chunk_of(s.sp));
-  }
+  decr_refcount(chunk_of(s.sp - 1));
 }
-
+  
 template <class Activation_record, class ...Args>
 stack_type push_back(stack_type s, Args... args) {
   stack_type t = s;
-  descriptor_type* current_descriptor = (descriptor_type*)s.sp;
-  switch (current_descriptor->tag) {
-    case descriptor_type::empty_tag: {
-      chunk_type* current_chunk = chunk_of(s.fp);
-      if (s.sp + sizeof(Activation_record) + sizeof(descriptor_type) <= (char*)current_chunk + F) {
-        t.fp = s.sp + sizeof(descriptor_type);
-      } else {
-        create_overflow(current_descriptor, t.fp);
-      }
-      break;
-    }
-    case descriptor_type::overflow_tag: {
-      create_overflow(current_descriptor, t.fp);
-      break;
-    }
-    case descriptor_type::initial_tag: {
-      assert(s.fp == nullptr);
-      t.fp = s.sp + sizeof(descriptor_type);
-      t.top = t.fp;
-      break;
-    }
-    default: {
-      assert(false);
-    }
+  auto b = sizeof(char*) + sizeof(Activation_record);
+  t.fp = s.sp;
+  t.sp = s.sp + b;
+  if (t.sp >= ((char*)chunk_of(s.sp)) + K) {
+    chunk_type* c = new_chunk(trunk_tag, s.sp);
+    t.fp = first_free_byte_of_chunk(c);
+    t.sp = t.fp + b;
   }
-  current_descriptor->tag = descriptor_type::frame_tag;
-  current_descriptor->frame.fp = s.fp;
-  current_descriptor->frame.sp = s.sp;
-  t.sp = t.fp + sizeof(Activation_record);
-  new (t.fp) Activation_record(args...);
-  ((descriptor_type*)t.sp)->tag = descriptor_type::empty_tag;
+  *((char**)t.fp) = s.fp;
+  new (first_byte_of_frame(t.fp)) Activation_record(args...);
   return t;
 }
-
+  
 template <class Activation_record>
 stack_type pop_back(stack_type s) {
   assert(! empty(s));
+  char* p = first_byte_of_frame(s.fp);
+  ((Activation_record*)(p))->~Activation_record();
   stack_type t = s;
-  ((Activation_record*)s.fp)->~Activation_record();
-  descriptor_type* current_descriptor = (descriptor_type*)(t.fp - sizeof(descriptor_type));
-  switch (current_descriptor->tag) {
-    case descriptor_type::frame_tag: {
-      current_descriptor->tag = descriptor_type::empty_tag;
-      char* fp = current_descriptor->frame.fp;
-      char* sp = current_descriptor->frame.sp;
-      t.fp = fp;
-      t.sp = sp;
-      break;
-    }
-    case descriptor_type::initial_tag:
-    case descriptor_type::empty_tag:
-    case descriptor_type::overflow_tag: {
-      t = new_null_stack();
-      break;
-    }
-    default: {
+  t.fp = *((char**)s.fp);
+  t.sp = s.fp;
+  chunk_type* cfp1 = chunk_of(s.fp);
+  chunk_type* cfp2 = chunk_of(t.fp);
+  if (cfp1 != cfp2) {
+    if (cfp2 == nullptr) {
+      // nothing to do
+    } else if (cfp1->hdr.tag == trunk_tag) {
+      t.sp = cfp1->hdr.sp;
+      decr_refcount(cfp1);
+    } else if (cfp1->hdr.tag == branch_tag) {
+      decr_refcount(cfp1);
+      chunk_type* c = new_chunk(branch_tag, nullptr);
+      t.sp = first_free_byte_of_chunk(c);
+    } else {
       assert(false);
     }
-  }
-  chunk_type* current_chunk = chunk_of(s.fp);
-  if ((char*)current_chunk + sizeof(descriptor_type) == s.fp) {
-    delete_chunk(current_chunk);
   }
   return t;
 }
@@ -244,52 +149,28 @@ template <class Activation_record>
 inline
 Activation_record& peek_back(stack_type s) {
   assert(! empty(s));
-  return *((Activation_record*)s.fp);
+  return *((Activation_record*)(first_byte_of_frame(s.fp)));
 }
   
 template <class Activation_record>
 Activation_record& peek_front(stack_type s) {
   assert(! empty(s));
   assert(s.top != nullptr);
-  return *((Activation_record*)s.top);
+  return *((Activation_record*)(first_byte_of_frame(s.top)));
 }
   
 std::pair<stack_type, stack_type> fork_front(stack_type s, int activation_record_szb) {
+  incr_refcount(chunk_of(s.fp));
   assert(! empty(s));
-  stack_type s1, s2;
-  s1.top = s.top;
+  stack_type s1 = s;
   s1.fp = s1.top;
-  s1.sp = s1.fp + activation_record_szb;
-  descriptor_type* next_descriptor = (descriptor_type*)s1.sp;
-  switch (next_descriptor->tag) {
-    case descriptor_type::frame_tag: {
-      next_descriptor->tag = descriptor_type::overflow_tag;
-      next_descriptor->overflow.c = nullptr;
-      s2.top = s.top + activation_record_szb + sizeof(descriptor_type);
-      break;
-    }
-    case descriptor_type::overflow_tag: {
-      chunk_type* c = next_descriptor->overflow.c;
-      if (c == nullptr) {
-        s2 = new_null_stack();
-        return std::make_pair(s1, s2);
-      }
-      next_descriptor->overflow.c = nullptr;
-      descriptor_type* overflow_descriptor = (descriptor_type*)c;
-      overflow_descriptor->tag = descriptor_type::initial_tag;
-      s2.top = (char*)c + sizeof(descriptor_type);
-      break;
-    }
-    case descriptor_type::empty_tag: {
-      s2 = new_null_stack();
-      return std::make_pair(s1, s2);
-    }
-    default: {
-      assert(false);
-    }
-  }
-  s2.fp = s.fp;
-  s2.sp = s.sp;
+  chunk_type* c = new_chunk(branch_tag, nullptr);
+  s1.sp = first_free_byte_of_chunk(c);
+  auto b = sizeof(char*) + activation_record_szb;
+  char* sp = s.top + b;
+  *((char**)sp) = nullptr;
+  stack_type s2 = s;
+  s2.top = s.sp;
   return std::make_pair(s1, s2);
 }
 
@@ -300,42 +181,7 @@ std::pair<stack_type, stack_type> fork_front(stack_type s) {
  
 template <class Activation_record>
 std::pair<stack_type, stack_type> slice_front(stack_type s) {
-  assert(! empty(s));
-  stack_type s1, s2;
-  s1.top = s.top;
-  s1.fp = s1.top;
-  s1.sp = s1.fp + sizeof(Activation_record);
-  descriptor_type* next_descriptor = (descriptor_type*)s1.sp;
-  switch (next_descriptor->tag) {
-    case descriptor_type::frame_tag: {
-      s2.top = s1.sp + sizeof(descriptor_type);
-      break;
-    }
-    case descriptor_type::overflow_tag: {
-      chunk_type* c = next_descriptor->overflow.c;
-      if (c == nullptr) {
-        s2 = new_null_stack();
-        return std::make_pair(s1, s2);
-      }
-      s2.top = (char*)c + sizeof(descriptor_type);
-      next_descriptor = (descriptor_type*)c;
-      break;
-    }
-    case descriptor_type::empty_tag: {
-      s2 = new_null_stack();
-      return std::make_pair(s1, s2);
-    }
-    default: {
-      assert(false);
-    }
-  }
-  assert(next_descriptor->tag == descriptor_type::frame_tag);
-  assert(next_descriptor->frame.fp != nullptr);
-  next_descriptor->tag = descriptor_type::empty_tag;
-  assert(s.fp != s.top);
-  s2.fp = s.fp;
-  s2.sp = s.sp;
-  return std::make_pair(s1, s2);
+  return fork_front(s, sizeof(Activation_record));
 }
   
 } // end namespace

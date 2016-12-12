@@ -285,7 +285,6 @@ void worker_loop(vertex* v) {
   
   assert(my_ready.empty());
   assert(my_suspended.empty());
-  cactus::empty_freelist();
   nb_running_workers--;
 }
 
