@@ -133,8 +133,7 @@ stack_type pop_back(stack_type s) {
   chunk_type* c_s = chunk_of(s.fp);
   chunk_type* c_t = chunk_of(t.fp);
   if (empty(t)) {
-    chunk_type* c2 = chunk_of(s.sp - 1);
-    if (c2 != c_s) {
+    if (chunk_of(s.sp - 1 != c_s) {
       assert(c_s != nullptr);
       decr_refcount(c_s);
       t.sp = s.sp;
