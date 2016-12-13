@@ -128,19 +128,18 @@ stack_type pop_back(stack_type s) {
   t.sp = s.fp;
   chunk_type* cfp1 = chunk_of(s.fp);
   chunk_type* cfp2 = chunk_of(t.fp);
-  if (cfp1 != cfp2) {
-    if (cfp2 == nullptr) {
-      // nothing to do
-    } else if (cfp1->hdr.tag == trunk_tag) {
-      t.sp = cfp1->hdr.sp;
-      decr_refcount(cfp1);
-    } else if (cfp1->hdr.tag == branch_tag) {
-      decr_refcount(cfp1);
-      chunk_type* c = new_chunk(branch_tag, nullptr);
-      t.sp = first_free_byte_of_chunk(c);
-    } else {
-      assert(false);
-    }
+  if (cfp1 == cfp2 || cfp2 == nullptr) {
+    return t;
+  }
+  if (cfp1->hdr.tag == trunk_tag) {
+    t.sp = cfp1->hdr.sp;
+    decr_refcount(cfp1);
+  } else if (cfp1->hdr.tag == branch_tag) {
+    decr_refcount(cfp1);
+    chunk_type* c = new_chunk(branch_tag, nullptr);
+    t.sp = first_free_byte_of_chunk(c);
+  } else {
+    assert(false);
   }
   return t;
 }
