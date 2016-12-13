@@ -75,6 +75,7 @@ void incr_refcount(chunk_type* c) {
 }
 
 void decr_refcount(chunk_type* c) {
+  assert(c->hdr.refcount.load() >= 1);
   if (--c->hdr.refcount == 0) {
     free(c);
   }
@@ -132,9 +133,11 @@ stack_type pop_back(stack_type s) {
   chunk_type* c_s = chunk_of(s.fp);
   chunk_type* c_t = chunk_of(t.fp);
   if (empty(t)) {
-    if (chunk_of(s.sp - 1) != c_s) {
+    chunk_type* c2 = chunk_of(s.sp - 1);
+    if (c2 != c_s) {
       assert(c_s != nullptr);
       decr_refcount(c_s);
+      t.sp = s.sp;
     }
   } else if (c_s == c_t) {
     // do nothing
