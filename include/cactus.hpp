@@ -96,6 +96,7 @@ stack_type new_stack() {
   s.fp = nullptr;
   s.sp = first_free_byte_of_chunk(new_chunk(trunk_tag, s.fp));
   s.top = s.sp;
+  assert(s.sp != nullptr);
   return s;
 }
   
@@ -116,6 +117,7 @@ stack_type push_back(stack_type s, Args... args) {
   }
   *((char**)t.fp) = s.fp;
   new (first_byte_of_frame(t.fp)) Activation_record(args...);
+  assert(t.sp != nullptr);
   return t;
 }
   
@@ -127,16 +129,20 @@ stack_type pop_back(stack_type s) {
   stack_type t = s;
   t.fp = *((char**)s.fp);
   t.sp = s.fp;
-  chunk_type* cfp1 = chunk_of(s.fp);
-  chunk_type* cfp2 = chunk_of(t.fp);
-  if (cfp1 == cfp2 || cfp2 == nullptr) {
-    return t;
-  }
-  if (cfp1->hdr.tag == trunk_tag) {
-    t.sp = cfp1->hdr.sp;
-    decr_refcount(cfp1);
-  } else if (cfp1->hdr.tag == branch_tag) {
-    decr_refcount(cfp1);
+  chunk_type* c_s = chunk_of(s.fp);
+  chunk_type* c_t = chunk_of(t.fp);
+  if (empty(t)) {
+    if (chunk_of(s.sp - 1) != c_s) {
+      assert(c_s != nullptr);
+      decr_refcount(c_s);
+    }
+  } else if (c_s == c_t) {
+    // do nothing
+  } else if (c_s->hdr.tag == trunk_tag) {
+    t.sp = c_s->hdr.sp;
+    decr_refcount(c_s);
+  } else if (c_s->hdr.tag == branch_tag) {
+    decr_refcount(c_s);
     chunk_type* c = new_chunk(branch_tag, nullptr);
     t.sp = first_free_byte_of_chunk(c);
   } else {
