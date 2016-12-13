@@ -58,6 +58,7 @@ chunk_type* new_chunk(chunk_tag_type tag, char* sp) {
   new (c) chunk_type();
   c->hdr.tag = tag;
   c->hdr.sp = sp;
+  c->hdr.refcount.store(1);
   stats::on_stacklet_allocation();
   return c;
 }
@@ -159,17 +160,16 @@ Activation_record& peek_front(stack_type s) {
 }
   
 std::pair<stack_type, stack_type> fork_front(stack_type s, int activation_record_szb) {
-  incr_refcount(chunk_of(s.fp));
   assert(! empty(s));
+  incr_refcount(chunk_of(s.top));
   stack_type s1 = s;
-  s1.fp = s1.top;
+  s1.fp = s.top;
   chunk_type* c = new_chunk(branch_tag, nullptr);
   s1.sp = first_free_byte_of_chunk(c);
-  auto b = sizeof(char*) + activation_record_szb;
-  char* sp = s.top + b;
-  *((char**)sp) = nullptr;
   stack_type s2 = s;
-  s2.top = s.sp;
+  int b = sizeof(char*) + activation_record_szb;
+  s2.top = s.top + b;
+  *((char**)s2.top) = nullptr;
   return std::make_pair(s1, s2);
 }
 
