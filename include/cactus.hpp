@@ -81,6 +81,7 @@ void decr_refcount(chunk_type* c) {
   }
 }
   
+inline
 char* first_byte_of_frame(char* fp) {
   return fp + sizeof(char*);
 }
