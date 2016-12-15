@@ -77,6 +77,7 @@ void incr_refcount(chunk_type* c) {
 void decr_refcount(chunk_type* c) {
   assert(c->hdr.refcount.load() >= 1);
   if (--c->hdr.refcount == 0) {
+    stats::on_stacklet_deallocation();
     free(c);
   }
 }

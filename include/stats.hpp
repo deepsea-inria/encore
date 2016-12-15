@@ -16,6 +16,7 @@ private:
     nb_promotions,
     nb_steals,
     nb_stacklet_allocations,
+    nb_stacklet_deallocations,
     nb_counters
   };
   
@@ -25,6 +26,7 @@ private:
     names[nb_promotions] = "nb_promotions";
     names[nb_steals] = "nb_steals";
     names[nb_stacklet_allocations] = "nb_stacklet_allocations";
+    names[nb_stacklet_deallocations] = "nb_stacklet_deallocations";
     return names[id];
   }
 
@@ -58,6 +60,11 @@ public:
   static inline
   void on_stacklet_allocation() {
     increment(nb_stacklet_allocations);
+  }
+  
+  static inline
+  void on_stacklet_deallocation() {
+    increment(nb_stacklet_deallocations);
   }
   
   static
