@@ -40,7 +40,7 @@ $(BUILD_DBG_DIR)/%.cpp.o: %.cpp
 
 %.dbg: %.cpp $(ALLDEPS_DBG)
 	$(MKDIR_P) $(dir $@)
-	$(CC_DBG) $(OBJS_DBG) fib.cpp -o $@ $(LDFLAGS_DBG)
+	$(CC_DBG) $(OBJS_DBG) $< -o $@ $(LDFLAGS_DBG)
 
 .PHONY: clean
 
