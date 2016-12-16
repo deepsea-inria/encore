@@ -113,7 +113,7 @@ stack_type push_back(stack_type s, Args... args) {
   auto b = sizeof(char*) + sizeof(Activation_record);
   t.fp = s.sp;
   t.sp = s.sp + b;
-  if (t.sp >= ((char*)chunk_of(s.sp)) + K) {
+  if (t.sp >= ((char*)chunk_of(s.sp - 1)) + K) {
     chunk_type* c = new_chunk(trunk_tag, s.sp);
     t.fp = first_free_byte_of_chunk(c);
     t.sp = t.fp + b;
@@ -171,6 +171,7 @@ Activation_record& peek_front(stack_type s) {
   
 std::pair<stack_type, stack_type> fork_front(stack_type s, int activation_record_szb) {
   assert(! empty(s));
+  assert(*((char**)s.top) == nullptr);
   incr_refcount(chunk_of(s.top));
   stack_type s1 = s;
   s1.fp = s.top;

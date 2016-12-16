@@ -11,7 +11,7 @@ int fib(int n) {
   return fib(n - 1) + fib(n - 2);
 }
 
-int cutoff = 1;
+int cutoff = 2;
 
 #ifdef USE_CILK_PLUS
 int fib_cilk(int n) {
@@ -188,6 +188,7 @@ int main(int argc, char** argv) {
   encore::run_and_report_elapsed_time([&] {
     d.dispatch("algorithm");
   });
-  assert(result == fib(n));
+  auto fn = fib(n);
+  assert(result == fn);
   return 0;
 }
