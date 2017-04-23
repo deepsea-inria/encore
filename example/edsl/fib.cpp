@@ -110,11 +110,11 @@ public:
       }
       return (int)lab;  // going to branch1
     });
-    cfg[branch1] = bb::spawn2_join([] (sar& s, par&, stt st) {
-      return ecall<fib_cfg>(st, s.n - 1, &s.d1);
+    cfg[branch1] = bb::spawn2_join([] (sar& s, par&, plt p, stt st) {
+      return encore_call<fib_cfg>(st, p, s.n - 1, &s.d1);
     }, branch2);
-    cfg[branch2] = bb::spawn_join([] (sar& s, par&, stt st) {
-      return ecall<fib_cfg>(st, s.n - 2, &s.d2);
+    cfg[branch2] = bb::spawn_join([] (sar& s, par&, plt p, stt st) {
+      return encore_call<fib_cfg>(st, p, s.n - 2, &s.d2);
     }, combine);
     cfg[combine] = bb::unconditional_jump([] (sar& s, par&) {
       *s.dp = s.d1 + s.d2;
@@ -146,10 +146,10 @@ public:
       dc::stmt([] (sar& s, par&) { *s.dp = fib(s.n); }),
       dc::stmts({
         dc::spawn2_join(
-            [] (sar& s, par&, stt st) {
-              return ecall<fib_dc>(st, s.n - 1, &s.d1); },
-            [] (sar& s, par&, stt st) {
-              return ecall<fib_dc>(st, s.n - 2, &s.d2); }),
+            [] (sar& s, par&, plt p, stt st) {
+              return encore_call<fib_dc>(st, p, s.n - 1, &s.d1); },
+            [] (sar& s, par&, plt p, stt st) {
+              return encore_call<fib_dc>(st, p, s.n - 2, &s.d2); }),
         dc::stmt([] (sar& s, par&) { *s.dp = s.d1 + s.d2; }),
       })
     );

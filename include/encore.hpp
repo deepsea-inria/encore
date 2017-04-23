@@ -41,7 +41,7 @@ public:
       dc::stmt([] (sar& s, par&) {
         s.start = std::chrono::system_clock::now();
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt, stt st) {
         return s.f(st);
       }),
       dc::stmt([] (sar& s, par&) {
@@ -134,12 +134,13 @@ void launch_interpreter(Args... args) {
   */
   int nb_workers = cmdline::parse_or_default("proc", 1);
   stats::initialize();
-  auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
+  auto interp = new edsl::pcfg::interpreter;
+  auto ty = edsl::pcfg::cactus::Parent_link_sync;
   auto f = [=] (edsl::pcfg::stack_type st) {
-    return edsl::pcfg::push_call<Shared_activation_record>(st, args...);
+    return edsl::pcfg::push_call<Shared_activation_record>(st, ty, args...);
   };
   using t = call_and_report_elapsed<typeof(f)>;
-  interp->stack = edsl::pcfg::push_call<t>(interp->stack, f);
+  interp->stack = edsl::pcfg::push_call<t>(interp->stack, ty, f);
   sched::launch_scheduler(nb_workers, interp);
   stats::report();
   data::perworker::reset();
