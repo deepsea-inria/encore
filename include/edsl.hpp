@@ -568,10 +568,10 @@ stack_type create_stack(Shared_activation_record* sar, Private_activation_record
 }
 
 bool empty_stack(stack_type s) {
-  return cactus::empty_stack(s);
+  return cactus::empty(s);
 }
 
-bool empty_mark(stack_type s) {
+bool empty_stack_mark(stack_type s) {
   return cactus::empty_mark(s);
 }
 
@@ -683,7 +683,7 @@ public:
   : stack(stack) { }
   
   int nb_strands() {
-    if (empty_mark(stack)) {
+    if (empty_stack_mark(stack)) {
       return 0;
     } else {
       return peek_oldest_private_frame<private_activation_record>(stack).nb_strands();
@@ -701,7 +701,7 @@ public:
     if (fuel == suspend_tag) {
       suspend(this);
       fuel = 0;
-    } else if (! empty_mark(stack)) {
+    } else if (! empty_stack_mark(stack)) {
       assert(fuel == 0);
       peek_oldest_shared_frame<shared_activation_record>(stack).promote(this);
     }
