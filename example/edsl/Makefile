@@ -4,7 +4,7 @@ ROOT_DIR=../../
 EXTERN_DIR=$(ROOT_DIR)/../
 
 BUILD_DBG_DIR ?= ./build_dbg
-SRC_DIRS ?= $(ROOT_DIR)/include $(EXTERN_DIR)/chunkedseq/include $(EXTERN_DIR)/cmdline/include
+SRC_DIRS ?= $(ROOT_DIR)/include $(EXTERN_DIR)/chunkedseq/include $(EXTERN_DIR)/cmdline/include $(EXTERN_DIR)/cactus-stack/include
 
 SRCS := $(shell find $(SRC_DIRS) -name '*.cpp' -or -name '*.c' -or -name '*.s')
 OBJS_DBG := $(SRCS:%=$(BUILD_DBG_DIR)/%.o)
