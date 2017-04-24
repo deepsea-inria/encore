@@ -566,7 +566,15 @@ stack_type create_stack(Shared_activation_record* sar, Private_activation_record
     return is_splittable<Private_activation_record>(_ar);
   });
 }
-  
+
+bool empty_stack(stack_type s) {
+  return cactus::empty_stack(s);
+}
+
+bool empty_mark(stack_type s) {
+  return cactus::empty_mark(s);
+}
+
 template <class Shared_activation_record, class ...Args>
 stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
   // The line below is commented out to avoid a GCC bug whereby GCC segfaults.
@@ -675,7 +683,7 @@ public:
   : stack(stack) { }
   
   int nb_strands() {
-    if (cactus::empty(stack)) {
+    if (empty_mark(stack)) {
       return 0;
     } else {
       return peek_oldest_private_frame<private_activation_record>(stack).nb_strands();
@@ -684,7 +692,7 @@ public:
   
   int run(int fuel) {
     stack_type s = stack;
-    while (! cactus::empty(s) && fuel >= 1) {
+    while (! empty_stack(s) && fuel >= 1) {
       auto result = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
       s = result.first;
       fuel = result.second;
@@ -693,7 +701,7 @@ public:
     if (fuel == suspend_tag) {
       suspend(this);
       fuel = 0;
-    } else if (! cactus::empty(stack)) {
+    } else if (! empty_mark(stack)) {
       assert(fuel == 0);
       peek_oldest_shared_frame<shared_activation_record>(stack).promote(this);
     }
@@ -709,7 +717,7 @@ public:
 template <class Shared_activation_record>
 std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_type stack, int fuel) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
-  assert(! cactus::empty(stack));
+  assert(! empty_stack(stack));
   fuel--;
   auto& shared_newest = peek_newest_shared_frame<Shared_activation_record>(stack);
   auto& private_newest = peek_newest_private_frame<private_activation_record>(stack);
@@ -793,7 +801,7 @@ void promote(cfg_type<Shared_activation_record>& cfg, interpreter* interp) {
     return;
   }
   stack_type& stack = interp->stack;
-  assert(! cactus::empty(stack));
+  assert(! empty_stack(stack));
   auto& shared_oldest = peek_oldest_shared_frame<Shared_activation_record>(stack);
   auto& private_oldest = peek_oldest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = private_oldest.trampoline.pred;
