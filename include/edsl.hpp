@@ -507,7 +507,7 @@ public:
   
   virtual std::pair<stack_type, int> run(stack_type, int) const = 0;
   
-  virtual void _promote_fork(interpreter*, private_activation_record*) = 0;
+  virtual void promote_fork(interpreter*, private_activation_record*) = 0;
   
 };
   
@@ -742,7 +742,7 @@ public:
           break;
         }
         case Peek_mark_fork: {
-          std::get<1>(r)->_promote_fork(this, std::get<2>(r));
+          std::get<1>(r)->promote_fork(this, std::get<2>(r));
           break;
         }
         case Peek_mark_loop_split: {
@@ -1994,7 +1994,7 @@ std::pair<edsl::pcfg::stack_type, int> run(edsl::pcfg::stack_type stack, int fue
   return edsl::pcfg::step(cfg, stack, fuel); \
 } \
 \
-void _promote_fork(edsl::pcfg::interpreter* interp, edsl::pcfg::private_activation_record* p) { \
+void promote_fork(edsl::pcfg::interpreter* interp, edsl::pcfg::private_activation_record* p) { \
   edsl::pcfg::promote_fork(cfg, interp, this, (par*)p); \
 } \
 \
