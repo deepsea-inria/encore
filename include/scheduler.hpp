@@ -77,8 +77,6 @@ public:
       if (v->nb_strands() == 0) {
         parallel_notify(v->is_future(), v->get_outset());
         delete v;
-      } else {
-        push(v);
       }
     }
     return fuel;
