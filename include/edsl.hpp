@@ -900,7 +900,6 @@ void promote_fork(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       release(branch);
       break;
     }
-    
     default: {
       assert(false);
       return;
