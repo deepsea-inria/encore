@@ -989,22 +989,22 @@ public:
     interpreter* interp1 = interp;
     interpreter* interp2 = nullptr;
     sar* oldest_shared = &peek_marked_shared_frame<sar>(interp1->stack);
-    parallel_loop_activation_record& lp_ar = *oldest_private->loop_activation_record_of(id);
+    auto lp_ar = oldest_private->loop_activation_record_of(id);
     parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
     interp2 = new interpreter(create_stack(oldest_shared, oldest_private));
     interp2->enable_future();
     par& private2 = peek_marked_private_frame<par>(interp2->stack);
     private2.initialize_descriptors();
-    parallel_loop_activation_record& lp_ar2 = *private2.loop_activation_record_of(id);
-    lp_ar.split(&lp_ar2, nb);
+    auto lp_ar2 = private2.loop_activation_record_of(id);
+    lp_ar->split(lp_ar2, nb);
     private2.trampoline = pl_descr.entry;
-    auto& children = lp_ar.get_children();
+    auto& children = lp_ar->get_children();
     if (! children) {
       children.reset(new children_record);
     }
     private_activation_record* destination = new par;
     children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
-    lp_ar2.get_destination() = destination;
+    lp_ar2->get_destination() = destination;
     interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
   }
@@ -1036,6 +1036,8 @@ public:
       sched::new_edge(interp0, interp1);
       interp1->release_handle->decrement();
       interp0->release_handle->decrement();
+      // later: increase parallelism by migrating any parallel iterations
+      // away from interp1, to some new vertex
     } else {
       interp1 = (interpreter*)interp;
     }
