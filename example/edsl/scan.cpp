@@ -111,8 +111,8 @@ public:
       dc::stmt([] (sar& s, par& p) {
         s.scans = malloc_array<value_type>(s.m);
       }),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
-        return ecall<scan_dc>(st, s.m, s.z, s.partials, s.scans);
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return encore_call<scan_dc>(st, pt, s.m, s.z, s.partials, s.scans);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.partials);
