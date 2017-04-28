@@ -598,9 +598,7 @@ stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
 template <class Shared_activation_record>
 stack_type pop_call(stack_type s) {
   using private_activation_record = typename Shared_activation_record::private_activation_record;
-  return cactus::pop_back(s, [&] (char* _ar) {
-    return is_splittable(_ar);
-  }, [&] (char* _ar, cactus::shared_frame_type sft) {
+  return cactus::pop_back(s, [&] (char* _ar, cactus::shared_frame_type sft) {
     if (sft == cactus::Shared_frame_direct) {
       get_shared_frame_pointer<Shared_activation_record>(_ar)->~Shared_activation_record();
     }
@@ -693,7 +691,7 @@ Private_activation_record& peek_marked_private_frame(stack_type s) {
   return *par;
 }
   
-std::pair<stack_type, stack_type> slice_stack(stack_type s) {
+std::pair<stack_type, stack_type> split_stack(stack_type s) {
   return cactus::split_mark(s, [&] (char* _ar) {
     return is_splittable(_ar);
   });
@@ -1005,6 +1003,12 @@ public:
     private_activation_record* destination = new par;
     children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
     lp_ar2->get_destination() = destination;
+    interp->stack = cactus::update_mark_stack_after_split(interp->stack, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
+    interp2->stack = cactus::update_mark_stack_after_split(interp2->stack, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
     interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
   }
@@ -1021,7 +1025,7 @@ public:
     sched::vertex* join = lp_ar->get_join();
     if (join == nullptr) {
       join = interp;
-      auto stacks = slice_stack(interp->stack);
+      auto stacks = split_stack(interp->stack);
       interp->stack = stacks.first;
       interp1 = new interpreter(create_stack(oldest_shared, oldest_private));
       interpreter* interp0 = new interpreter(stacks.second);
@@ -1029,6 +1033,9 @@ public:
       oldest_private->initialize_descriptors();
       auto lp_ar1 = oldest_private->loop_activation_record_of(id);
       lp_ar->split(lp_ar1, lp_ar->nb_strands());
+      interp->stack = cactus::update_mark_stack_after_split(interp->stack, [&] (char* _ar) {
+        return pcfg::is_splittable(_ar);
+      });
       lp_ar1->get_join() = join;
       oldest_private->trampoline = pl_descr.exit;
       lp_ar->get_join() = nullptr;
@@ -1050,6 +1057,12 @@ public:
     private2.trampoline = pl_descr.entry;
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
+    interp1->stack = cactus::update_mark_stack_after_split(interp1->stack, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
+    interp2->stack = cactus::update_mark_stack_after_split(interp2->stack, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
     return std::make_pair(interp1, interp2);
   }
   
@@ -1815,7 +1828,7 @@ private:
         auto footer_label = new_label();
         auto update_label = new_label();
         add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_marks(st, [&] (char* _ar) {
+          return pcfg::cactus::update_mark_stack_after_loop_iters(st, [&] (char* _ar) {
             return pcfg::is_splittable(_ar);
           });
         }, header_label));
@@ -1856,6 +1869,12 @@ private:
         auto children_loop_body0_label = new_label();
         auto children_loop_body1_label = new_label();
         auto parent_check_label = new_label();
+        auto update_label = new_label();
+        add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
+          return pcfg::cactus::update_mark_stack_after_loop_iters(st, [&] (char* _ar) {
+            return pcfg::is_splittable(_ar);
+          });
+        }, header_label));
         add_block(initialize_label, bbt::unconditional_jump(stmt.variant_parallel_combine_loop.initialize, header_label));
         auto predicate = stmt.variant_parallel_combine_loop.predicate;
         auto selector = [predicate, body_label, children_loop_finalize_label] (sar& s, par& p) {
@@ -1909,7 +1928,7 @@ private:
           return exit;
         };
         add_block(parent_check_label, bbt::conditional_jump(parent_check));
-        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, update_label, loop_scope, result);
         break;
       }
       case tag_spawn_join: {
