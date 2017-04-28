@@ -1055,14 +1055,14 @@ public:
     oldest_private->loop_activation_record_of(id)->split(lp_ar2, nb);
     lp_ar2->get_join() = join;
     private2.trampoline = pl_descr.entry;
-    sched::new_edge(interp2, join);
-    interp2->release_handle->decrement();
     interp1->stack = cactus::update_mark_stack_after_split(interp1->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
     interp2->stack = cactus::update_mark_stack_after_split(interp2->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
+    sched::new_edge(interp2, join);
+    interp2->release_handle->decrement();
     return std::make_pair(interp1, interp2);
   }
   
