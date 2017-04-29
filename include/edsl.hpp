@@ -1028,23 +1028,22 @@ public:
       auto stacks = split_stack(interp->stack);
       interp->stack = stacks.first;
       interp1 = new interpreter(create_stack(oldest_shared, oldest_private));
-      interpreter* interp0 = new interpreter(stacks.second);
-      oldest_private = &peek_newest_private_frame<par>(interp1->stack);
-      oldest_private->initialize_descriptors();
-      auto lp_ar1 = oldest_private->loop_activation_record_of(id);
+      auto oldest_private_tmp = &peek_newest_private_frame<par>(interp1->stack);
+      oldest_private_tmp->initialize_descriptors();
+      auto lp_ar1 = oldest_private_tmp->loop_activation_record_of(id);
       lp_ar->split(lp_ar1, lp_ar->nb_strands());
+      oldest_private->trampoline = pl_descr.exit;
+      oldest_private = oldest_private_tmp;
       interp->stack = cactus::update_mark_stack_after_split(interp->stack, [&] (char* _ar) {
         return pcfg::is_splittable(_ar);
       });
       lp_ar1->get_join() = join;
-      oldest_private->trampoline = pl_descr.exit;
       lp_ar->get_join() = nullptr;
       sched::new_edge(interp1, join);
+      interpreter* interp0 = new interpreter(stacks.second);
       sched::new_edge(interp0, interp1);
       interp1->release_handle->decrement();
-      interp0->release_handle->decrement();
-      // later: increase parallelism by migrating any parallel iterations
-      // away from interp1, to some new vertex
+      sched::release(interp0);
     } else {
       interp1 = (interpreter*)interp;
     }
