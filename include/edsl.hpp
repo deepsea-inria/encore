@@ -601,6 +601,8 @@ stack_type pop_call(stack_type s) {
   return cactus::pop_back(s, [&] (char* _ar, cactus::shared_frame_type sft) {
     if (sft == cactus::Shared_frame_direct) {
       get_shared_frame_pointer<Shared_activation_record>(_ar)->~Shared_activation_record();
+    } else {
+      *get_shared_frame_pointer<Shared_activation_record*>(_ar) = nullptr;
     }
     get_private_frame_pointer<private_activation_record>(_ar)->~private_activation_record();
   });
@@ -1010,7 +1012,13 @@ public:
       lp_ar->get_join() = nullptr;
       sched::new_edge(interp1, join);
       interpreter* interp0 = new interpreter(stacks.second);
-      sched::new_edge(interp0, interp1);
+      if (interp0->nb_strands() >= 1) {
+        // this conditional is required because if
+        // interp0->nb_strands() == 0, then release(interp0)
+        // will fire all dependencies of interp0, including interp1,
+        // thus causing interp1 to be added twice to the scheduling queue
+        sched::new_edge(interp0, interp1);
+      }
       interp1->release_handle->decrement();
       sched::release(interp0);
     } else {
