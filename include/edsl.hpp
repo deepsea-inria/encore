@@ -1003,7 +1003,7 @@ public:
       lp_ar->split(lp_ar1, lp_ar->nb_strands());
       oldest_private->trampoline = pl_descr.exit;
       oldest_private = oldest_private_tmp;
-      interp->stack = cactus::update_mark_stack_after_split(interp->stack, [&] (char* _ar) {
+      interp->stack = cactus::update_mark_stack(interp->stack, [&] (char* _ar) {
         return pcfg::is_splittable(_ar);
       });
       lp_ar1->get_join() = join;
@@ -1023,10 +1023,10 @@ public:
     oldest_private->loop_activation_record_of(id)->split(lp_ar2, nb);
     lp_ar2->get_join() = join;
     private2.trampoline = pl_descr.entry;
-    interp1->stack = cactus::update_mark_stack_after_split(interp1->stack, [&] (char* _ar) {
+    interp1->stack = cactus::update_mark_stack(interp1->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
-    interp2->stack = cactus::update_mark_stack_after_split(interp2->stack, [&] (char* _ar) {
+    interp2->stack = cactus::update_mark_stack(interp2->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
     sched::new_edge(interp2, join);
@@ -1055,10 +1055,10 @@ public:
     private_activation_record* destination = new par;
     children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
     lp_ar2->get_destination() = destination;
-    interp->stack = cactus::update_mark_stack_after_split(interp->stack, [&] (char* _ar) {
+    interp->stack = cactus::update_mark_stack(interp->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
-    interp2->stack = cactus::update_mark_stack_after_split(interp2->stack, [&] (char* _ar) {
+    interp2->stack = cactus::update_mark_stack(interp2->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
     interp2->release_handle->decrement();
@@ -1827,7 +1827,7 @@ private:
         auto footer_label = new_label();
         auto update_label = new_label();
         add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_mark_stack_after_loop_iters(st, [&] (char* _ar) {
+          return pcfg::cactus::update_mark_stack(st, [&] (char* _ar) {
             return pcfg::is_splittable(_ar);
           });
         }, header_label));
@@ -1870,7 +1870,7 @@ private:
         auto parent_check_label = new_label();
         auto update_label = new_label();
         add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_mark_stack_after_loop_iters(st, [&] (char* _ar) {
+          return pcfg::cactus::update_mark_stack(st, [&] (char* _ar) {
             return pcfg::is_splittable(_ar);
           });
         }, header_label));
