@@ -40,6 +40,8 @@ typedef int uintT;
 #ifndef _ENCORE_PBBS_SEQUENCE_H_
 #define _ENCORE_PBBS_SEQUENCE_H_
 
+using plt_type = encore::edsl::pcfg::cactus::parent_link_type;
+
 template <class T>
 T* malloc_array(size_t n) {
   return (T*)malloc(n * sizeof(T));
@@ -291,8 +293,8 @@ public:
         s.l = nb_blocks(s.e - s.s, block_size);
       }),
       dc::mk_if([] (sar& s, par&) { return s.l <= 1; }, dc::stmts({
-        dc::spawn_join([] (sar& s, par&, stt st) {
-          return ecall<reduceSerial<OT,intT,F,G>>(st, s.s, s.e, s.f, s.g, s.dest);
+        dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+          return encore_call<reduceSerial<OT,intT,F,G>>(st, pt, s.s, s.e, s.f, s.g, s.dest);
         }),
         dc::exit()
       })),
@@ -304,17 +306,17 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<reduceSerial<OT,intT,F,G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
+          return encore_call<reduceSerial<OT,intT,F,G>>(st, pt, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
       })),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto g = getA<OT,intT>(s.Sums);
-        return ecall<reduce<OT,intT,F,typeof(g)>>(st, 0, s.l, s.f, g, s.dest);
+        return encore_call<reduce<OT,intT,F,typeof(g)>>(st, pt, 0, s.l, s.f, g, s.dest);
       }),
       dc::stmt([] (sar& s, par&) {
         free(s.Sums);
@@ -332,21 +334,21 @@ typename reduce<OT,intT,F,G>::cfg_type reduce<OT,intT,F,G>::cfg = reduce<OT,intT
 using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class Activation_record, class ...Args>
-static stack_type ecall(stack_type s, Args... args) {
+static stack_type encore_call(stack_type s, Args... args) {
   return encore::edsl::pcfg::push_call<Activation_record>(s, args...);
 }
 
 template <class OT, class intT, class F>
 stack_type reduce4(OT* A, intT n, F f, OT* dest) {
   auto g = getA<OT,intT>(A);
-  return ecall<reduce<OT,intT,F,typeof(g)>>((intT)0,n,f,g,dest);
+  return encore_call<reduce<OT,intT,F,typeof(g)>>((intT)0,n,f,g,dest);
 }
   
 template <class OT, class intT>
 stack_type plusReduce(OT* A, intT n, OT* dest) {
   auto f = utils::addF<OT>();
   auto g = getA<OT,intT>(A);
-  return ecall<reduce<OT,intT,typeof(f),typeof(g)>>((intT)0,n,f,g,dest);
+  return encore_call<reduce<OT,intT,typeof(f),typeof(g)>>((intT)0,n,f,g,dest);
 }
   
 template <class ET, class intT, class F, class G>
@@ -479,8 +481,8 @@ public:
         s.l = nb_blocks(s.e - s.s, block_size);
       }),
       dc::mk_if([] (sar& s, par&) { return s.l <= 1; }, dc::stmts({
-        dc::spawn_join([] (sar& s, par&, stt st) {
-          return ecall<maxIndexSerial<ET, intT, F, G>>(st, s.s, s.e, s.f, s.g, s.dest);
+        dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+          return encore_call<maxIndexSerial<ET, intT, F, G>>(st, pt, s.s, s.e, s.f, s.g, s.dest);
         }),
         dc::exit()
       })),
@@ -492,9 +494,9 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s != p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<maxIndexSerial<ET, intT, F, G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Idx[p.s]);
+          return encore_call<maxIndexSerial<ET, intT, F, G>>(st, pt, rng.lo, rng.hi, s.f, s.g, &s.Idx[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -524,9 +526,9 @@ template <class ET, class intT, class F, class G>
 typename maxIndex<ET,intT,F,G>::cfg_type maxIndex<ET,intT,F,G>::cfg = maxIndex<ET,intT,F,G>::get_cfg();
 
 template <class ET, class intT, class F>
-stack_type maxIndex4(stack_type st, ET* A, intT n, F f, intT* dest) {
+stack_type maxIndex4(stack_type st, plt_type pt, ET* A, intT n, F f, intT* dest) {
   auto g = getA<ET,intT>(A);
-  return ecall<maxIndex<ET,intT,F,typeof(g)>>(st, (intT)0, n, f, g);
+  return encore_call<maxIndex<ET,intT,F,typeof(g)>>(st, pt, (intT)0, n, f, g);
 }
   
 template <class ET, class intT, class F, class G>
@@ -633,9 +635,9 @@ template <class ET, class intT, class F, class G>
 typename scanSerial<ET,intT,F,G>::cfg_type scanSerial<ET,intT,F,G>::cfg = scanSerial<ET,intT,F,G>::get_cfg();
   
 template <class ET, class intT, class F>
-stack_type scanSerial6(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+stack_type scanSerial6(stack_type st, plt_type pt, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
   auto g = getA<ET,intT>(In);
-  return ecall<scanSerial<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, false, false, dest);
+  return encore_call<scanSerial<ET,intT,F,typeof(g)>>(st, pt, Out, (intT) 0, n, f, g, zero, false, false, dest);
 }
 
 template <class ET, class intT, class F, class G>
@@ -660,8 +662,8 @@ public:
         s.l = nb_blocks(s.e - s.s, block_size);
       }),
       dc::mk_if([] (sar& s, par&) { return s.l <= 2; }, dc::stmts({
-        dc::spawn_join([] (sar& s, par&, stt st) {
-          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, s.s, s.e, s.f, s.g, s.zero, s.inclusive, s.back, s.dest);
+        dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+          return encore_call<scanSerial<ET,intT,F,G>>(st, pt, s.Out, s.s, s.e, s.f, s.g, s.zero, s.inclusive, s.back, s.dest);
         }),
         dc::exit()
       })),
@@ -673,16 +675,16 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<reduceSerial<ET,intT,F,G>>(st, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
+          return encore_call<reduceSerial<ET,intT,F,G>>(st, pt, rng.lo, rng.hi, s.f, s.g, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
       })),
-      dc::spawn_join([] (sar& s, par&, stt st) {
-        return ecall<scan>(st, s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<scan>(st, pt, s.Sums, (intT)0, s.l, s.f, getA<ET,intT>(s.Sums), s.zero, false, s.back, s.dest);
       }),
       dc::stmt([] (sar& s, par& p) {
         p.s = 0;
@@ -691,9 +693,9 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto rng = get_rng(block_size, p.s, p.e, s.s, s.e);
-          return ecall<scanSerial<ET,intT,F,G>>(st, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &p.tmp);
+          return encore_call<scanSerial<ET,intT,F,G>>(st, pt, s.Out, rng.lo, rng.hi, s.f, s.g, s.Sums[p.s], s.inclusive, s.back, &p.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -711,34 +713,34 @@ template <class ET, class intT, class F, class G>
 typename scan<ET,intT,F,G>::cfg_type scan<ET,intT,F,G>::cfg = scan<ET,intT,F,G>::get_cfg();
   
 template <class ET, class intT, class F>
-stack_type scan6(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+stack_type scan6(stack_type st, plt_type pt, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
   auto g = getA<ET,intT>(In);
-  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, false, false, dest);
+  return encore_call<scan<ET,intT,F,typeof(g)>>(st, pt, Out, (intT) 0, n, f, g, zero, false, false, dest);
 }
 
 template <class ET, class intT, class F>
-stack_type scanBack(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+stack_type scanBack(stack_type st, plt_type pt, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
   auto g = getA<ET,intT>(In);
-  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, false, true, dest);
+  return encore_call<scan<ET,intT,F,typeof(g)>>(st, pt, Out, (intT) 0, n, f, g, zero, false, true, dest);
 }
 
 template <class ET, class intT, class F>
-stack_type scanI(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+stack_type scanI(stack_type st, plt_type pt, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
   auto g = getA<ET,intT>(In);
-  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, true, false, dest);
+  return encore_call<scan<ET,intT,F,typeof(g)>>(st, pt, Out, (intT) 0, n, f, g, zero, true, false, dest);
 }
 
 template <class ET, class intT, class F>
-stack_type scanIBack(stack_type st, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
+stack_type scanIBack(stack_type st, plt_type pt, ET *In, ET* Out, intT n, F f, ET zero, ET* dest) {
   auto g = getA<ET,intT>(In);
-  return ecall<scan<ET,intT,F,typeof(g)>>(st, Out, (intT) 0, n, f, g, zero, true, true, dest);
+  return encore_call<scan<ET,intT,F,typeof(g)>>(st, pt, Out, (intT) 0, n, f, g, zero, true, true, dest);
 }
   
 template <class ET, class intT>
-stack_type plusScan(stack_type st, ET *In, ET* Out, intT n, ET* dest) {
+stack_type plusScan(stack_type st, plt_type pt, ET *In, ET* Out, intT n, ET* dest) {
   auto f = utils::addF<ET>();
   auto g = getA<ET,intT>(In);
-  return ecall<scan<ET, intT, typeof(f), typeof(g)>>(st, Out, (intT)0, n, f, g, (ET)0, false, false, dest);
+  return encore_call<scan<ET, intT, typeof(f), typeof(g)>>(st, pt, Out, (intT)0, n, f, g, (ET)0, false, false, dest);
 }
   
 template <class intT>
@@ -808,8 +810,8 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::mk_if([] (sar& s, par&) { return s.Out == nullptr; }, dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
-          return ecall<sumFlagsSerial<intT>>(st, s.Fl + s.s, s.e - s.s, &s.m);
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<sumFlagsSerial<intT>>(st, pt, s.Fl + s.s, s.e - s.s, &s.m);
         }),
         dc::stmt([] (sar& s, par&) {
           s.Out = malloc_array<ET>(s.m);
@@ -871,8 +873,8 @@ public:
         s.l = nb_blocks(s.e - s.s, get_pack_block_size());
       }),
       dc::mk_if([] (sar& s, par&) { return s.l <= 1; }, dc::stmts({
-        dc::spawn_join([] (sar& s, par&, stt st) {
-          return ecall<packSerial<ET, intT, F>>(st, s.Out, s.Fl, s.s, s.e, s.f, s.dest);
+        dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+          return encore_call<packSerial<ET, intT, F>>(st, pt, s.Out, s.Fl, s.s, s.e, s.f, s.dest);
         }),
         dc::exit()
       })),
@@ -884,16 +886,16 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto rng = get_rng(get_pack_block_size(), p.s, p.e, s.s, s.e);
-          return ecall<sumFlagsSerial<intT>>(st, s.Fl + rng.lo, rng.hi - rng.lo, &s.Sums[p.s]);
+          return encore_call<sumFlagsSerial<intT>>(st, pt, s.Fl + rng.lo, rng.hi - rng.lo, &s.Sums[p.s]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
         })
       })),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
-        return plusScan(st, s.Sums, s.Sums, s.l, &s.m);
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return plusScan(st, pt, s.Sums, s.Sums, s.l, &s.m);
       }),
       dc::stmt([] (sar& s, par& p) {
         if (s.Out == nullptr) s.Out = malloc_array<ET>(s.m);
@@ -903,9 +905,9 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto rng = get_rng(get_pack_block_size(), p.s, p.e, s.s, s.e);
-          return ecall<packSerial<ET, intT, F>>(st, s.Out + s.Sums[p.s], s.Fl, rng.lo, rng.hi, s.f, &p.tmp);
+          return encore_call<packSerial<ET, intT, F>>(st, pt, s.Out + s.Sums[p.s], s.Fl, rng.lo, rng.hi, s.f, &p.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -924,15 +926,15 @@ template <class ET, class intT, class F>
 typename pack<ET,intT,F>::cfg_type pack<ET,intT,F>::cfg = pack<ET,intT,F>::get_cfg();
   
 template <class ET, class intT>
-stack_type pack5(stack_type st, ET* In, ET* Out, bool* Fl, intT n, _seq<ET>* dest) {
+stack_type pack5(stack_type st, plt_type pt, ET* In, ET* Out, bool* Fl, intT n, _seq<ET>* dest) {
   auto f = getA<ET,intT>(In);
-  return ecall<pack<ET,intT,typeof(f)>>(st, Out, Fl, (intT) 0, n, f, dest);
+  return encore_call<pack<ET,intT,typeof(f)>>(st, pt, Out, Fl, (intT) 0, n, f, dest);
 }
   
 template <class ET, class intT>
-stack_type pack4(stack_type st, ET* In, bool* Fl, intT n, _seq<ET>* dest) {
+stack_type pack4(stack_type st, plt_type pt, ET* In, bool* Fl, intT n, _seq<ET>* dest) {
   auto f = getA<ET,intT>(In);
-  return ecall<pack<ET,intT,typeof(f)>>(st, (ET*) nullptr, Fl, (intT) 0, n, f, dest);
+  return encore_call<pack<ET,intT,typeof(f)>>(st, pt, (ET*) nullptr, Fl, (intT) 0, n, f, dest);
 }
 
 template <class ET, class intT, class PRED>
@@ -970,8 +972,8 @@ public:
           }
           p.s = ss;
         })),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
-        return pack5(st, s.In, s.Out, s.Fl, s.n, &s.tmp);
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return pack5(st, pt, s.In, s.Out, s.Fl, s.n, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.m = (intT)s.tmp.n;
@@ -1021,8 +1023,8 @@ public:
           }
           p.s = ss;
         })),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
-        return pack4<ET,intT>(st, s.In, s.Fl, s.n, s.dest);
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return pack4<ET,intT>(st, pt, s.In, s.Fl, s.n, s.dest);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.Fl);
