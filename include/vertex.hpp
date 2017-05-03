@@ -16,6 +16,8 @@ public:
   
   incounter_handle* release_handle = nullptr;
   
+  bool is_suspended = false;
+  
 private:
   
   std::unique_ptr<incounter> in;

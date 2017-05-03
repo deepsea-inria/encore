@@ -320,6 +320,10 @@ vertex* my_vertex() {
 }
   
 void schedule(vertex* v) {
+  if (v->is_suspended) {
+    suspend(v);
+    return;
+  }
   if (v->nb_strands() == 0) {
     parallel_notify(v->is_future(), v->get_outset());
     delete v;

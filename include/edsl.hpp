@@ -31,6 +31,9 @@ class private_activation_record;
   
 class interpreter;
   
+static constexpr
+int suspend_tag = -1;
+  
 using basic_block_label_type = int;
 
 static constexpr
@@ -38,8 +41,6 @@ basic_block_label_type entry_block_label = 0;
   
 static constexpr
 basic_block_label_type exit_block_label = -1;
-  
-static constexpr int suspend_tag = -1;
 
 using basic_block_tag_type = enum {
   tag_unconditional_jump, tag_conditional_jump,
@@ -507,7 +508,9 @@ public:
   
   virtual std::pair<stack_type, int> run(stack_type, int) const = 0;
   
-  virtual void promote_fork(interpreter*, private_activation_record*) = 0;
+  virtual void promote_mark(interpreter*, private_activation_record*) = 0;
+  
+  virtual sched::outset* get_dependency_of_join_minus(stack_type stack) = 0;
   
 };
   
@@ -643,25 +646,33 @@ using peek_mark_result_tag = enum {
   Peek_mark_none, Peek_mark_fork, Peek_mark_loop_split
 };
   
-using peek_mark_result_type = std::tuple<peek_mark_result_tag, shared_activation_record*, private_activation_record*>;
+using peek_mark_result_type = struct {
+  peek_mark_result_tag tag;
+  shared_activation_record* sar;
+  private_activation_record* par;
+};
 
 peek_mark_result_type peek_mark(stack_type s) {
   peek_mark_result_type r;
+  if (empty_mark_stack(s)) {
+    r.tag = Peek_mark_none;
+    return r;
+  }
   cactus::peek_mark(s, [&] (cactus::shared_frame_type sft,
                             cactus::call_link_type clt,
                             char* _ar,
                             cactus::shared_frame_type pred_sft,
                             char* _pred_ar) {
-    std::get<2>(r) = get_private_frame_pointer<private_activation_record>(_ar);
+    r.par = get_private_frame_pointer<private_activation_record>(_ar);
     if ((clt == cactus::Call_link_async) && (_pred_ar != nullptr)) {
-      std::get<0>(r) = Peek_mark_fork;
-      std::get<1>(r) = resolve_shared_frame_pointer<shared_activation_record>(_pred_ar, pred_sft);
-      std::get<2>(r) = get_private_frame_pointer<private_activation_record>(_pred_ar);
-    } else if (std::get<2>(r)->nb_strands() >= 2) {
-      std::get<0>(r) = Peek_mark_loop_split;
-      std::get<1>(r) = resolve_shared_frame_pointer<shared_activation_record>(_ar, sft);
+      r.tag = Peek_mark_fork;
+      r.sar = resolve_shared_frame_pointer<shared_activation_record>(_pred_ar, pred_sft);
+      r.par = get_private_frame_pointer<private_activation_record>(_pred_ar);
+    } else if (r.par->nb_strands() >= 2) {
+      r.tag = Peek_mark_loop_split;
+      r.sar = resolve_shared_frame_pointer<shared_activation_record>(_ar, sft);
     } else {
-      std::get<0>(r) = Peek_mark_none;
+      r.tag = Peek_mark_none;
     }
   });
   return r;
@@ -704,7 +715,7 @@ std::pair<stack_type, stack_type> fork_stack(stack_type s) {
     return is_splittable(_ar);
   });
 }
- 
+  
 class interpreter : public sched::vertex {
 public:
 
@@ -730,39 +741,51 @@ public:
   int run(int fuel) {
     stack_type s = stack;
     while (! empty_stack(s) && (fuel >= 1)) {
-      auto result = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
-      s = result.first;
-      fuel = result.second;
+      auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
+      s = r.first;
+      fuel = r.second;
     }
     stack = s;
     if (fuel == suspend_tag) {
-      suspend(this);
       fuel = 0;
-    } else if ((fuel == 0) && ! empty_mark_stack(stack)) {
-      auto r = peek_mark(stack);
-      switch (std::get<0>(r)) {
-        case Peek_mark_none: {
+      is_suspended = true;
+    }
+    if (nb_strands() == 0) {
+      assert(! is_suspended);
+      return fuel;
+    }
+    if (fuel > 0) {
+      return fuel;
+    }
+    assert(fuel == 0);
+    auto r = peek_mark(stack);
+    switch (r.tag) {
+      case Peek_mark_none: {
+        if (is_suspended) {
+          is_suspended = false;
+          auto dep = peek_newest_shared_frame<shared_activation_record>(s).get_dependency_of_join_minus(stack);
+          assert(dep != nullptr);
+          sched::new_edge(dep, this);
+        } else {
           schedule(this);
-          break;
         }
-        case Peek_mark_fork: {
-          std::get<1>(r)->promote_fork(this, std::get<2>(r));
-          break;
-        }
-        case Peek_mark_loop_split: {
-          auto vertices = split(nb_strands() / 2);
-          schedule(vertices.second);
-          schedule(vertices.first);
-          stats::on_promotion();
-          break;
-        }
-        default: {
-          assert(false);
-          break;
-        }
+        break;
       }
-    } else if (nb_strands() >= 1) {
-      schedule(this);
+      case Peek_mark_fork: {
+        r.sar->promote_mark(this, r.par);
+        break;
+      }
+      case Peek_mark_loop_split: {
+        auto r = split(nb_strands() / 2);
+        schedule(r.second);
+        schedule(r.first);
+        stats::on_promotion();
+        break;
+      }
+      default: {
+        assert(false);
+        break;
+      }
     }
     return fuel;
   }
@@ -778,9 +801,9 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   assert(! empty_stack(stack));
   fuel--;
-  auto& shared_newest = peek_newest_shared_frame<Shared_activation_record>(stack);
-  auto& private_newest = peek_newest_private_frame<private_activation_record>(stack);
-  basic_block_label_type pred = private_newest.trampoline.succ;
+  auto& sar = peek_newest_shared_frame<Shared_activation_record>(stack);
+  auto& par = peek_newest_private_frame<private_activation_record>(stack);
+  basic_block_label_type pred = par.trampoline.succ;
   basic_block_label_type succ;
   if (pred == exit_block_label) {
     stack = pop_call<Shared_activation_record>(stack);
@@ -790,49 +813,49 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   auto& block = cfg.basic_blocks[pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
-      block.variant_unconditional_jump.code(shared_newest, private_newest);
+      block.variant_unconditional_jump.code(sar, par);
       succ = block.variant_unconditional_jump.next;
       break;
     }
     case tag_conditional_jump: {
-      succ = block.variant_conditional_jump.code(shared_newest, private_newest);
+      succ = block.variant_conditional_jump.code(sar, par);
       break;
     }
     case tag_spawn_join: {
-      stack = block.variant_spawn_join.code(shared_newest, private_newest, cactus::Parent_link_sync, stack);
+      stack = block.variant_spawn_join.code(sar, par, cactus::Parent_link_sync, stack);
       succ = block.variant_spawn_join.next;
       break;
     }
     case tag_spawn2_join: {
-      stack = block.variant_spawn2_join.code1(shared_newest, private_newest, cactus::Parent_link_async, stack);
+      stack = block.variant_spawn2_join.code1(sar, par, cactus::Parent_link_async, stack);
       succ = block.variant_spawn2_join.next;
       break;
     }
     case tag_tail: {
       stack = pop_call<Shared_activation_record>(stack);
-      stack = block.variant_tail.code(shared_newest, private_newest, cactus::Parent_link_sync, stack);
+      stack = block.variant_tail.code(sar, par, cactus::Parent_link_sync, stack);
       succ = block.variant_tail.next;
       break;
     }
     case tag_join_plus: {
-      *block.variant_join_plus.getter(shared_newest, private_newest) = nullptr;
-      stack = block.variant_join_plus.code(shared_newest, private_newest, cactus::Parent_link_sync, stack);
+      *block.variant_join_plus.getter(sar, par) = nullptr;
+      stack = block.variant_join_plus.code(sar, par, cactus::Parent_link_sync, stack);
       succ = block.variant_join_plus.next;
       break;
     }
     case tag_spawn_minus: {
-      stack = block.variant_spawn_minus.code(shared_newest, private_newest, cactus::Parent_link_async, stack);
+      stack = block.variant_spawn_minus.code(sar, par, cactus::Parent_link_async, stack);
       succ = block.variant_spawn_minus.next;
       break;
     }
     case tag_spawn_plus: {
-      *block.variant_spawn_plus.getter(shared_newest, private_newest) = nullptr;
-      stack = block.variant_spawn_plus.code(shared_newest, private_newest, cactus::Parent_link_async, stack);
+      *block.variant_spawn_plus.getter(sar, par) = nullptr;
+      stack = block.variant_spawn_plus.code(sar, par, cactus::Parent_link_async, stack);
       succ = block.variant_spawn_plus.next;
       break;
     }
     case tag_join_minus: {
-      sched::outset* outset = *block.variant_join_minus.getter(shared_newest, private_newest);
+      sched::outset* outset = *block.variant_join_minus.getter(sar, par);
       if (outset != nullptr) {
         fuel = suspend_tag;
       }
@@ -843,13 +866,13 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
       assert(false);
     }
   }
-  private_newest.trampoline.pred = pred;
-  private_newest.trampoline.succ = succ;
+  par.trampoline.pred = pred;
+  par.trampoline.succ = succ;
   return std::make_pair(stack, fuel);
 }
 
 template <class Shared_activation_record, class Private_activation_record>
-void promote_fork(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
+void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
                   Shared_activation_record* sar, Private_activation_record* par) {
   basic_block_label_type pred = par->trampoline.pred;
   assert(pred != exit_block_label);
@@ -910,6 +933,17 @@ void promote_fork(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
     }
   }
   stats::on_promotion();
+}
+  
+template <class Shared_activation_record>
+sched::outset* get_dependency_of_join_minus(cfg_type<Shared_activation_record>& cfg, stack_type stack) {
+  using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  auto& sar = peek_newest_shared_frame<Shared_activation_record>(stack);
+  auto& par = peek_newest_private_frame<private_activation_record>(stack);
+  auto& block = cfg.basic_blocks.at(par.trampoline.pred);
+  sched::outset* r = *block.variant_join_minus.getter(sar, par);
+  assert(r != nullptr);
+  return r;
 }
   
 static constexpr parallel_loop_id_type not_a_parallel_loop_id = -1;
@@ -1023,8 +1057,8 @@ public:
       sched::new_edge(interp1, join);
       interpreter* interp00 = new interpreter(stacks.second);
       sched::new_edge(interp00, interp01);
-      sched::release(interp01);
-      sched::release(interp00);
+      release(interp01);
+      release(interp00);
       interp1->release_handle->decrement();
     } else {
       interp1 = interp0;
@@ -2034,8 +2068,12 @@ std::pair<edsl::pcfg::stack_type, int> run(edsl::pcfg::stack_type stack, int fue
   return edsl::pcfg::step(cfg, stack, fuel); \
 } \
 \
-void promote_fork(edsl::pcfg::interpreter* interp, edsl::pcfg::private_activation_record* p) { \
-  edsl::pcfg::promote_fork(cfg, interp, this, (par*)p); \
+void promote_mark(edsl::pcfg::interpreter* interp, edsl::pcfg::private_activation_record* p) { \
+  edsl::pcfg::promote_mark(cfg, interp, this, (par*)p); \
+} \
+\
+sched::outset* get_dependency_of_join_minus(edsl::pcfg::stack_type  stack) { \
+  return edsl::pcfg::get_dependency_of_join_minus(cfg, stack); \
 } \
 \
 using cfg_type = edsl::pcfg::cfg_type<name>; \
