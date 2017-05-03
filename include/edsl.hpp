@@ -914,26 +914,26 @@ void promote_fork(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
   
 static constexpr parallel_loop_id_type not_a_parallel_loop_id = -1;
  
-template <class Sar, class Par>
+template <class Shared_activation_record, class Private_activation_record>
 class parallel_loop_private_activation_record : public private_activation_record {
 public:
   
-  using sar = Sar;
-  using par = Par;
+  using sar_type = Shared_activation_record;
+  using par_type = Private_activation_record;
   
   parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
-    auto p = (par*)this;
+    auto p = (par_type*)this;
     return p->_encore_loop_activation_record_of(id);
   }
   
   void initialize_descriptors() {
-    for (parallel_loop_id_type id = 0; id < sar::cfg.nb_loops(); id++) {
-      sar::cfg.loop_descriptors[id].initializer(*(par*)this, loop_activation_record_of(id));
+    for (parallel_loop_id_type id = 0; id < sar_type::cfg.nb_loops(); id++) {
+      sar_type::cfg.loop_descriptors[id].initializer(*(par_type*)this, loop_activation_record_of(id));
     }
   }
   
   parallel_loop_id_type get_id_of_current_parallel_loop() {
-    return sar::cfg.loop_of[trampoline.pred];
+    return sar_type::cfg.loop_of[trampoline.pred];
   }
   
   parallel_loop_id_type get_id_of_oldest_nonempty() {
@@ -941,7 +941,7 @@ public:
     if (current == not_a_parallel_loop_id) {
       return not_a_parallel_loop_id;
     }
-    for (parallel_loop_id_type id : sar::cfg.loop_descriptors[current].parents) {
+    for (parallel_loop_id_type id : sar_type::cfg.loop_descriptors[current].parents) {
       assert(id != not_a_parallel_loop_id);
       if (loop_activation_record_of(id)->nb_strands() >= 2) {
         return id;
@@ -984,53 +984,58 @@ public:
   
   using split_result = std::pair<sched::vertex*, sched::vertex*>;
   
-  split_result split_join_trivial(interpreter* interp, par* oldest_private,
+  split_result split_join_trivial(interpreter* interp0, par_type* par0, sar_type* sar0,
                                   parallel_loop_id_type id, int nb) {
-    assert(nb < interp->nb_strands());
+    assert(nb < interp0->nb_strands());
     assert(nb > 0);
+    parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
     interpreter* interp1 = nullptr;
     interpreter* interp2 = nullptr;
-    sar* oldest_shared = &peek_marked_shared_frame<sar>(interp->stack);
-    parallel_loop_activation_record* lp_ar = oldest_private->loop_activation_record_of(id);
-    parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
-    sched::vertex* join = lp_ar->get_join();
+    auto lpar0 = par0->loop_activation_record_of(id);
+    par_type* par1 = par0;
+    sched::vertex* join = lpar0->get_join();
     if (join == nullptr) {
-      join = interp;
-      auto stacks = split_stack(interp->stack);
-      interp->stack = stacks.first;
-      interp1 = new interpreter(create_stack(oldest_shared, oldest_private));
-      auto oldest_private_tmp = &peek_newest_private_frame<par>(interp1->stack);
-      oldest_private_tmp->initialize_descriptors();
-      auto lp_ar1 = oldest_private_tmp->loop_activation_record_of(id);
-      lp_ar->split(lp_ar1, lp_ar->nb_strands());
-      oldest_private->trampoline = pl_descr.exit;
-      oldest_private = oldest_private_tmp;
-      interp->stack = cactus::update_mark_stack(interp->stack, [&] (char* _ar) {
+      join = interp0;
+      auto stacks = split_stack(interp0->stack);
+      interp0->stack = stacks.first;
+      interpreter* interp01 = new interpreter(create_stack(sar0, par0));
+      par_type* par01 = &peek_newest_private_frame<par_type>(interp01->stack);
+      par01->initialize_descriptors();
+      auto lpar01 = par01->loop_activation_record_of(id);
+      lpar0->split(lpar01, lpar0->nb_strands());
+      interp0->stack = cactus::update_mark_stack(interp0->stack, [&] (char* _ar) {
         return pcfg::is_splittable(_ar);
       });
-      lp_ar1->get_join() = join;
-      lp_ar->get_join() = nullptr;
+      interp01->stack = cactus::update_mark_stack(interp01->stack, [&] (char* _ar) {
+        return pcfg::is_splittable(_ar);
+      });
+      interp1 = new interpreter(create_stack(sar0, par01));
+      par1 = &peek_newest_private_frame<par_type>(interp1->stack);
+      par1->initialize_descriptors();
+      auto lpar1 = par1->loop_activation_record_of(id);
+      lpar01->split(lpar1, lpar01->nb_strands() - 1);
+      nb--;
+      par0->trampoline = lpdescr.exit;
+      lpar1->get_join() = join;
+      lpar01->get_join() = join;
+      lpar0->get_join() = nullptr;
+      sched::new_edge(interp01, join);
       sched::new_edge(interp1, join);
-      interpreter* interp0 = new interpreter(stacks.second);
-      if (interp0->nb_strands() >= 1) {
-        // this conditional is required because if
-        // interp0->nb_strands() == 0, then release(interp0)
-        // will fire all dependencies of interp0, including interp1,
-        // thus causing interp1 to be added twice to the scheduling queue
-        sched::new_edge(interp0, interp1);
-      }
+      interpreter* interp00 = new interpreter(stacks.second);
+      sched::new_edge(interp00, interp01);
+      sched::release(interp01);
+      sched::release(interp00);
       interp1->release_handle->decrement();
-      sched::release(interp0);
     } else {
-      interp1 = (interpreter*)interp;
+      interp1 = interp0;
     }
-    interp2 = new interpreter(create_stack(oldest_shared, oldest_private));
-    par& private2 = peek_newest_private_frame<par>(interp2->stack);
-    private2.initialize_descriptors();
-    auto lp_ar2 = private2.loop_activation_record_of(id);
-    oldest_private->loop_activation_record_of(id)->split(lp_ar2, nb);
-    lp_ar2->get_join() = join;
-    private2.trampoline = pl_descr.entry;
+    interp2 = new interpreter(create_stack(sar0, par1));
+    par_type* par2 = &peek_newest_private_frame<par_type>(interp2->stack);
+    par2->initialize_descriptors();
+    auto lpar2 = par2->loop_activation_record_of(id);
+    par1->loop_activation_record_of(id)->split(lpar2, nb);
+    lpar2->get_join() = join;
+    par2->trampoline = lpdescr.entry;
     interp1->stack = cactus::update_mark_stack(interp1->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
@@ -1042,28 +1047,27 @@ public:
     return std::make_pair(interp1, interp2);
   }
   
-  split_result split_join_associative_combine(interpreter* interp, par* oldest_private,
+  split_result split_join_associative_combine(interpreter* interp0, par_type* par0, sar_type* sar0,
                                               parallel_loop_id_type id, int nb) {
-    interpreter* interp1 = interp;
+    parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
+    interpreter* interp1 = interp0;
     interpreter* interp2 = nullptr;
-    sar* oldest_shared = &peek_marked_shared_frame<sar>(interp1->stack);
-    auto lp_ar = oldest_private->loop_activation_record_of(id);
-    parallel_loop_descriptor_type<par>& pl_descr = sar::cfg.loop_descriptors[id];
-    interp2 = new interpreter(create_stack(oldest_shared, oldest_private));
+    auto lpar0 = par0->loop_activation_record_of(id);
+    interp2 = new interpreter(create_stack(sar0, par0));
     interp2->enable_future();
-    par& private2 = peek_marked_private_frame<par>(interp2->stack);
-    private2.initialize_descriptors();
-    auto lp_ar2 = private2.loop_activation_record_of(id);
-    lp_ar->split(lp_ar2, nb);
-    private2.trampoline = pl_descr.entry;
-    auto& children = lp_ar->get_children();
+    par_type* par2 = &peek_marked_private_frame<par_type>(interp2->stack);
+    par2->initialize_descriptors();
+    auto lpar2 = par2->loop_activation_record_of(id);
+    lpar0->split(lpar2, nb);
+    par2->trampoline = lpdescr.entry;
+    auto& children = lpar0->get_children();
     if (! children) {
       children.reset(new children_record);
     }
-    private_activation_record* destination = new par;
+    private_activation_record* destination = new par_type;
     children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
-    lp_ar2->get_destination() = destination;
-    interp->stack = cactus::update_mark_stack(interp->stack, [&] (char* _ar) {
+    lpar2->get_destination() = destination;
+    interp0->stack = cactus::update_mark_stack(interp0->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
     interp2->stack = cactus::update_mark_stack(interp2->stack, [&] (char* _ar) {
@@ -1073,17 +1077,18 @@ public:
     return std::make_pair(interp1, interp2);
   }
   
-  split_result split(interpreter* interp, int nb) {
+  split_result split(interpreter* interp0, int nb) {
     split_result result;
-    par* oldest_private = &peek_marked_private_frame<par>(interp->stack);
-    parallel_loop_id_type id = oldest_private->get_id_of_oldest_nonempty();
-    switch (sar::cfg.loop_descriptors[id].join) {
-      case parallel_loop_descriptor_type<par>::join_trivial: {
-        result = split_join_trivial(interp, oldest_private, id, nb);
+    par_type* par0 = &peek_marked_private_frame<par_type>(interp0->stack);
+    sar_type* sar0 = &peek_marked_shared_frame<sar_type>(interp0->stack);
+    parallel_loop_id_type id = par0->get_id_of_oldest_nonempty();
+    switch (sar_type::cfg.loop_descriptors[id].join) {
+      case parallel_loop_descriptor_type<par_type>::join_trivial: {
+        result = split_join_trivial(interp0, par0, sar0, id, nb);
         break;
       }
-      case parallel_loop_descriptor_type<par>::join_binary_associative_combine: {
-        result = split_join_associative_combine(interp, oldest_private, id, nb);
+      case parallel_loop_descriptor_type<par_type>::join_binary_associative_combine: {
+        result = split_join_associative_combine(interp0, par0, sar0, id, nb);
         break;
       }
       default: {
