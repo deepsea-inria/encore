@@ -1121,15 +1121,15 @@ public:
     return *hi - *lo;
   }
   
-  void split(parallel_loop_activation_record* _destination, int nb) {
-    parallel_for_activation_record* destination = (parallel_for_activation_record*)_destination;
+  void split(parallel_loop_activation_record* _dest, int nb) {
+    parallel_for_activation_record* dest = (parallel_for_activation_record*)_dest;
     int orig = nb_strands();
     assert(nb >= 0 && nb <= orig);
     int mid = (orig - nb) + *lo;
-    *(destination->hi) = *hi;
+    *(dest->hi) = *hi;
     *hi = mid;
-    *(destination->lo) = mid;
-    assert((destination->nb_strands() == nb) && (nb_strands() + nb == orig));
+    *(dest->lo) = mid;
+    assert((dest->nb_strands() == nb) && (nb_strands() + nb == orig));
   }
   
   sched::vertex*& get_join() {
@@ -1172,15 +1172,15 @@ public:
     return *hi - *lo;
   }
   
-  void split(parallel_loop_activation_record* _destination, int nb) {
-    parallel_combine_activation_record* destination = (parallel_combine_activation_record*)_destination;
+  void split(parallel_loop_activation_record* _dest, int nb) {
+    parallel_combine_activation_record* dest = (parallel_combine_activation_record*)_dest;
     int orig = nb_strands();
     assert(nb >= 0 && nb <= orig);
     int mid = (orig - nb) + *lo;
-    *(destination->hi) = *hi;
+    *(dest->hi) = *hi;
     *hi = mid;
-    *(destination->lo) = mid;
-    assert((destination->nb_strands() == nb) && (nb_strands() + nb == orig));
+    *(dest->lo) = mid;
+    assert((dest->nb_strands() == nb) && (nb_strands() + nb == orig));
   }
   
   sched::vertex*& get_join() {
