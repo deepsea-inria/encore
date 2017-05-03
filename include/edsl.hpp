@@ -763,8 +763,8 @@ public:
       case Peek_mark_none: {
         if (is_suspended) {
           is_suspended = false;
-          auto dep = peek_newest_shared_frame<shared_activation_record>(s).get_dependency_of_join_minus(stack);
-          assert(dep != nullptr);
+          auto& par = peek_newest_shared_frame<shared_activation_record>(stack);
+          auto dep = par.get_dependency_of_join_minus(stack);
           sched::new_edge(dep, this);
         } else {
           schedule(this);
