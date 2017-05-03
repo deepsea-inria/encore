@@ -1052,22 +1052,24 @@ public:
     parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
     interpreter* interp1 = interp0;
     interpreter* interp2 = nullptr;
-    auto lpar0 = par0->loop_activation_record_of(id);
-    interp2 = new interpreter(create_stack(sar0, par0));
+    par_type* par1 = par0;
+    sar_type* sar1 = sar0;
+    auto lpar1 = par1->loop_activation_record_of(id);
+    interp2 = new interpreter(create_stack(sar1, par1));
     interp2->enable_future();
-    par_type* par2 = &peek_marked_private_frame<par_type>(interp2->stack);
+    par_type* par2 = &peek_newest_private_frame<par_type>(interp2->stack);
     par2->initialize_descriptors();
     auto lpar2 = par2->loop_activation_record_of(id);
-    lpar0->split(lpar2, nb);
+    lpar1->split(lpar2, nb);
     par2->trampoline = lpdescr.entry;
-    auto& children = lpar0->get_children();
+    auto& children = lpar1->get_children();
     if (! children) {
       children.reset(new children_record);
     }
     private_activation_record* destination = new par_type;
     children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
     lpar2->get_destination() = destination;
-    interp0->stack = cactus::update_mark_stack(interp0->stack, [&] (char* _ar) {
+    interp1->stack = cactus::update_mark_stack(interp1->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
     interp2->stack = cactus::update_mark_stack(interp2->stack, [&] (char* _ar) {
@@ -1149,20 +1151,22 @@ public:
 class parallel_combine_activation_record : public parallel_loop_activation_record {
 public:
   
-  parallel_combine_activation_record() { }
+  parallel_combine_activation_record()
+  : lo(nullptr), hi(nullptr), destination(nullptr) { }
   
   parallel_combine_activation_record(int& lo, int& hi)
-  : lo(&lo), hi(&hi) { }
+  : lo(&lo), hi(&hi), destination(nullptr) { }
   
-  parallel_combine_activation_record(const parallel_combine_activation_record&) { }
+  parallel_combine_activation_record(const parallel_combine_activation_record& other)
+  : lo(other.lo), hi(other.hi), destination(nullptr) { }
   
-  int* lo = nullptr;
+  int* lo;
   
-  int* hi = nullptr;
+  int* hi;
   
   std::unique_ptr<children_record> children;
   
-  private_activation_record* destination = nullptr;
+  private_activation_record* destination;
  
   int nb_strands() {
     return *hi - *lo;
