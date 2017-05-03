@@ -206,6 +206,7 @@ public:
   
   int n;
   int* a;
+  int* b;
   int result;
   
   parallel_combine_0() { }
@@ -243,8 +244,10 @@ public:
         p.hi = s.n;
         p.acc = 0;
         s.a = new int[s.n];
+        s.b = new int[s.n];
         for (int i = 0; i < s.n; i++) {
           s.a[i] = i % 1024;
+          s.b[i] = 0;
         }
       }),
       dc::parallel_combine_loop([] (sar&, par& p) { return p.lo != p.hi; },
@@ -253,6 +256,7 @@ public:
                                 [] (sar&, par& p, par& destination) { destination.acc += p.acc; },
                                 dc::stmt([] (sar& s, par& p) {
         p.acc += s.a[p.lo];
+        s.b[p.lo] = 0xdeadbeef;
         p.lo++;
       })),
       dc::stmt([] (sar& s, par& p) {
@@ -261,10 +265,12 @@ public:
         int acc2 = 0;
         for (int i = 0; i < s.n; i++) {
           acc2 += s.a[i];
+          assert(s.b[i] == 0xdeadbeef);
         }
         assert(s.result == acc2);
 #endif
         delete [] s.a;
+        delete [] s.b;
       })
     });
   }
