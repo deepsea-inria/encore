@@ -1050,6 +1050,7 @@ public:
       lpar01->split(lpar1, lpar01->nb_strands() - 1);
       nb--;
       par0->trampoline = lpdescr.exit;
+      par1->trampoline = lpdescr.entry;
       lpar1->get_join() = join;
       lpar01->get_join() = join;
       lpar0->get_join() = nullptr;
