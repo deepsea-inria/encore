@@ -1051,17 +1051,17 @@ public:
       par01->initialize_descriptors();
       auto lpar01 = par01->loop_activation_record_of(id);
       lpar0->split(lpar01, lpar0->nb_strands());
+      interp1 = new interpreter(create_stack(sar0, par01));
+      par1 = &peek_newest_private_frame<par_type>(interp1->stack);
+      par1->initialize_descriptors();
+      auto lpar1 = par1->loop_activation_record_of(id);
+      lpar01->split(lpar1, lpar01->nb_strands() - 1);
       interp0->stack = cactus::update_mark_stack(interp0->stack, [&] (char* _ar) {
         return pcfg::is_splittable(_ar);
       });
       interp01->stack = cactus::update_mark_stack(interp01->stack, [&] (char* _ar) {
         return pcfg::is_splittable(_ar);
       });
-      interp1 = new interpreter(create_stack(sar0, par01));
-      par1 = &peek_newest_private_frame<par_type>(interp1->stack);
-      par1->initialize_descriptors();
-      auto lpar1 = par1->loop_activation_record_of(id);
-      lpar01->split(lpar1, lpar01->nb_strands() - 1);
       nb--;
       par0->trampoline = lpdescr.exit;
       par1->trampoline = lpdescr.entry;
