@@ -134,18 +134,18 @@ namespace intSort {
             p.s++;
           })
         })),
-        dc::spawn_join([] (sar& s, par& p, stt st) {
-          return transpose2(st, s.cnts, s.oA, s.blocks, s.m);
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return transpose2(st, pt, s.cnts, s.oA, s.blocks, s.m);
         }),
         dc::mk_if([] (sar& s, par& p) {
           return s.top;
-        }, dc::spawn_join([] (sar& s, par& p, stt st) {
-          return sequence::scan6(st, s.oA, s.oA, s.blocks*s.m, utils::addF<intT>(), 0, &s.ss);
-        }), dc::spawn_join([] (sar& s, par& p, stt st) {
-          return sequence::scanSerial6(st, s.oA, s.oA, s.blocks*s.m, utils::addF<intT>(), 0, &s.ss);
+        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return sequence::scan6(st, pt, s.oA, s.oA, s.blocks*s.m, utils::addF<intT>(), 0, &s.ss);
+        }), dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return sequence::scanSerial6(st, pt, s.oA, s.oA, s.blocks*s.m, utils::addF<intT>(), 0, &s.ss);
         })),
-        dc::spawn_join([] (sar& s, par& p, stt st) {
-          return blockTrans2(st, s.B, s.A, s.oB, s.oA, s.cnts, s.blocks, s.m);
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return blockTrans2(st, pt, s.B, s.A, s.oB, s.oA, s.cnts, s.blocks, s.m);
         }),
         dc::stmt([] (sar& s, par& p) {
           // put the offsets for each bucket in the first bucket set of BK
@@ -196,9 +196,9 @@ namespace intSort {
           dc::stmt([] (sar& s, par& p) {
             if (s.bitOffset+s.rbits > s.bits) s.rbits = s.bits-s.bitOffset;
           }),
-          dc::spawn_join([] (sar& s, par& p, stt st) {
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             auto f = eBits<E,F>(s.rbits,s.bitOffset,s.f);
-            return ecall<radixStep<E,typeof(f),intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)1 << s.rbits, s.top, f);
+            return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)1 << s.rbits, s.top, f);
           }),
           dc::stmt([] (sar& s, par& p) {
             s.bitOffset += s.rbits;
@@ -240,16 +240,16 @@ namespace intSort {
           }, dc::exit()),
           std::make_pair([] (sar& s, par& p) {
             return s.bits <= MAX_RADIX;
-          }, dc::spawn_join([] (sar& s, par& p, stt st) {
+          }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             auto f = eBits<E,F>(s.bits,0,s.f);
-            return ecall<radixStep<E,typeof(f),intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)1 << s.bits, true, f);
+            return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)1 << s.bits, true, f);
           })),
           std::make_pair([] (sar& s, par& p) {
             return s.numBK >= BUCKETS+1;
           }, dc::stmts({
-            dc::spawn_join([] (sar& s, par& p, stt st) {
+            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
               auto f = eBits<E,F>(MAX_RADIX,s.bits-MAX_RADIX,s.f);
-              return ecall<radixStep<E,typeof(f),intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)BUCKETS, true, f);
+              return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)BUCKETS, true, f);
             }),
             dc::stmt([] (sar& s, par& p) {
               s.offsets = s.BK[0];
@@ -269,8 +269,8 @@ namespace intSort {
                 p.blocksNextOffset = ((intT) floor(p.segNextOffset * s.y)) + p.s + 2;
                 p.blockLen = p.blocksNextOffset - p.blocksOffset;
               }),
-              dc::spawn_join([] (sar& s, par& p, stt st) {
-                return ecall<radixLoopTopDown<E,F,intT>>(st, s.A + p.segOffset, s.B + p.segOffset, s.Tmp + p.segOffset,
+              dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+                return encore_call<radixLoopTopDown<E,F,intT>>(st, pt, s.A + p.segOffset, s.B + p.segOffset, s.Tmp + p.segOffset,
                                                          s.BK + p.blocksOffset, p.blockLen, p.segLen,
                                                          s.bits-MAX_RADIX, s.f);
               }),
@@ -279,8 +279,8 @@ namespace intSort {
               })
             }))
           }))
-        }, dc::spawn_join([] (sar& s, par& p, stt st) {
-          return ecall<radixLoopBottomUp<E, F, intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, false, s.f);
+        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<radixLoopBottomUp<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, false, s.f);
         }))
       });
     }
@@ -338,9 +338,9 @@ namespace intSort {
           std::make_pair([] (sar& s, par& p) {
             return s.bits <= MAX_RADIX;
           }, dc::stmts({
-            dc::spawn_join([] (sar& s, par& p, stt st) {
+            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
               auto f = eBits<E,F>(s.bits,0,s.f);
-              return ecall<radixStep<E,typeof(f),intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT) 1 << s.bits, true, f);
+              return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT) 1 << s.bits, true, f);
             }),
             dc::mk_if([] (sar& s, par& p) {
               return s.bucketOffsets != NULL;
@@ -360,11 +360,11 @@ namespace intSort {
           })),
           std::make_pair([] (sar& s, par& p) {
             return s.bottomUp;
-          }, dc::spawn_join([] (sar& s, par& p, stt st) {
-            return ecall<radixLoopBottomUp<E, F, intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, true, s.f);
+          }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            return encore_call<radixLoopBottomUp<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, true, s.f);
           }))
-        }, dc::spawn_join([] (sar& s, par& p, stt st) {
-          return ecall<radixLoopTopDown<E, F, intT>>(st, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, s.f);
+        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<radixLoopTopDown<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, s.f);
         })),
         dc::mk_if([] (sar& s, par& p) {
           return s.bucketOffsets != NULL;
@@ -394,8 +394,8 @@ namespace intSort {
           dc::stmt([] (sar& s, par& p) {
             s.bucketOffsets[s.f(s.A[0])] = 0;
           }),
-          dc::spawn_join([] (sar& s, par& p, stt st) {
-            return sequence::scanIBack(st, s.bucketOffsets, s.bucketOffsets, s.m, utils::minF<intT>(), s.n, &s.tmp);
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            return sequence::scanIBack(st, pt, s.bucketOffsets, s.bucketOffsets, s.m, utils::minF<intT>(), s.n, &s.tmp);
           })
         }))
       });
