@@ -839,7 +839,7 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
     }
     case tag_join_plus: {
       *block.variant_join_plus.getter(sar, par) = nullptr;
-      stack = block.variant_join_plus.code(sar, par, cactus::Parent_link_sync, stack);
+      stack = block.variant_join_plus.code(sar, par, cactus::Parent_link_async, stack);
       succ = block.variant_join_plus.next;
       break;
     }
@@ -925,6 +925,20 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       *block.variant_spawn_plus.getter(*sar, *par) = branch->get_outset();
       schedule(continuation);
       release(branch);
+      break;
+    }
+    case tag_join_plus: {
+      interpreter* continuation = interp;
+      auto stacks = fork_mark(interp->stack, [&] (char* _ar) {
+        return is_splittable(_ar);
+      });
+      continuation->stack = stacks.first;
+      interpreter* branch = new interpreter(stacks.second);
+      assert(*block.variant_join_plus.getter(*sar, *par) == nullptr);
+      *block.variant_join_plus.getter(*sar, *par) = continuation->get_incounter();
+      new_edge(branch, continuation);
+      release(branch);
+      stats::on_promotion();
       break;
     }
     default: {
