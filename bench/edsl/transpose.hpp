@@ -65,11 +65,11 @@ public:
           s.l2 = s.rCount - s.rCount/2;
         }),
         dc::spawn2_join(
-          [] (sar& s, par&, stt st) {
-            return ecall<transpose<E,intT>>(st, s.A, s.B, s.rStart, s.l1, s.rLength, s.cStart, s.cCount, s.cLength);
+          [] (sar& s, par&, plt pt, stt st) {
+            return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart, s.l1, s.rLength, s.cStart, s.cCount, s.cLength);
           },
-          [] (sar& s, par&, stt st) {
-            return ecall<transpose<E,intT>>(st, s.A, s.B, s.rStart, s.rCount, s.rLength, s.cStart + s.l1, s.l2, s.cLength);
+          [] (sar& s, par&, plt pt, stt st) {
+            return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart, s.rCount, s.rLength, s.cStart + s.l1, s.l2, s.cLength);
           })
       }))
     }, dc::stmts({
@@ -78,11 +78,11 @@ public:
         s.l2 = s.rCount - s.rCount/2;
       }),
       dc::spawn2_join(
-        [] (sar& s, par&, stt st) {
-          return ecall<transpose<E,intT>>(st, s.A, s.B, s.rStart, s.l1, s.rLength, s.cStart, s.cCount, s.cLength);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart, s.l1, s.rLength, s.cStart, s.cCount, s.cLength);
         },
-        [] (sar& s, par&, stt st) {
-          return ecall<transpose<E,intT>>(st, s.A, s.B, s.rStart + s.l1, s.l2, s.rLength, s.cStart, s.cCount, s.cLength);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart + s.l1, s.l2, s.rLength, s.cStart, s.cCount, s.cLength);
         })
     }));
   }
@@ -95,8 +95,8 @@ typename transpose<E,intT>::cfg_type transpose<E,intT>::cfg = transpose<E,intT>:
 using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class E, class intT>
-stack_type transpose2(stack_type st, E *AA, E *BB, intT rCount, intT cCount) {
-  return sequence::ecall<transpose<E,intT>>(st, AA, BB, 0,rCount,cCount,0,cCount,rCount);
+stack_type transpose2(stack_type st, plt_type pt, E *AA, E *BB, intT rCount, intT cCount) {
+  return sequence::encore_call<transpose<E,intT>>(st, pt, AA, BB, 0,rCount,cCount,0,cCount,rCount);
 }
 
 template <class E, class intT>
@@ -148,12 +148,12 @@ public:
           s.l2 = s.cCount - s.cCount/2;
         }),
         dc::spawn2_join(
-          [] (sar& s, par&, stt st) {
-            return ecall<blockTrans<E,intT>>(st, s.A, s.B, s.OA, s.OB, s.L,
+          [] (sar& s, par&, plt_type pt, stt st) {
+            return encore_call<blockTrans<E,intT>>(st, pt, s.A, s.B, s.OA, s.OB, s.L,
                                              s.rStart, s.rCount, s.rLength, s.cStart, s.l1, s.cLength);
           },
-          [] (sar& s, par&, stt st) {
-            return ecall<blockTrans<E,intT>>(st, s.A, s.B, s.OA, s.OB, s.L,
+          [] (sar& s, par&, plt_type pt, stt st) {
+            return encore_call<blockTrans<E,intT>>(st, pt, s.A, s.B, s.OA, s.OB, s.L,
                                              s.rStart, s.rCount, s.rLength, s.cStart + s.l1, s.l2, s.cLength);
           })
       }))
@@ -163,12 +163,12 @@ public:
         s.l2 = s.rCount - s.rCount/2;
       }),
       dc::spawn2_join(
-        [] (sar& s, par&, stt st) {
-          return ecall<blockTrans<E,intT>>(st, s.A, s.B, s.OA, s.OB, s.L,
+        [] (sar& s, par&, plt_type pt, stt st) {
+          return encore_call<blockTrans<E,intT>>(st, pt, s.A, s.B, s.OA, s.OB, s.L,
                                            s.rStart, s.l1, s.rLength, s.cStart, s.cCount, s.cLength);
         },
-        [] (sar& s, par&, stt st) {
-          return ecall<blockTrans<E,intT>>(st, s.A, s.B, s.OA, s.OB, s.L,
+        [] (sar& s, par&, plt_type pt, stt st) {
+          return encore_call<blockTrans<E,intT>>(st, pt, s.A, s.B, s.OA, s.OB, s.L,
                                            s.rStart + s.l1, s.l2, s.rLength, s.cStart, s.cCount, s.cLength);
         })
     }));
@@ -180,10 +180,10 @@ template <class E, class intT>
 typename blockTrans<E,intT>::cfg_type blockTrans<E,intT>::cfg = blockTrans<E,intT>::get_cfg();
 
 template <class E, class intT>
-stack_type blockTrans2(stack_type st, E *AA, E *BB,
+stack_type blockTrans2(stack_type st, plt_type pt, E *AA, E *BB,
                        intT *OOA, intT *OOB, intT *LL,
                        intT rCount, intT cCount) {
-  return sequence::ecall<blockTrans<E,intT>>(st, AA, BB, OOA, OOB, LL, 0,rCount,cCount,0,cCount,rCount);
+  return sequence::encore_call<blockTrans<E,intT>>(st, pt, AA, BB, OOA, OOB, LL, 0,rCount,cCount,0,cCount,rCount);
 }
 
 #endif

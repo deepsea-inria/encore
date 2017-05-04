@@ -117,36 +117,36 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmts({
-        dc::spawn_join([] (sar& s, par& p, stt st) {
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           p.offset = p.s * s.rowSize;
           p.size =  (p.s < s.numR - 1) ? s.rowSize : s.n - p.offset;
-          return ecall<sampleSort>(st, s.A + p.offset, p.size, s.f);
+          return encore_call<sampleSort>(st, pt, s.A + p.offset, p.size, s.f);
         }),
         dc::stmt([] (sar& s, par& p) {
           mergeSeq(s.A + p.offset, s.pivots, s.segSizes + p.s*s.numSegs, p.size, s.numSegs-1, s.f);
           p.s++;
         }),
       })),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         auto plus = [] (intT x, intT y) {
           return x + y;
         };
-        return sequence::scan6(st, s.segSizes, s.offsetA, s.numR*s.numSegs, plus, 0, &p.tmp);
+        return sequence::scan6(st, pt, s.segSizes, s.offsetA, s.numR*s.numSegs, plus, 0, &p.tmp);
       }),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
-        return transpose2(st, s.segSizes, s.offsetB, s.numR, s.numSegs);
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return transpose2(st, pt, s.segSizes, s.offsetB, s.numR, s.numSegs);
       }),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         auto plus = [] (intT x, intT y) {
           return x + y;
         };
-        return sequence::scan6(st, s.offsetB, s.offsetB, s.numR*s.numSegs, plus, 0, &p.tmp);
+        return sequence::scan6(st, pt, s.offsetB, s.offsetB, s.numR*s.numSegs, plus, 0, &p.tmp);
       }),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
-        return blockTrans2(st, s.A, s.B, s.offsetA, s.offsetB, s.segSizes, s.numR, s.numSegs);
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return blockTrans2(st, pt, s.A, s.B, s.offsetA, s.offsetB, s.segSizes, s.numR, s.numSegs);
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
-        return ecall<sequence::copy<E*, E*>>(st, s.B, s.B + s.n, s.A);
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<sequence::copy<E*, E*>>(st, pt, s.B, s.B + s.n, s.A);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.B);
@@ -164,18 +164,18 @@ public:
         dc::cond({
           std::make_pair([] (sar& s, par& p) {
             return (p.s == 0);
-          }, dc::spawn_join([] (sar& s, par& p, stt st) {
-            return ecall<sampleSort<E,BinPred,intT>>(st, s.A, s.offsetB[s.numR], s.f);
+          }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.A, s.offsetB[s.numR], s.f);
           })),
           std::make_pair([] (sar& s, par& p) {
             return (p.s < s.numSegs - 1);
           }, dc::mk_if([] (sar& s, par& p) {
                 return (s.f(s.pivots[p.s-1],s.pivots[p.s]));
-              }, dc::spawn_join([] (sar& s, par& p, stt st) {
-                return ecall<sampleSort<E,BinPred,intT>>(st, s.A + p.offset, s.offsetB[(p.s+1)*s.numR] - p.offset, s.f);
+              }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+                return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.A + p.offset, s.offsetB[(p.s+1)*s.numR] - p.offset, s.f);
               })))
-        }, dc::spawn_join([] (sar& s, par& p, stt st) {
-          return ecall<sampleSort<E,BinPred,intT>>(st, s.A + p.offset, s.n - p.offset, s.f);
+        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.A + p.offset, s.n - p.offset, s.f);
         })),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
