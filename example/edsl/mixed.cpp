@@ -28,7 +28,7 @@ public:
   dc get_dc() {
     return
     dc::mk_if([] (sar& s, par& p) { return s.n >= 1; }, dc::stmts({
-      dc::spawn_plus([] (sar& s, par& p, stt st) { return ecall<mixed>(st, s.n / 2); },
+      dc::spawn_plus([] (sar& s, par& p, plt pt, stt st) { return encore_call<mixed>(st, pt, s.n / 2); },
                      [] (sar& s, par& p) { return &s.f; }),
       dc::stmt([] (sar& s, par& p) {
         p.lo = 0;
