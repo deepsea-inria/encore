@@ -214,8 +214,8 @@ public:
         }),
         dc::mk_if([] (sar& s, par& p) { return s.visited[p.s].load() == 0; },
           dc::mk_if([] (sar& s, par& p) { return try_to_claim(s.visited, p.s); },
-            dc::spawn_minus([] (sar& s, par& p, stt st) {
-              return ecall<pdfs_rec>(st, s.visited, s.graph, p.s, s.join); },
+            dc::spawn_minus([] (sar& s, par& p, plt pt, stt st) {
+              return encore_call<pdfs_rec>(st, pt, s.visited, s.graph, p.s, s.join); },
               [] (sar& s, par&) { return s.join; }))),
         dc::stmt([] (sar& s, par& p) {
           p.lo++;
@@ -264,8 +264,8 @@ public:
         s.visited[p.lo].store(0);
         p.lo++;
       })),
-      dc::join_plus([] (sar& s, par&, stt st) {
-        return ecall<pdfs_rec<Vertex_id>>(st, s.visited, s.graph, s.v, &s.join); },
+      dc::join_plus([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<pdfs_rec<Vertex_id>>(st, pt, s.visited, s.graph, s.v, &s.join); },
         [] (sar& s, par&) { return &s.join; })
     });
   }
