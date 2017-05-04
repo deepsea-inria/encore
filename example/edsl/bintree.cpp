@@ -41,11 +41,11 @@ public:
       }),
       dc::stmts({
         dc::stmt([] (sar& s, par&) { s.mid = (s.lo + s.hi) / 2; }),
-        dc::spawn_minus([] (sar& s, par&, stt st) {
-          return ecall<bintree_rec>(st, s.lo, s.mid, s.a, s.join); },
+        dc::spawn_minus([] (sar& s, par&, plt pt, stt st) {
+          return encore_call<bintree_rec>(st, pt, s.lo, s.mid, s.a, s.join); },
           [] (sar& s, par&) { return s.join; }),
-        dc::spawn_minus([] (sar& s, par&, stt st) {
-          return ecall<bintree_rec>(st, s.mid, s.hi, s.a, s.join); },
+        dc::spawn_minus([] (sar& s, par&, plt pt, stt st) {
+          return encore_call<bintree_rec>(st, pt, s.mid, s.hi, s.a, s.join); },
           [] (sar& s, par&) { return s.join; })
       }));
   }
@@ -70,8 +70,8 @@ public:
   static
   dc get_dc() {
     return
-    dc::join_plus([] (sar& s, par&, stt st) {
-      return ecall<bintree_rec>(st, 0, s.n, s.a, &s.join); },
+    dc::join_plus([] (sar& s, par&, plt pt, stt st) {
+      return encore_call<bintree_rec>(st, pt, 0, s.n, s.a, &s.join); },
       [] (sar& s, par&) { return &s.join; });
   }
   
