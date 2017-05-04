@@ -2073,7 +2073,7 @@ void promote_mark(edsl::pcfg::interpreter* interp, edsl::pcfg::private_activatio
   edsl::pcfg::promote_mark(cfg, interp, this, (par*)p); \
 } \
 \
-sched::outset* get_dependency_of_join_minus(edsl::pcfg::stack_type  stack) { \
+encore::sched::outset* get_dependency_of_join_minus(edsl::pcfg::stack_type  stack) { \
   return edsl::pcfg::get_dependency_of_join_minus(cfg, stack); \
 } \
 \
