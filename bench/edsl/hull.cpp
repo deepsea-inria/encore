@@ -131,38 +131,38 @@ public:
         }),
         dc::exit()
       })),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto f = greater<double>();
         auto g = triangArea(s.I,s.P,s.l,s.r);
-        return ecall<maxIndex<double,intT,typeof(f),typeof(g)>>(st, 0, s.n, f, g, &s.idx);
+        return encore_call<maxIndex<double,intT,typeof(f),typeof(g)>>(st, pt, 0, s.n, f, g, &s.idx);
       }),
       dc::stmt([] (sar& s, par&) {
         s.maxP = s.I[s.idx];
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto a = aboveLine(s.P, s.l, s.maxP);
-        return ecall<filterDPS<intT, intT, typeof(a)>>(st, s.I, s.Itmp, s.n, a, &s.n1);
+        return encore_call<filterDPS<intT, intT, typeof(a)>>(st, pt, s.I, s.Itmp, s.n, a, &s.n1);
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto a = aboveLine(s.P, s.maxP, s.r);
-        return ecall<filterDPS<intT, intT, typeof(a)>>(st, s.I, s.Itmp+s.n1, s.n, a, &s.n2);
+        return encore_call<filterDPS<intT, intT, typeof(a)>>(st, pt, s.I, s.Itmp+s.n1, s.n, a, &s.n2);
       }),
       dc::spawn2_join(
-        [] (sar& s, par&, stt st) {
-          return ecall<quickHull>(st, s.Itmp, s.I, s.P, s.n1, s.l, s.maxP, s.depth-1, &s.m1);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<quickHull>(st, pt, s.Itmp, s.I, s.P, s.n1, s.l, s.maxP, s.depth-1, &s.m1);
         },
-        [] (sar& s, par&, stt st) {
-          return ecall<quickHull>(st, s.Itmp+s.n1, s.I+s.n1, s.P, s.n2, s.maxP, s.r, s.depth-1, &s.m2);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<quickHull>(st, pt, s.Itmp+s.n1, s.I+s.n1, s.P, s.n2, s.maxP, s.r, s.depth-1, &s.m2);
         }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
-        return ecall<sequence::copy<intT*, intT*>>(st, s.Itmp, s.Itmp + s.m1, s.I);
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.Itmp, s.Itmp + s.m1, s.I);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.I[s.m1] = s.maxP;
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto Itmp = s.Itmp + s.n1;
-        return ecall<sequence::copy<intT*, intT*>>(st, Itmp, Itmp + s.m2, s.I + s.m1 + 1);
+        return encore_call<sequence::copy<intT*, intT*>>(st, pt, Itmp, Itmp + s.m2, s.I + s.m1 + 1);
       }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = s.m1 + 1 + s.m2;
@@ -211,10 +211,10 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto f = minMaxIndex(s.P);
         auto g = makePair();
-        return ecall<reduce<pair<intT,intT>, intT, typeof(f), typeof(g)>>(st, 0, s.n, f, g, &s.minMax);
+        return encore_call<reduce<pair<intT,intT>, intT, typeof(f), typeof(g)>>(st, pt, 0, s.n, f, g, &s.minMax);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.l = s.minMax.first;
@@ -235,14 +235,14 @@ public:
           s.fBot[p.s] = a < 0;
           p.s++;
         })),
-      dc::spawn_join([] (sar& s, par&, stt st) {
-        return pack5(st, s.Itmp, s.I, s.fTop, s.n, &s.tmp);
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return pack5(st, pt, s.Itmp, s.I, s.fTop, s.n, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.n1 = (intT)s.tmp.n;
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
-        return pack5(st, s.Itmp, s.I + s.n1, s.fBot, s.n, &s.tmp);
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return pack5(st, pt, s.Itmp, s.I + s.n1, s.fBot, s.n, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.n2 = (intT)s.tmp.n;
@@ -250,18 +250,18 @@ public:
         free(s.fBot);
       }),
       dc::spawn2_join(
-        [] (sar& s, par&, stt st) {
-          return ecall<quickHull>(st, s.I, s.Itmp, s.P, s.n1, s.l, s.r, 5, &s.m1);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<quickHull>(st, pt, s.I, s.Itmp, s.P, s.n1, s.l, s.r, 5, &s.m1);
         },
-        [] (sar& s, par&, stt st) {
-          return ecall<quickHull>(st, s.I + s.n1, s.Itmp + s.n1, s.P, s.n2, s.r, s.l, 5, &s.m2);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<quickHull>(st, pt, s.I + s.n1, s.Itmp + s.n1, s.P, s.n2, s.r, s.l, 5, &s.m2);
         }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
-        return ecall<sequence::copy<intT*, intT*>>(st, s.I, s.I + s.m1, s.Itmp + 1);
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.I, s.I + s.m1, s.Itmp + 1);
       }),
-      dc::spawn_join([] (sar& s, par&, stt st) {
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto I = s.I + s.n1;
-        return ecall<sequence::copy<intT*, intT*>>(st, I, I + s.m2, s.Itmp + s.m1 + 2);
+        return encore_call<sequence::copy<intT*, intT*>>(st, pt, I, I + s.m2, s.Itmp + s.m1 + 2);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.I);
