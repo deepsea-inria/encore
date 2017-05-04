@@ -1,6 +1,6 @@
 all: basic
 
-PBENCH_PATH=../../../pbench
+PBENCH_PATH=../../pbench
 
 include $(PBENCH_PATH)/Makefile_common
 

@@ -1,6 +1,6 @@
 TARGET_EXEC ?= fib.dbg
 
-ROOT_DIR=../../
+ROOT_DIR=../
 EXTERN_DIR=$(ROOT_DIR)/../
 
 BUILD_DBG_DIR ?= ./build_dbg
