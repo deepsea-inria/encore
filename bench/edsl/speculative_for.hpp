@@ -119,8 +119,8 @@ public:
             if (s.keep[p.s]) s.keep[p.s] = !s.step.commit(s.I[p.s]);
             p.s++;
           }))),
-        dc::spawn_join([] (sar& s, par& p, stt st) {
-          return sequence::pack5(st, s.I, s.Ihold, s.keep, s.size, &s.tmp);
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return sequence::pack5(st, pt, s.I, s.Ihold, s.keep, s.size, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
           s.numberKeep = (intT)s.tmp.n;
@@ -144,8 +144,8 @@ typename speculative_for<S>::cfg_type speculative_for<S>::cfg = speculative_for<
 using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class S>
-stack_type speculative_for4(stack_type st, S step, intT s, intT e, int granularity, intT* dest) {
-  return sequence::ecall<speculative_for<S>>(st, step, s, e, granularity, 1, -1, dest);
+stack_type speculative_for4(stack_type st, plt_type pt, S step, intT s, intT e, int granularity, intT* dest) {
+  return sequence::encore_call<speculative_for<S>>(st, pt, step, s, e, granularity, 1, -1, dest);
 }
 
 #endif

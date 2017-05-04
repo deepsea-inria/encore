@@ -70,6 +70,8 @@ public:
   
   graph<intT> GS; char** dest;
   char* Flags; intT tmp;
+  
+  maximalIndependentSet() { }
     
   maximalIndependentSet(graph<intT> GS, char** dest)
   : GS(GS), dest(dest) { }
@@ -86,9 +88,9 @@ public:
           s.Flags[i] = 0;
         }
       }),
-      dc::spawn_join([] (sar& s, par& p, stt st) {
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         MISstep mis(s.Flags, s.GS.V);
-        return speculative_for4(st, mis, 0, s.GS.n, 20, &s.tmp);
+        return speculative_for4(st, pt, mis, 0, s.GS.n, 20, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = s.Flags;
