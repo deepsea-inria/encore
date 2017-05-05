@@ -133,6 +133,7 @@ public:
         })),
       dc::stmt([] (sar& s, par& p) {
         free(s.sample_set);
+	s.segments = 2 * s.segments - 1;
         s.b = malloc_array<E>(s.rows * s.row_length);
         s.segments_sizes = malloc_array<intT>(s.rows * s.segments);
         s.offset_a = malloc_array<intT>(s.rows * s.segments);
@@ -194,7 +195,7 @@ public:
             return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.a, s.offset_b[s.rows], s.compare);
           })),
           std::make_pair([] (sar& s, par& p) {
-            return (p.s < s.segments - 1);
+            return (p.s < s.pivots_size);
           }, dc::mk_if([] (sar& s, par& p) {
                 return (s.compare(s.pivots[p.s-1],s.pivots[p.s]));
               }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
