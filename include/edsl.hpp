@@ -1064,6 +1064,7 @@ public:
         return pcfg::is_splittable(_ar);
       });
       nb--;
+      std::swap(interp0->is_suspended, interp01->is_suspended);
       par0->trampoline = lpdescr.exit;
       par1->trampoline = lpdescr.entry;
       lpar1->get_join() = join;
