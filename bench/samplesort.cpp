@@ -86,6 +86,7 @@ public:
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
+  SSORT_THR = cmdline::parse_or_default_int("threshold", SSORT_THR);
   pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);
   int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
   checkit<pasl::pctl::sorted_property>(nb_tests, "samplesort is correct");
