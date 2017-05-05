@@ -17,7 +17,6 @@ INCS := $(shell find $(SRC_DIRS) -name '*.hpp' -or -name '*.h')
 CPPFLAGS_SHARED=$(INC_FLAGS) -MMD -MP -pthread -std=gnu++11 -fpermissive -DENCORE_ENABLE_STATS
 
 CPPFLAGS_DBG ?= $(CPPFLAGS_SHARED) -O0 -g -DENCORE_RANDOMIZE_SCHEDULE -DENCORE_USE_SIMPLE_SYNCHRONIZATION
-CXXFLAGS_DBG ?= $(CPPFLAGS_DBG)
 
 CC_DBG=g++ $(CPPFLAGS_DBG)
 
@@ -36,7 +35,7 @@ $(BUILD_DBG_DIR)/%.c.o: %.c
 # c++ source
 $(BUILD_DBG_DIR)/%.cpp.o: %.cpp
 	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS_DBG) $(CXXFLAGS_DBG) -c $< -o $@
+	$(CC) $(CPPFLAGS_DBG) -c $< -o $@
 
 %.dbg: %.cpp $(ALLDEPS_DBG)
 	$(MKDIR_P) $(dir $@)
