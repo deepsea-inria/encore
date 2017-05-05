@@ -955,6 +955,7 @@ sched::outset* get_dependency_of_join_minus(cfg_type<Shared_activation_record>& 
   auto& sar = peek_newest_shared_frame<Shared_activation_record>(stack);
   auto& par = peek_newest_private_frame<private_activation_record>(stack);
   auto& block = cfg.basic_blocks.at(par.trampoline.pred);
+  assert(block.tag == tag_join_minus);
   sched::outset* r = *block.variant_join_minus.getter(sar, par);
   assert(r != nullptr);
   return r;
