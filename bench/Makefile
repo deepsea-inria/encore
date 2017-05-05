@@ -6,19 +6,20 @@ include $(PBENCH_PATH)/Makefile_common
 
 TCMALLOC_HOME=-L $(HOME)/Installs/gperftools/lib/
 
-CACTUS_HOME=$(HOME)/cactus-stack/include
-CHUNKEDSEQ_HOME=$(HOME)/chunkedseq/include
-ENCORE_INCLUDE_HOME=$(HOME)/encore/include
-CMDLINE_HOME=$(HOME)/cmdline/include
-PBBS_INCLUDE_HOME=$(HOME)/pbbs-include
-PCTL_INCLUDE_HOME=$(HOME)/pctl/include
-PBBS_PCTL_INCLUDE_HOME=$(HOME)/pbbs-pctl/include
-PBBS_PCTL_TEST_INCLUDE_HOME=$(HOME)/pbbs-pctl/test/include
-QUICKCHECK_INCLUDE_HOME=$(HOME)/quickcheck/quickcheck
-HWLOC_HOME=$(HOME)/hwloc/
+PACKAGE_PATH=../../
 
-HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_HOME) --cflags $(HWLOC_HOME)/lib/pkgconfig/hwloc.pc)
-HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_HOME) --libs $(HWLOC_HOME)/lib/pkgconfig/hwloc.pc)
+CACTUS_HOME=$(PACKAGE_PATH)/cactus-stack/include
+CHUNKEDSEQ_HOME=$(PACKAGE_PATH)/chunkedseq/include
+ENCORE_INCLUDE_HOME=$(PACKAGE_PATH)/encore/include
+CMDLINE_HOME=$(PACKAGE_PATH)/cmdline/include
+PBBS_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-include
+PCTL_INCLUDE_HOME=$(PACKAGE_PATH)/pctl/include
+PBBS_PCTL_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-pctl/include
+PBBS_PCTL_TEST_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-pctl/test/include
+QUICKCHECK_INCLUDE_HOME=$(PACKAGE_PATH)/quickcheck/quickcheck
+
+HWLOC_FLAGS=`pkg-config --cflags hwloc`
+HWLOC_LIBS=`pkg-config --libs hwloc`
 HWLOC_DIRECTIVES=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
 
 INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp) $(wildcard $(PCTL_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_INLCUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_TEST_INCLUDE_HOME)/*.hpp) $(wildcard $(QUICKCHECK_INCLUDE_HOME)/*.hpp) $(wildcard $(CACTUS_HOME)/*.hpp)
