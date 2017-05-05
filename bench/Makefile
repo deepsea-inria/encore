@@ -22,7 +22,7 @@ HWLOC_FLAGS=`pkg-config --cflags hwloc`
 HWLOC_LIBS=`pkg-config --libs hwloc`
 HWLOC_DIRECTIVES=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
 
-INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp) $(wildcard $(PCTL_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_INLCUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_TEST_INCLUDE_HOME)/*.hpp) $(wildcard $(QUICKCHECK_INCLUDE_HOME)/*.hpp) $(wildcard $(CACTUS_HOME)/*.hpp)
+INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp) $(wildcard $(PCTL_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_INLCUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_TEST_INCLUDE_HOME)/*.hpp) $(wildcard $(QUICKCHECK_INCLUDE_HOME)/*.hpp) $(wildcard $(CACTUS_HOME)/*.hpp) $(wildcard *.hpp)
 
 INCLUDE_DIRECTIVES= -I $(CHUNKEDSEQ_HOME) -I $(ENCORE_INCLUDE_HOME) -I $(CMDLINE_HOME) -I $(PBBS_INCLUDE_HOME) -I $(PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_TEST_INCLUDE_HOME) -I $(QUICKCHECK_INCLUDE_HOME) -I $(CACTUS_HOME)
 
