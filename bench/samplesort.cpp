@@ -75,7 +75,7 @@ public:
     parray<value_type> b = _in.c;
     auto p = std::less<value_type>();
     encore::launch_interpreter<sampleSort<value_type, typeof(p), intT>>(a.begin(), a.size(), p);
-    std::sort(b.begin(), b.end(), std::less<value_type>());
+    std::sort(b.begin(), b.end(), p);
     return same_sequence(a.cbegin(), a.cend(), b.cbegin(), b.cend());
   }
   

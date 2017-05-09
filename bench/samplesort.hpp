@@ -70,15 +70,14 @@ public:
   E* a; intT n; BinPred compare;
   intT sq; intT row_length; intT rows; intT segments;
   int over_sample; intT sample_set_size; int pivots_size; E* sample_set;
-  E* pivots;
-  E *b; intT *segments_sizes; intT *offset_a; intT *offset_b;
-    
+  E* pivots; E *b; intT *segments_sizes; intT *offset_a; intT *offset_b;
+  
   sampleSort(E* a, intT n, BinPred compare)
   : a(a), n(n), compare(compare) { }
   
   encore_private_activation_record_begin(encore::edsl, sampleSort, 5)
-    intT s; intT e;
-    intT offset; intT size; intT tmp;
+  intT s; intT e;
+  intT offset; intT size; intT tmp;
   encore_private_activation_record_end(encore::edsl, sampleSort, sar, par, dc, get_dc)
   
   static
@@ -112,11 +111,11 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) { // todo: coarsen
-          intT o = utils::hash(p.s)% s.n;
-          s.sample_set[p.s] = s.a[o];
-          p.s++;
-        })),
+                            dc::stmt([] (sar& s, par& p) { // todo: coarsen
+        intT o = utils::hash(p.s)% s.n;
+        s.sample_set[p.s] = s.a[o];
+        p.s++;
+      })),
       dc::stmt([] (sar& s, par& p) {
         std::sort(s.sample_set, s.sample_set + s.sample_set_size, s.compare);
         s.pivots_size = s.segments - 1;
@@ -126,14 +125,14 @@ public:
       }),
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) { // todo: coarsen
-          intT o = s.over_sample * p.s;
-          s.pivots[p.s] = s.sample_set[o];
-          p.s++;
-        })),
+                            dc::stmt([] (sar& s, par& p) { // todo: coarsen
+        intT o = s.over_sample * p.s;
+        s.pivots[p.s] = s.sample_set[o];
+        p.s++;
+      })),
       dc::stmt([] (sar& s, par& p) {
         free(s.sample_set);
-	s.segments = 2 * s.segments - 1;
+        s.segments = 2 * s.segments - 1;
         s.b = malloc_array<E>(s.rows * s.row_length);
         s.segments_sizes = malloc_array<intT>(s.rows * s.segments);
         s.offset_a = malloc_array<intT>(s.rows * s.segments);
@@ -197,10 +196,10 @@ public:
           std::make_pair([] (sar& s, par& p) {
             return (p.s < s.pivots_size);
           }, dc::mk_if([] (sar& s, par& p) {
-                return (s.compare(s.pivots[p.s-1],s.pivots[p.s]));
-              }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-                return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.a + p.offset, s.offset_b[(2 * p.s + 1) * s.rows] - p.offset, s.compare);
-              })))
+            return (s.compare(s.pivots[p.s-1],s.pivots[p.s]));
+          }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.a + p.offset, s.offset_b[(2 * p.s + 1) * s.rows] - p.offset, s.compare);
+          })))
         }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return encore_call<sampleSort<E,BinPred,intT>>(st, pt, s.a + p.offset, s.n - p.offset, s.compare);
         })),
