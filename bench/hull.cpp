@@ -37,6 +37,9 @@
 #include "test.hpp"
 #include "prandgen.hpp"
 #include "geometryio.hpp"
+#include "loaders.hpp"
+
+#include "hull.h"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
@@ -412,11 +415,46 @@ public:
   
 };
 
+/*---------------------------------------------------------------------*/
+/* Benchmarking */
+
+parray<pbbs::_point2d<double>> to_pbbs(parray<pasl::pctl::_point2d<double>>& points) {
+  parray<pbbs::_point2d<double>> result(points.size());
+  for (int i = 0; i < points.size(); i++) {
+    result[i] = pbbs::_point2d<double>(points[i].x, points[i].y);
+  }
+  return result;
+}
+
+
+void benchmark(std::string infile) {
+  parray<point2d> x = io::load<parray<point2d>>(infile);
+  std::string algorithm = cmdline::parse<std::string>("algorithm");
+  deepsea::cmdline::dispatcher d;
+  d.add("encore", [&] {
+    _seq<intT> idxs;
+    encore::launch_interpreter<hull>(x.begin(), x.size(), &idxs);
+    idxs.del();
+  });
+  d.add("pbbs", [&] {
+    encore::run_and_report_elapsed_time([&] {
+      parray<pbbs::_point2d<double>> y = to_pbbs(x);
+      pbbs::hull(y.begin(), (int)y.size());
+    });
+  });
+  d.dispatch("algorithm"); 
+}
+
 } // end namespace
 } // end namespace
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
+  std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
+  if (infile != "") {
+    pasl::pctl::benchmark(infile);
+    return 0;
+  }
   int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
   checkit<pasl::pctl::consistent_hulls_property>(nb_tests, "quickhull is correct");
   return 0;
