@@ -214,7 +214,7 @@ public:
 template <class OT, class intT, class F, class G>
 typename reduceSerial<OT,intT,F,G>::cfg_type reduceSerial<OT,intT,F,G>::cfg = reduceSerial<OT,intT,F,G>::get_cfg();
   
-#if 1
+#ifndef ENCORE_SEQUENCE_USE_PBBS_VERSIONS
   
 template <class OT, class intT, class F, class G>
 class reduce : public encore::edsl::pcfg::shared_activation_record {
@@ -385,7 +385,7 @@ public:
 template <class ET, class intT, class F, class G>
 typename maxIndexSerial<ET,intT,F,G>::cfg_type maxIndexSerial<ET,intT,F,G>::cfg = maxIndexSerial<ET,intT,F,G>::get_cfg();
 
-#if 1
+#ifndef ENCORE_SEQUENCE_USE_PBBS_VERSIONS
   
 template <class ET, class intT, class F, class G>
 class maxIndex : public encore::edsl::pcfg::shared_activation_record {
