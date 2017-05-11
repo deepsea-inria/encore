@@ -12,9 +12,8 @@ let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
 let arg_mode = Mk_runs.mode_from_command_line "mode"
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
-let arg_sizes = XCmd.parse_or_default_list_string "size" ["all"]
 let arg_benchmarks = XCmd.parse_or_default_list_string "benchmark" ["all"]
-let arg_proc = XCmd.parse_or_default_list_int "proc" [1; 10; 40]
+let arg_proc = XCmd.parse_or_default_int "proc" 40
             
 let run_modes =
   Mk_runs.([
@@ -69,7 +68,6 @@ let string_of_millions ?(munit=false) v =
      else if x >= 0.1 then sprintf "%.2f" x
      else sprintf "%.3f" x in
    f ^ (if munit then "m" else "")
-
                         
 let formatter_settings = Env.(
     ["prog", Format_custom (fun s -> "")]
@@ -83,212 +81,6 @@ let formatter_settings = Env.(
 
 let default_formatter =
  Env.format formatter_settings
-
-(*****************************************************************************)
-(** Input data **)
-                        
-type size = Small | Medium | Large
-                               
-let string_of_size = function
-   | Small -> "small"
-   | Medium -> "medium"
-   | Large -> "large"
-
-let size_of_string = function
-   | "small" -> Small
-   | "medium" -> Medium
-   | "large" -> Large
-   | _ -> Pbench.error "invalid argument for argument size"
-
-let arg_sizes =
-   match arg_sizes with
-   | ["all"] -> ["small"; "medium"; "large"]
-   | _ -> arg_sizes
-
-let sequence_benchmarks = ["comparison_sort"; "blockradix_sort"; "remove_duplicates";
-                      "suffix_array"; "convex_hull"; "nearest_neighbours"; "ray_cast"]
-
-let arg_benchmarks = 
-   match arg_benchmarks with
-   | ["all"] -> sequence_benchmarks
-   | ["sequence"] -> sequence_benchmarks
-   | _ -> arg_benchmarks
-
-let use_sizes =
-   List.map size_of_string arg_sizes
-
-let mk_sizes =
-   mk_list string "size" (List.map string_of_size use_sizes)
-                       
-let mk_generator generator = mk string "generator" generator
-
-let types_list = function
-  | "comparison_sort" -> [ "array_double"; "array_string"; ]
-  | "blockradix_sort" -> [ "array_int"; "array_pair_int_int"; ]
-  | "remove_duplicates" -> [ "array_int"; "array_string"; ] (** "array_pair_string_int"; ]**)
-  | "suffix_array" -> [ "string"; ]
-  | "convex_hull" -> [ "array_point2d"; ]
-  | "nearest_neighbours" -> [ "array_point2d"; "array_point3d"; ]
-  | "ray_cast" -> []
-  | _ -> Pbench.error "invalid benchmark"
-
-let generators_list = function
-  | "comparison_sort" -> (function n ->
-    let nb_swaps nb = int_of_float (sqrt (float_of_int nb)) in
-    function
-    | "array_double" -> [
-        mk_generator "random";
-        mk_generator "exponential";
-        ((mk_generator "almost_sorted") & (mk int "nb_swaps" (nb_swaps n)));
-      ]
-    | "array_string" -> [
-        mk_generator "trigrams";
-      ]
-    | _ -> Pbench.error "invalid type")
-  | "blockradix_sort" -> (function n ->
-    function
-    | "array_int" -> [
-        mk_generator "random";
-        mk_generator "exponential";
-      ]
-    | "array_pair_int_int" -> [
-(** TODO solve the problem with the output file name **)
-        ((mk_generator "random") & (mk int "m2" 256));
-        ((mk_generator "random") & (mk int "m2" n));
-      ]
-    | _ -> Pbench.error "invalid type")
-  | "remove_duplicates" -> (function n ->
-    function
-    | "array_int" -> [
-        mk_generator "random";
-        ((mk_generator "random_bounded") & (mk int "m" 100000));
-        mk_generator "exponential";
-      ]
-    | "array_string" -> [
-        mk_generator "trigrams";
-      ]
-(**    | "array_pair_string_int" -> [
-        mk_generator "trigrams";
-      ]**)
-    | _ -> Pbench.error "invalid type")
-  | "suffix_array" -> (function n ->
-    function
-    | "string" -> [
-       mk_generator "trigrams";
-     ]
-    | _ -> Pbench.error "invalid type")
-  | "convex_hull" -> (function n ->
-    function
-    | "array_point2d" -> [
-        mk_generator "in_circle";
-        mk_generator "kuzmin";
-        mk_generator "on_circle";
-      ]
-    | _ -> Pbench.error "invalid type")
-  | "nearest_neighbours" -> (function n ->
-    function
-    | "array_point2d" -> [
-        mk_generator "in_square";
-        mk_generator "kuzmin";
-      ]
-    | "array_point3d" -> [
-        mk_generator "in_cube";
-        mk_generator "on_sphere";
-        mk_generator "plummer";
-      ]
-    | _ -> Pbench.error "invalid_type")
-  | "ray_cast" -> (function n -> function typ -> [])
-  | _ -> Pbench.error "invalid benchmark"
-
-let mk_generate_sequence_inputs benchmark : Params.t =
-  let load = function
-    | Small -> 1000000
-    | Medium -> 10000000
-    | Large -> 100000000
-  in
-  let mk_outfile size typ mk_generator =
-    mk string "outfile" (sprintf "_data/%s_%s_%s.bin" typ (XList.to_string "_" (fun (k, v) -> sprintf "%s" (Env.string_of_value v)) (Params.to_env mk_generator)) size) in
-  let mk_type typ = mk string "type" typ in
-  let mk_n n = mk int "n" n in
-  let mk_size size = (mk_n (load size)) & (mk string "!size" (string_of_size size)) in
-  let use_types = types_list benchmark in
-  let mk_generators = generators_list benchmark in
-  Params.concat (~~ List.map use_sizes (fun size ->
-  Params.concat (~~ List.map use_types (fun typ ->
-  let n = load size in
-  Params.concat (~~ List.map (mk_generators n typ) (fun mk_generator ->
-  (   mk_type typ
-    & mk_size size
-    & mk_generator
-    & (mk_outfile (string_of_size size) typ mk_generator) )))))))
-
-let mk_files_inputs benchmark : Params.t =
-  let mk_type typ = mk string "type" typ in
-  let mk_infile infile = mk string "infile" infile in
-  let mk_infile2 infile2 = mk string "infile2" infile2 in
-  let mk_outfile outfile = mk string "outfile" outfile in
-  match benchmark with
-  | "suffix_array" ->
-    (mk_type "string" &
-    ((mk_infile "data/chr22.dna.txt" & mk_outfile "_data/chr22.dna.bin") ++
-     (mk_infile "data/etext99.txt" & mk_outfile "_data/etext99.bin") ++
-     (mk_infile "data/wikisamp.xml.txt" & mk_outfile "_data/wikisamp.xml.bin")))
-  | "ray_cast" ->
-    (mk_type "ray_cast_test" &
-    ((mk_infile "data/happyTriangles.txt" & mk_infile2 "data/happyRays.txt" & mk_outfile "_data/happy_ray_cast_dataset.bin") ++
-     (mk_infile "data/angelTriangles.txt" & mk_infile2 "data/angelRays.txt" & mk_outfile "_data/angel_ray_cast_dataset.bin") ++
-     (mk_infile "data/dragonTriangles.txt" & mk_infile2 "data/dragonRays.txt" & mk_outfile "_data/dragon_ray_cast_dataset.bin")))
-  | _ -> Params.concat ([])
-
-let mk_sequence_inputs benchmark : Params.t =
-  (mk_generate_sequence_inputs benchmark) ++ (mk_files_inputs benchmark)
-
-let sequence_descriptor_of mk_sequence_inputs =
-   ~~ List.map (Params.to_envs mk_sequence_inputs) (fun e ->
-      (Env.get_as_string e "type"),
-      (Env.get_as_string e "outfile")
-      )
-
-let mk_sequence_input_names benchmark =
-  let mk2 = sequence_descriptor_of (mk_sequence_inputs benchmark) in
-  Params.eval (Params.concat (~~ List.map mk2 (fun (typ,outfile) ->
-    (mk string "type" typ) &
-    (mk string "infile" outfile)
-  )))            
-
-let mk_lib_types =
-  mk_list string "lib_type" [ "pctl"; "pbbs"; ]
-              
-(*****************************************************************************)
-(** Input-data generator *)
-
-module ExpGenerate = struct
-
-let name = "generate"
-
-let prog = "./sequence_data.opt"
-
-let make() =
-  build "." [prog] arg_virtual_build
-
-let run() =
-  Mk_runs.(call (run_modes @ [
-    Output (file_results name);
-    Timeout 400;
-    Args (
-      mk_prog prog
-      & (Params.concat (~~ List.map arg_benchmarks (fun benchmark ->
-         mk_sequence_inputs benchmark)))
-    )
-  ]))
-
-let check = nothing  (* do something here *)
-
-let plot() = ()
-
-let all () = select make run check plot
-
-end
 
 (*****************************************************************************)
 (** Sequence-library benchmark *)
@@ -343,7 +135,7 @@ let check = nothing  (* do something here *)
 let plot() =
      Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
-                              (*                                       Chart_opt Chart.([Dimensions (12.,8.) ]);*)
+                              (* Chart_opt Chart.([Dimensions (12.,8.) ]);*)
                               X_titles_dir Vertical;
          Y_axis [ Axis.Lower (Some 0.); Axis.Upper (Some 2.5);
                   Axis.Is_log false ] 
@@ -364,13 +156,92 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
+(** Comparison benchmark *)
+
+module ExpCompare = struct
+
+let name = "compare"
+
+let encore_prog_of n = n ^ ".encore"
+let cilk_prog_of n = n ^ ".cilk"
+
+let encore_progs = List.map encore_prog_of arg_benchmarks
+let cilk_progs = List.map cilk_prog_of arg_benchmarks
+let all_progs = List.concat [encore_progs; cilk_progs]
+
+let mk_proc = mk int "proc" arg_proc
+
+let mk_progs n =
+  mk_list string "prog" [encore_prog_of n; cilk_prog_of n]
+
+let prog_hull = "hull"
+
+let path_to_infile n = "_data/" ^ n
+
+let input_descriptor_hull = List.map (fun (p, n) -> (path_to_infile p, n)) [
+  "array_point2d_in_circle_large.bin", "in circle";
+  "array_point2d_kuzmin_large.bin", "kuzmin";
+  "array_point2d_on_circle_large.bin", "on circle";
+]
+
+let infiles_of descr = 
+  let (ps, _) = List.split descr in
+  ps
+
+let mk_hull_infiles = 
+  mk_list string "infile" (infiles_of input_descriptor_hull)
+
+let mk_hull_progs =
+  mk_progs prog_hull
+
+let mk_convex_hull =
+    mk_hull_progs
+  & mk_proc
+  & mk_hull_infiles
+
+let make() =
+  build "." all_progs arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 400;
+    Args mk_convex_hull
+  ]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+     Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+                              (* Chart_opt Chart.([Dimensions (12.,8.) ]);*)
+                              X_titles_dir Vertical;
+         Y_axis [ Axis.Lower (Some 0.); Axis.Upper (Some 2.5);
+                  Axis.Is_log false ] 
+         ]);
+      Formatter default_formatter;
+      Charts mk_unit;
+      Series mk_hull_infiles;
+      X mk_hull_progs;
+      Y_label "Time (s)";
+      Y eval_exectime;
+      Y_whiskers eval_exectime_stddev;
+      Output (file_plots name);
+      Results (Results.from_file (file_results name));
+      ]))
+
+let all () = select make run check plot
+
+end
+    
+(*****************************************************************************)
 (** Main *)
 
 let _ =
   let arg_actions = XCmd.get_others() in
   let bindings = [
-    "generate", ExpGenerate.all;
     "sequence", ExpSequenceLibrary.all;
+    "compare", ExpCompare.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
