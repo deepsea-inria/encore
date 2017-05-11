@@ -25,7 +25,7 @@
 
 #include "sequence.hpp"
 #include "transpose.hpp"
-#include "utils.hpp"
+#include "utils.h"
 
 #ifndef A_RADIX_INCLUDED
 #define A_RADIX_INCLUDED
@@ -140,9 +140,9 @@ namespace intSort {
         dc::mk_if([] (sar& s, par& p) {
           return s.top;
         }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return sequence::scan6(st, pt, s.oA, s.oA, s.blocks*s.m, utils::addF<intT>(), 0, &s.ss);
+          return sequence::scan6(st, pt, s.oA, s.oA, s.blocks*s.m, pbbs::utils::addF<intT>(), 0, &s.ss);
         }), dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return sequence::scanSerial6(st, pt, s.oA, s.oA, s.blocks*s.m, utils::addF<intT>(), 0, &s.ss);
+          return sequence::scanSerial6(st, pt, s.oA, s.oA, s.blocks*s.m, pbbs::utils::addF<intT>(), 0, &s.ss);
         })),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return blockTrans2(st, pt, s.B, s.A, s.oB, s.oA, s.cnts, s.blocks, s.m);
@@ -325,7 +325,7 @@ namespace intSort {
     dc get_dc() {
       return dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-          s.bits = utils::log2Up(s.m);
+          s.bits = pbbs::utils::log2Up(s.m);
           s.numBK = 1+s.n/(BUCKETS*8);
           // the temporary space is broken into 3 parts: B, Tmp and BK
           s.B = (E*) s.tmpSpace;
@@ -395,7 +395,7 @@ namespace intSort {
             s.bucketOffsets[s.f(s.A[0])] = 0;
           }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-            return sequence::scanIBack(st, pt, s.bucketOffsets, s.bucketOffsets, s.m, utils::minF<intT>(), s.n, &s.tmp);
+            return sequence::scanIBack(st, pt, s.bucketOffsets, s.bucketOffsets, s.m, pbbs::utils::minF<intT>(), s.n, &s.tmp);
           })
         }))
       });
@@ -405,7 +405,76 @@ namespace intSort {
   
   template <class E, class F, class intT>
   typename iSort<E,F,intT>::cfg_type iSort<E,F,intT>::cfg = iSort<E,F,intT>::get_cfg();
+
+
+  template <class E, class F, class intT>
+  class iSort6 : public encore::edsl::pcfg::shared_activation_record {
+  public:
+    
+    E *A; intT* bucketOffsets; intT n; intT m; bool bottomUp;
+    F f; typedef intT bucketsT[BUCKETS];
+
+    char* ss;
+    
+    iSort6(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp, F f)
+    : A(A), bucketOffsets(bucketOffsets), n(n), m(m), bottomUp(bottomUp),
+    f(f) { }
+
+    encore_dc_declare(encore::edsl, iSort6, sar, par, dc, get_dc)
+    
+    static
+    dc get_dc() {
+      return dc::stmts({
+	dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+	  long x = iSortSpace<E,intT>(s.n);
+	  s.ss = (char*) malloc(x);
+	  return encore_call<iSort<E,F,intT>>(st, pt, s.A, s.bucketOffsets, s.n, s.m, s.bottomUp, s.ss, s.f);
+	}),
+	dc::stmt([] (sar& s, par& p) {
+	  free(s.ss);
+        })
+      });
+    }
+    
+  };
   
+  template <class E, class F, class intT>
+  typename iSort6<E,F,intT>::cfg_type iSort6<E,F,intT>::cfg = iSort6<E,F,intT>::get_cfg();
+
+  template <class E, class F, class intT>
+  stack_type iSort5(stack_type s, plt_type p, E *A, intT* bucketOffsets, intT n, intT m, F f) {
+    return sequence::encore_call<iSort6<E,F,intT>>(s, p, A, bucketOffsets, n, m, false, f);
+  }
+
 } // end namespace
+
+template <class intT>
+class integerSort : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  intT* A; intT n;
+  intT maxV;
+
+  integerSort(intT* A, intT n) : A(A), n(n) { }
+
+  encore_dc_declare(encore::edsl, integerSort, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::spawn_join([] (sar& s, par&, plt p, stt st) {
+        return sequence::reduce4(st, p, s.A, s.n, pbbs::utils::maxF<uintT>(), &(s.maxV));
+      }),
+      dc::spawn_join([] (sar& s, par&, plt p, stt st) {
+	auto f = pbbs::utils::identityF<uintT>();
+	return intSort::iSort5(st, p, s.A, (intT*)NULL, s.n, s.maxV+1, f);
+      })
+    });
+  }
+
+};
+
+template <class intT>
+typename integerSort<intT>::cfg_type integerSort<intT>::cfg = integerSort<intT>::get_cfg();
 
 #endif

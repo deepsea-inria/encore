@@ -112,7 +112,7 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             dc::stmt([] (sar& s, par& p) { // todo: coarsen
-        intT o = utils::hash(p.s)% s.n;
+        intT o = pbbs::utils::hash(p.s)% s.n;
         s.sample_set[p.s] = s.a[o];
         p.s++;
       })),

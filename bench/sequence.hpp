@@ -23,7 +23,7 @@
 #include <algorithm>
 
 #include "edsl.hpp"
-#include "utils.hpp"
+#include "utils.h"
 
 #include <limits.h>
 
@@ -334,21 +334,21 @@ typename reduce<OT,intT,F,G>::cfg_type reduce<OT,intT,F,G>::cfg = reduce<OT,intT
 using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class Activation_record, class ...Args>
-static stack_type encore_call(stack_type s, Args... args) {
-  return encore::edsl::pcfg::push_call<Activation_record>(s, args...);
+static stack_type encore_call(stack_type s, plt_type p, Args... args) {
+  return encore::edsl::pcfg::push_call<Activation_record>(s, p, args...);
 }
 
 template <class OT, class intT, class F>
-stack_type reduce4(OT* A, intT n, F f, OT* dest) {
+stack_type reduce4(stack_type s, plt_type p, OT* A, intT n, F f, OT* dest) {
   auto g = getA<OT,intT>(A);
-  return encore_call<reduce<OT,intT,F,typeof(g)>>((intT)0,n,f,g,dest);
+  return encore_call<reduce<OT,intT,F,typeof(g)>>(s, p, (intT)0,n,f,g,dest);
 }
   
 template <class OT, class intT>
-stack_type plusReduce(OT* A, intT n, OT* dest) {
-  auto f = utils::addF<OT>();
+stack_type plusReduce(stack_type s, plt_type p, OT* A, intT n, OT* dest) {
+  auto f = pbbs::utils::addF<OT>();
   auto g = getA<OT,intT>(A);
-  return encore_call<reduce<OT,intT,typeof(f),typeof(g)>>((intT)0,n,f,g,dest);
+  return encore_call<reduce<OT,intT,typeof(f),typeof(g)>>(s, p, (intT)0,n,f,g,dest);
 }
   
 template <class ET, class intT, class F, class G>
@@ -738,7 +738,7 @@ stack_type scanIBack(stack_type st, plt_type pt, ET *In, ET* Out, intT n, F f, E
   
 template <class ET, class intT>
 stack_type plusScan(stack_type st, plt_type pt, ET *In, ET* Out, intT n, ET* dest) {
-  auto f = utils::addF<ET>();
+  auto f = pbbs::utils::addF<ET>();
   auto g = getA<ET,intT>(In);
   return encore_call<scan<ET, intT, typeof(f), typeof(g)>>(st, pt, Out, (intT)0, n, f, g, (ET)0, false, false, dest);
 }

@@ -34,7 +34,7 @@ void bench_reduce() {
   for (intT i = 0; i < n; i++) {
     input[i] = (value_type)(i % 1024);
   }
-  auto f = utils::addF<value_type>();
+  auto f = pbbs::utils::addF<value_type>();
   auto g = sequence::getA<value_type,intT>(input);
   if (algorithm == "encore") {
     encore::launch_interpreter<sequence::reduce<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
@@ -72,7 +72,7 @@ void bench_max_index() {
   for (intT i = 0; i < n; i++) {
     input[i] = (value_type)i;
   }
-  auto f = utils::addF<value_type>();
+  auto f = pbbs::utils::addF<value_type>();
   auto g = sequence::getA<value_type,intT>(input);
   if (algorithm == "encore") {
     encore::launch_interpreter<sequence::maxIndex<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
@@ -140,7 +140,7 @@ void bench_scan() {
     input[i] = 1;
     output[i] = -1234;
   }
-  auto f = utils::addF<value_type>();
+  auto f = pbbs::utils::addF<value_type>();
   auto g = sequence::getA<value_type,intT>(input);
   if (algorithm == "encore") {
     encore::launch_interpreter<sequence::scan<value_type,intT,typeof(f),typeof(g)>>(output, 0, n, f, g, zero, inclusive, back, &result);
@@ -355,7 +355,7 @@ public:
     value_type* input = in.c.begin();
     intT n = (intT)in.c.size();
     value_type result = 0;
-    auto f = utils::addF<value_type>();
+    auto f = pbbs::utils::addF<value_type>();
     auto g = sequence::getA<value_type,intT>(input);
     encore::launch_interpreter<sequence::reduce<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
     value_type result2 = pbbs::sequence::reduceSerial<value_type>(0, n, f, g);
@@ -393,7 +393,7 @@ public:
     intT n = (intT)in.c.size();
     value_type zero = 0;
     value_type result = 0;
-    auto f = utils::addF<value_type>();
+    auto f = pbbs::utils::addF<value_type>();
     auto g = sequence::getA<value_type,intT>(input);
     parray<intT> output(n);
     bool inclusive = cmdline::parse_or_default("inclusive", false);
