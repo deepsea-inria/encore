@@ -18,8 +18,7 @@ namespace pbbs {
 template <class Item>
 using parray = pasl::pctl::parray<Item>;
 
-void benchmark(std::string infile) {
-  parray<int> x = pasl::pctl::io::load<parray<int>>(infile);
+void benchmark(parray<int>& x) {
   bool should_check = deepsea::cmdline::parse_or_default_bool("check", false);
   parray<int> ref;
   if (should_check) {
@@ -27,7 +26,7 @@ void benchmark(std::string infile) {
   }
   deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
-    encore::launch_interpreter<encorebench::integerSort<intT>>(x.begin(), (int)x.size());
+    encore::launch_interpreter<encorebench::integerSort<int>>(x.begin(), (int)x.size());
   });
   d.add("pbbs", [&] {
     encore::run_and_report_elapsed_time([&] {
@@ -46,6 +45,32 @@ void benchmark(std::string infile) {
       it_ref++;
     }
   }
+}
+
+void benchmark(parray<std::pair<int, int>>& x) {
+  deepsea::cmdline::dispatcher d;
+  d.add("encore", [&] {
+    encore::launch_interpreter<encorebench::integerSortPair<int,intT>>(x.begin(), (int)x.size());
+  });
+  d.add("pbbs", [&] {
+    encore::run_and_report_elapsed_time([&] {
+      integerSort<int>(&x[0], (int)x.size());
+    });
+  });
+  d.dispatch("algorithm");
+}
+
+void benchmark(std::string infile) {
+  deepsea::cmdline::dispatcher d;
+  d.add("array_int", [&] {
+    parray<int> x = pasl::pctl::io::load<parray<int>>(infile);
+    benchmark(x);
+  });
+  d.add("array_pair_int_int", [&]  {
+    parray<std::pair<int, int>> x = pasl::pctl::io::load<parray<std::pair<int, int>>>(infile);
+    benchmark(x);
+  });
+  d.dispatch("type");
 }
 
 } // end namespace

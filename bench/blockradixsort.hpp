@@ -468,8 +468,8 @@ public:
         return sequence::reduce4(st, p, s.A, s.n, pbbs::utils::maxF<uintT>(), &(s.maxV));
       }),
       dc::spawn_join([] (sar& s, par&, plt p, stt st) {
-	auto f = pbbs::utils::identityF<uintT>();
-	return intSort::iSort5(st, p, s.A, (intT*)NULL, s.n, s.maxV+1, f);
+        auto f = pbbs::utils::identityF<uintT>();
+        return intSort::iSort5(st, p, s.A, (intT*)NULL, s.n, s.maxV+1, f);
       })
     });
   }
@@ -478,6 +478,37 @@ public:
 
 template <class intT>
 typename integerSort<intT>::cfg_type integerSort<intT>::cfg = integerSort<intT>::get_cfg();
+
+
+template <class T, class intT>
+class integerSortPair : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  std::pair<intT,T> *A; intT n;
+  intT maxV;
+
+  integerSortPair(std::pair<intT,T> *A, intT n) : A(A), n(n) { }
+
+  encore_dc_declare(encore::edsl, integerSortPair, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::spawn_join([] (sar& s, par&, plt p, stt st) {
+        auto f = pbbs::utils::maxF<uintT>();
+        auto g = pbbs::utils::firstF<uintT,T>();
+        return sequence::mapReduce(st, p, s.A, s.n, f, g, &(s.maxV));
+      }),
+      dc::spawn_join([] (sar& s, par&, plt p, stt st) {
+        return intSort::iSort5(st, p, s.A, (intT*)NULL, s.n, s.maxV+1, pbbs::utils::firstF<uintT,T>());
+      })
+    });
+  }
+
+};
+
+template <class T, class intT>
+typename integerSortPair<T, intT>::cfg_type integerSortPair<T,intT>::cfg = integerSortPair<T,intT>::get_cfg();
 
 } // end namespace
 

@@ -350,7 +350,15 @@ stack_type plusReduce(stack_type s, plt_type p, OT* A, intT n, OT* dest) {
   auto g = getA<OT,intT>(A);
   return encore_call<reduce<OT,intT,typeof(f),typeof(g)>>(s, p, (intT)0,n,f,g,dest);
 }
-  
+
+// g is the map function (applied to each element)
+// f is the reduce function
+template <class OT, class IT, class intT, class F, class G>
+stack_type mapReduce(stack_type s, plt_type p, IT* A, intT n, F f, G g, OT* dest) {
+  auto g2 = getAF<IT,OT,intT,G>(A,g);
+  return encore_call<reduce<OT,intT,F,decltype(g2)>>(s, p, (intT)0,n,f,g2,dest);
+}
+
 template <class ET, class intT, class F, class G>
 class maxIndexSerial : public encore::edsl::pcfg::shared_activation_record {
 public:
