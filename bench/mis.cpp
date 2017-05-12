@@ -35,7 +35,6 @@
 #include "speculative_for.hpp"
 #include "graph.h"
 
-namespace pbbs {
 namespace encorebench {
 
 // **************************************************************
@@ -48,8 +47,8 @@ namespace encorebench {
 //   Flags = 2 indicates a neighbor is chosen
 struct MISstep {
   char flag;
-  char *Flags;  graph::vertex<intT>*G;
-  MISstep(char* _F, graph::vertex<intT>* _G) : Flags(_F), G(_G) {}
+  char *Flags;  pbbs::graph::vertex<intT>*G;
+  MISstep(char* _F, pbbs::graph::vertex<intT>* _G) : Flags(_F), G(_G) {}
   
   bool reserve(intT i) {
     intT d = G[i].degree;
@@ -71,12 +70,12 @@ struct MISstep {
 class maximalIndependentSet : public encore::edsl::pcfg::shared_activation_record {
 public:
   
-  graph::graph<intT> GS; char** dest;
+  pbbs::graph::graph<intT> GS; char** dest;
   char* Flags; intT tmp;
   
   maximalIndependentSet() { }
     
-  maximalIndependentSet(graph::graph<intT> GS, char** dest)
+  maximalIndependentSet(pbbs::graph::graph<intT> GS, char** dest)
   : GS(GS), dest(dest) { }
   
   encore_dc_declare(encore::edsl, maximalIndependentSet, sar, par, dc, get_dc)
@@ -93,7 +92,7 @@ public:
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         MISstep mis(s.Flags, s.GS.V);
-        return speculative_for4(st, pt, mis, 0, s.GS.n, 20, &s.tmp);
+        return encorebench::speculative_for4(st, pt, mis, 0, s.GS.n, 20, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = s.Flags;
@@ -105,7 +104,6 @@ public:
 
 encore_pcfg_allocate(maximalIndependentSet, get_cfg)
 
-} // end namespace
 } // end namespace
 
 #include "sequence.h"

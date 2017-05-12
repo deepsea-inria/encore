@@ -23,8 +23,10 @@
 #include "utils.h"
 #include "sequence.hpp"
 
-#ifndef _SPECULATIVE_FOR_H_
-#define _SPECULATIVE_FOR_H_
+#ifndef _ENCORE_SPECULATIVE_FOR_H_
+#define _ENCORE_SPECULATIVE_FOR_H_
+
+namespace encorebench {
 
 struct reservation {
   intT r;
@@ -148,4 +150,6 @@ stack_type speculative_for4(stack_type st, plt_type pt, S step, intT s, intT e, 
   return sequence::encore_call<speculative_for<S>>(st, pt, step, s, e, granularity, 1, -1, dest);
 }
 
+} // end namespace
+  
 #endif
