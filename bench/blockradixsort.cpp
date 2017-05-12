@@ -19,7 +19,7 @@ using parray = pasl::pctl::parray<Item>;
 
 void benchmark(std::string infile) {
   parray<int> x = pasl::pctl::io::load<parray<int>>(infile);
-    deepsea::cmdline::dispatcher d;
+  deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
     encore::launch_interpreter<integerSort<intT>>(x.begin(), (int)x.size());
   });
