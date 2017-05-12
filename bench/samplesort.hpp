@@ -22,8 +22,10 @@
 
 #include "transpose.hpp"
 
-#ifndef _PBBS_SAMPLESORT_H_
-#define _PBBS_SAMPLESORT_H_
+#ifndef _ENCORE__PBBS_SAMPLESORT_H_
+#define _ENCORE__PBBS_SAMPLESORT_H_
+
+namespace encorebench {
 
 template<class E, class BinPred, class intT>
 void split_positions(E* a, E* b, intT* c, intT length_a, intT length_b, BinPred compare) {
@@ -218,5 +220,7 @@ public:
 
 template<class E, class BinPred, class intT>
 typename sampleSort<E,BinPred,intT>::cfg_type sampleSort<E,BinPred,intT>::cfg = sampleSort<E,BinPred,intT>::get_cfg();
+
+} // end namespace
 
 #endif

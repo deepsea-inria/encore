@@ -27,9 +27,11 @@
 #include "transpose.hpp"
 #include "utils.h"
 
-#ifndef A_RADIX_INCLUDED
-#define A_RADIX_INCLUDED
+#ifndef _ENCORE_A_RADIX_INCLUDED
+#define _ENCORE_A_RADIX_INCLUDED
 
+namespace encorebench {
+  
 namespace intSort {
   
   // Cannot be greater than 8 without changing definition of bIndexT
@@ -476,5 +478,7 @@ public:
 
 template <class intT>
 typename integerSort<intT>::cfg_type integerSort<intT>::cfg = integerSort<intT>::get_cfg();
+
+} // end namespace
 
 #endif

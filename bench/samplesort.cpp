@@ -74,7 +74,7 @@ public:
     parray<value_type> a = _in.c;
     parray<value_type> b = _in.c;
     auto p = std::less<value_type>();
-    encore::launch_interpreter<sampleSort<value_type, typeof(p), intT>>(a.begin(), a.size(), p);
+    encore::launch_interpreter<encorebench::sampleSort<value_type, typeof(p), intT>>(a.begin(), a.size(), p);
     std::sort(b.begin(), b.end(), p);
     return same_sequence(a.cbegin(), a.cend(), b.cbegin(), b.cend());
   }
@@ -86,7 +86,7 @@ public:
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
-  SSORT_THR = cmdline::parse_or_default_int("threshold", SSORT_THR);
+  encorebench::SSORT_THR = cmdline::parse_or_default_int("threshold", encorebench::SSORT_THR);
   pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);
   int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
   checkit<pasl::pctl::sorted_property>(nb_tests, "samplesort is correct");

@@ -20,10 +20,12 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef A_TRANSPOSE_INCLUDED
-#define A_TRANSPOSE_INCLUDED
+#ifndef _ENCORE_A_TRANSPOSE_INCLUDED
+#define _ENCORE_A_TRANSPOSE_INCLUDED
 
-#define _TRANS_THRESHHOLD 64
+#define _TRANS_THRESHHOLD_encore 64
+
+namespace encorebench {
 
 template <class E, class intT>
 class transpose : public encore::edsl::pcfg::shared_activation_record {
@@ -47,7 +49,7 @@ public:
   dc get_dc() {
     return dc::cond({
       std::make_pair([] (sar& s, par& p) {
-        return s.cCount < _TRANS_THRESHHOLD && s.rCount < _TRANS_THRESHHOLD;
+        return s.cCount < _TRANS_THRESHHOLD_encore && s.rCount < _TRANS_THRESHHOLD_encore;
       }, dc::stmt([] (sar& s, par& p) { // later: consider encoding as encore loops?
         auto rStart = s.rStart; auto rCount = s.rCount;
         auto cStart = s.cStart; auto cCount = s.cCount;
@@ -124,7 +126,7 @@ public:
   dc get_dc() {
     return dc::cond({
       std::make_pair([] (sar& s, par& p) {
-        return s.cCount < _TRANS_THRESHHOLD && s.rCount < _TRANS_THRESHHOLD;
+        return s.cCount < _TRANS_THRESHHOLD_encore && s.rCount < _TRANS_THRESHHOLD_encore;
       }, dc::stmt([] (sar& s, par& p) { // later: consider encoding as encore loops?
         auto rStart = s.rStart; auto rCount = s.rCount;
         auto cStart = s.cStart; auto cCount = s.cCount;
@@ -185,6 +187,8 @@ stack_type blockTrans2(stack_type st, plt_type pt, E *AA, E *BB,
                        intT rCount, intT cCount) {
   return sequence::encore_call<blockTrans<E,intT>>(st, pt, AA, BB, OOA, OOB, LL, 0,rCount,cCount,0,cCount,rCount);
 }
+
+} // end namespace
 
 #endif
 
