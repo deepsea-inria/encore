@@ -84,11 +84,65 @@ public:
 } // end namespace
 } // end namespace
 
+/*---------------------------------------------------------------------*/
+/* Benchmarking */
+
+#include "loaders.hpp"
+#include "sampleSort.h"
+
+namespace pbbs {
+
+template <class Item>
+using parray = pasl::pctl::parray<Item>;
+
+template <class Item, class Compare_fn>
+void benchmark(parray<Item>& xs, const Compare_fn& compare_fn) {
+  deepsea::cmdline::dispatcher d;
+  d.add("encore", [&] {
+    encore::launch_interpreter<encorebench::sampleSort<Item, Compare_fn, intT>>(xs.begin(), (int)xs.size(), compare_fn);
+  });
+  d.add("pbbs", [&] {
+    encore::run_and_report_elapsed_time([&] {
+      sampleSort(xs.begin(), (int)xs.size(), compare_fn);
+    });
+  });
+  d.dispatch("algorithm");
+}
+
+void benchmark(std::string infile) {
+  deepsea::cmdline::dispatcher d;
+  d.add("double", [&] {
+    auto xs = pasl::pctl::io::load<parray<double>>(infile);
+    benchmark(xs, std::less<double>());
+  });
+  d.add("int", [&] {
+    auto xs = pasl::pctl::io::load<parray<int>>(infile);
+    benchmark(xs, std::less<int>());
+  });
+  d.add("string", [&] {
+    parray<char*> xs = pasl::pctl::io::load<parray<char*>>(infile);
+    benchmark(xs, [&] (char* a, char* b) {
+      return std::strcmp(a, b) < 0;
+    });
+    for (int i = 0; i < xs.size(); i++) {
+      delete [] xs[i];
+    }
+  }); 
+  d.dispatch("type");
+}
+
+} // end namespace
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   encorebench::SSORT_THR = cmdline::parse_or_default_int("threshold", encorebench::SSORT_THR);
-  pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);
-  int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
-  checkit<pasl::pctl::sorted_property>(nb_tests, "samplesort is correct");
+  std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
+  if (infile != "") {
+    pbbs::benchmark(infile);
+  } else { // run unit tests
+    pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);
+    int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
+    checkit<pasl::pctl::sorted_property>(nb_tests, "samplesort is correct");
+  }
   return 0;
 }

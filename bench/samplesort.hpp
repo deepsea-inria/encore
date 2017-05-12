@@ -28,7 +28,7 @@
 namespace encorebench {
 
 template<class E, class BinPred, class intT>
-void split_positions(E* a, E* b, intT* c, intT length_a, intT length_b, BinPred compare) {
+void split_positions2(E* a, E* b, intT* c, intT length_a, intT length_b, BinPred compare) {
   if (length_a == 0 || length_b == 0) {
     return;
   }
@@ -151,7 +151,7 @@ public:
           return encore_call<sampleSort>(st, pt, s.a + p.offset, p.size, s.compare);
         }),
         dc::stmt([] (sar& s, par& p) {
-          split_positions(s.a + p.offset, s.pivots, s.segments_sizes + p.s * s.segments, p.size, s.pivots_size, s.compare);
+          split_positions2(s.a + p.offset, s.pivots, s.segments_sizes + p.s * s.segments, p.size, s.pivots_size, s.compare);
           p.s++;
         }),
       })),
