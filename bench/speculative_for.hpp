@@ -20,7 +20,7 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include "utils.hpp"
+#include "utils.h"
 #include "sequence.hpp"
 
 #ifndef _SPECULATIVE_FOR_H_
@@ -29,7 +29,7 @@
 struct reservation {
   intT r;
   reservation() : r(INT_T_MAX) {}
-  void reserve(intT i) { utils::writeMin(&r, i); }
+  void reserve(intT i) { pbbs::utils::writeMin(&r, i); }
   bool reserved() { return (r < INT_T_MAX);}
   void reset() {r = INT_T_MAX;}
   bool check(intT i) { return (r == i);}
@@ -39,7 +39,7 @@ struct reservation {
   }
 };
 
-inline void reserveLoc(intT& x, intT i) {utils::writeMin(&x,i);}
+inline void reserveLoc(intT& x, intT i) {pbbs::utils::writeMin(&x,i);}
 
 template <class S>
 class speculative_for : public encore::edsl::pcfg::shared_activation_record {
