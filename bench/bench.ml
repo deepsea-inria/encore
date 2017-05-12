@@ -171,9 +171,6 @@ let all_progs = List.concat [encore_progs; cilk_progs]
 
 let mk_proc = mk int "proc" arg_proc
 
-let mk_progs n =
-  mk_list string "prog" [encore_prog_of n; cilk_prog_of n]
-
 let prog_hull = "hull"
 
 let path_to_infile n = "_data/" ^ n
@@ -181,7 +178,7 @@ let path_to_infile n = "_data/" ^ n
 let input_descriptor_hull = List.map (fun (p, n) -> (path_to_infile p, n)) [
   "array_point2d_in_circle_large.bin", "in circle";
   "array_point2d_kuzmin_large.bin", "kuzmin";
-  "array_point2d_on_circle_large.bin", "on circle";
+(*  "array_point2d_on_circle_large.bin", "on circle";*)
 ]
 
 let infiles_of descr = 
@@ -191,6 +188,10 @@ let infiles_of descr =
 let mk_hull_infiles = 
   mk_list string "infile" (infiles_of input_descriptor_hull)
 
+let mk_progs n =
+  ((mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")) ++
+  ((mk string "prog" (cilk_prog_of n)) & (mk string "algorithm" "pbbs"))
+
 let mk_hull_progs =
   mk_progs prog_hull
 
@@ -199,19 +200,34 @@ let mk_convex_hull =
   & mk_proc
   & mk_hull_infiles
 
+type benchmark_descriptor = {
+  bd_name : string;
+  bd_args : Params.t;
+  bd_infiles : Params.t;
+  bd_progs : Params.t;    
+}
+
+let benchmarks : benchmark_descriptor list = [
+  { bd_name = "convex_hull"; bd_args = mk_convex_hull;
+    bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
+  }
+]
+
 let make() =
   build "." all_progs arg_virtual_build
 
 let run() =
-  Mk_runs.(call (run_modes @ [
-    Output (file_results name);
-    Timeout 400;
-    Args mk_convex_hull
-  ]))
+  List.iter (fun benchmark ->
+    Mk_runs.(call (run_modes @ [
+      Output (file_results benchmark.bd_name);
+      Timeout 400;
+      Args benchmark.bd_args;
+    ]))) benchmarks
 
 let check = nothing  (* do something here *)
 
 let plot() =
+  List.iter (fun benchmark ->
      Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
                               (* Chart_opt Chart.([Dimensions (12.,8.) ]);*)
@@ -221,14 +237,14 @@ let plot() =
          ]);
       Formatter default_formatter;
       Charts mk_unit;
-      Series mk_hull_infiles;
-      X mk_hull_progs;
+      Series benchmark.bd_infiles;
+      X benchmark.bd_progs;
       Y_label "Time (s)";
       Y eval_exectime;
       Y_whiskers eval_exectime_stddev;
-      Output (file_plots name);
-      Results (Results.from_file (file_results name));
-      ]))
+      Output (file_plots benchmark.bd_name);
+      Results (Results.from_file (file_results benchmark.bd_name));
+      ]))) benchmarks
 
 let all () = select make run check plot
 
