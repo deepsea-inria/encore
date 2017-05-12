@@ -63,12 +63,12 @@ public:
         return s.cCount > s.rCount;
       }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-          s.l1 = s.rCount/2;
-          s.l2 = s.rCount - s.rCount/2;
+          s.l1 = s.cCount/2;
+          s.l2 = s.cCount - s.cCount/2;
         }),
         dc::spawn2_join(
           [] (sar& s, par&, plt pt, stt st) {
-            return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart, s.l1, s.rLength, s.cStart, s.cCount, s.cLength);
+            return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart, s.rCount, s.rLength, s.cStart, s.l1, s.cLength);
           },
           [] (sar& s, par&, plt pt, stt st) {
             return encore_call<transpose<E,intT>>(st, pt, s.A, s.B, s.rStart, s.rCount, s.rLength, s.cStart + s.l1, s.l2, s.cLength);
