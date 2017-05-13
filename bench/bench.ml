@@ -171,22 +171,29 @@ let all_progs = List.concat [encore_progs; cilk_progs]
 
 let mk_proc = mk int "proc" arg_proc
 
-let prog_hull = "hull"
-
 let path_to_infile n = "_data/" ^ n
 
-let input_descriptor_hull = List.map (fun (p, n) -> (path_to_infile p, n)) [
-  "array_point2d_in_circle_large.bin", "in circle";
-  "array_point2d_kuzmin_large.bin", "kuzmin";
-(*  "array_point2d_on_circle_large.bin", "on circle";*)
+let mk_infiles descr = fun e ->
+  let f (p, t, n) =
+    let e0 = 
+      Env.add Env.empty "infile" (string p)
+    in
+    Env.add e0 "type" (string t)
+  in
+  List.map f descr
+
+(*****************)
+(* Convex hull *)
+
+let prog_hull = "hull"
+    
+let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "array_point2d_in_circle_large.bin", "2d", "in circle";
+  "array_point2d_kuzmin_large.bin", "2d", "kuzmin";
+(*  "array_point2d_on_circle_large.bin", "2d", "on circle";*)
 ]
 
-let infiles_of descr = 
-  let (ps, _) = List.split descr in
-  ps
-
-let mk_hull_infiles = 
-  mk_list string "infile" (infiles_of input_descriptor_hull)
+let mk_hull_infiles = mk_infiles input_descriptor_hull
 
 let mk_progs n =
   ((mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")) ++
@@ -207,10 +214,35 @@ type benchmark_descriptor = {
   bd_progs : Params.t;    
 }
 
+(*****************)
+(* Sample sort *)
+
+let prog_samplesort =
+  "samplesort"
+
+let mk_samplesort_progs =
+  mk_progs prog_samplesort  
+  
+let input_descriptor_samplesort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "array_double_random_large.bin", "double", "random";
+  "array_double_exponential_large.bin", "double", "exponential";
+  "array_double_almost_sorted_10000_large.bin", "double", "almost sorted";
+]
+    
+let mk_samplesort_infiles = mk_infiles input_descriptor_samplesort
+
+let mk_samplesort =
+    mk_samplesort_progs
+  & mk_proc
+  & mk_samplesort_infiles    
+
 let benchmarks : benchmark_descriptor list = [
   { bd_name = "convex_hull"; bd_args = mk_convex_hull;
     bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
-  }
+  };
+  { bd_name = "samplesort"; bd_args = mk_samplesort;
+    bd_infiles = mk_samplesort_infiles; bd_progs = mk_samplesort_progs;
+  };
 ]
 
 let make() =
