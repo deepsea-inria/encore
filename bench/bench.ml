@@ -185,7 +185,8 @@ let mk_infiles descr = fun e ->
 (*****************)
 (* Convex hull *)
 
-let prog_hull = "hull"
+let prog_hull =
+  "convex_hull"
     
 let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_in_circle_large.bin", "2d", "in circle";
@@ -234,16 +235,46 @@ let mk_samplesort_infiles = mk_infiles input_descriptor_samplesort
 let mk_samplesort =
     mk_samplesort_progs
   & mk_proc
-  & mk_samplesort_infiles    
+  & mk_samplesort_infiles
 
-let benchmarks : benchmark_descriptor list = [
+(*****************)
+(* Radix sort *)
+
+let prog_radixsort =
+  "radixsort"
+
+let mk_radixsort_progs =
+  mk_progs prog_radixsort
+
+let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "array_int_random_large.bin", "int", "random";    
+  "array_int_exponential_large.bin", "int", "exponential";
+]
+
+let mk_radixsort_infiles = mk_infiles input_descriptor_radixsort
+    
+let mk_radixsort =
+    mk_radixsort_progs
+  & mk_proc
+  & mk_radixsort_infiles
+  
+let benchmarks' : benchmark_descriptor list = [
   { bd_name = "convex_hull"; bd_args = mk_convex_hull;
     bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
   };
   { bd_name = "samplesort"; bd_args = mk_samplesort;
     bd_infiles = mk_samplesort_infiles; bd_progs = mk_samplesort_progs;
   };
+  { bd_name = "radixsort"; bd_args = mk_radixsort;
+    bd_infiles = mk_radixsort_infiles; bd_progs = mk_radixsort_progs;
+  };
 ]
+
+let benchmarks =
+  let p b =
+    List.exists (fun a -> b.bd_name = a) arg_benchmarks
+  in
+  List.filter p benchmarks'
 
 let make() =
   build "." all_progs arg_virtual_build
