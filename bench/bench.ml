@@ -173,12 +173,12 @@ let mk_proc = mk int "proc" arg_proc
 
 let path_to_infile n = "_data/" ^ n
 
-let mk_infiles descr = fun e ->
+let mk_infiles ty descr = fun e ->
   let f (p, t, n) =
     let e0 = 
       Env.add Env.empty "infile" (string p)
     in
-    Env.add e0 "type" (string t)
+    Env.add e0 ty (string t)
   in
   List.map f descr
 
@@ -194,7 +194,7 @@ let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 (*  "array_point2d_on_circle_large.bin", "2d", "on circle";*)
 ]
 
-let mk_hull_infiles = mk_infiles input_descriptor_hull
+let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
 
 let mk_progs n =
   ((mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")) ++
@@ -230,7 +230,7 @@ let input_descriptor_samplesort = List.map (fun (p, t, n) -> (path_to_infile p, 
   "array_double_almost_sorted_10000_large.bin", "double", "almost sorted";
 ]
     
-let mk_samplesort_infiles = mk_infiles input_descriptor_samplesort
+let mk_samplesort_infiles = mk_infiles "type" input_descriptor_samplesort
 
 let mk_samplesort =
     mk_samplesort_progs
@@ -251,7 +251,7 @@ let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t
   "array_int_exponential_large.bin", "int", "exponential";
 ]
 
-let mk_radixsort_infiles = mk_infiles input_descriptor_radixsort
+let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
     
 let mk_radixsort =
     mk_radixsort_progs
@@ -273,7 +273,7 @@ let input_descriptor_bfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) 
   "rmat24_large.bin", "0", "rMat24";
 ]
 
-let mk_bfs_infiles = mk_infiles input_descriptor_bfs
+let mk_bfs_infiles = mk_infiles "source" input_descriptor_bfs
 
 let mk_bfs =
     mk_bfs_progs
