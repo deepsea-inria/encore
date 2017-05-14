@@ -23,7 +23,7 @@ template <class intT>
 struct read_from_pasl_file_struct<graph::graph<intT>> {
   template <class VertexType>
   void initialize(std::ifstream& in, int n, int m, intT* e, graph::vertex<intT>* v) {
-    std::cerr << n << " " << m << std::endl;
+    //    std::cerr << n << " " << m << std::endl;
     VertexType* offsets = new VertexType[n + 1];
     in.read(reinterpret_cast<char*>(offsets), sizeof(VertexType) * (n + 1));
 
@@ -71,7 +71,7 @@ Item read_from_pasl_file(std::ifstream& in) {
 
 template <class Item>
 Item read_from_pasl_file(std::string file) {
-  std::cerr << file << std::endl;
+  //  std::cerr << file << std::endl;
   std::ifstream in(file, std::ifstream::binary);
   return read_from_pasl_file<Item>(in);
 }
