@@ -995,6 +995,11 @@ public:
 
 template <class ET, class intT, class PRED>
 typename filterDPS<ET,intT,PRED>::cfg_type filterDPS<ET,intT,PRED>::cfg = filterDPS<ET,intT,PRED>::get_cfg();
+
+template <class ET, class intT, class PRED>
+stack_type filterDPS5(stack_type st, plt_type pt, ET* In, ET* Out, intT n, PRED p, intT* dest) {
+  return encore_call<filterDPS<ET,intT,PRED>>(st, pt, In, Out, n, p, dest);
+}
   
 template <class ET, class intT, class PRED>
 class filter : public encore::edsl::pcfg::shared_activation_record {
