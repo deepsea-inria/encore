@@ -38,7 +38,7 @@
 namespace pbbs {
 
 void benchmark(std::string infile) {
-  graph::graph<int> g = read_from_pasl_file<graph::graph<int>>(infile);
+  graph::graph<int> g = read_from_file<graph::graph<int>>(infile);
   intT source = deepsea::cmdline::parse_or_default("source", 0);
   std::pair<intT,intT> result;
   deepsea::cmdline::dispatcher d;
