@@ -62,11 +62,11 @@ void benchmark(parray<std::pair<int, int>>& x) {
 
 void benchmark(std::string infile) {
   deepsea::cmdline::dispatcher d;
-  d.add("array_int", [&] {
+  d.add("int", [&] {
     parray<int> x = pasl::pctl::io::load<parray<int>>(infile);
     benchmark(x);
   });
-  d.add("array_pair_int_int", [&]  {
+  d.add("pair_int_int", [&]  {
     parray<std::pair<int, int>> x = pasl::pctl::io::load<parray<std::pair<int, int>>>(infile);
     benchmark(x);
   });
