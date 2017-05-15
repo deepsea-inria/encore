@@ -113,6 +113,8 @@ struct triangArea {
   double operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[I[i]]);}
 };
 
+int quickHull_threshold = 10000;
+
 class quickHull : public encore::edsl::pcfg::shared_activation_record {
 public:
   
@@ -125,10 +127,10 @@ public:
   
   encore_dc_declare(encore::edsl, quickHull, sar, par, dc, get_dc)
   
-  static
+  sattic
   dc get_dc() {
     return dc::stmts({
-      dc::mk_if([] (sar& s, par&) { return s.n < 2; }, dc::stmts({
+      dc::mk_if([&] (sar& s, par&) { return s.n < quickHull_threshold; }, dc::stmts({
         dc::stmt([] (sar& s, par&) {
           *s.dest = serialQuickHull(s.I, s.P, s.n, s.l, s.r);
         }),
@@ -450,6 +452,7 @@ void benchmark(std::string infile) {
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
+  quickHull_threshold = deepsea::cmdline::parse_or_default("threshold", quickHull_threshold);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile != "") {
     pasl::pctl::benchmark(infile);
