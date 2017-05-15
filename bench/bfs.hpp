@@ -81,6 +81,9 @@ public:
          p.s1++;
        })),
        dc::stmt([] (sar& s, par& p) {
+         s.Frontier[0] = s.start;
+         s.frontierSize = 1;
+         s.Visited[s.start] = 1;
          s.totalVisited = 0;
          s.round = 0;
        }),
@@ -98,7 +101,7 @@ public:
            p.s2++;
          })),  
          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-             return sequence::scan6(st, pt, s.Counts, s.Counts, s.frontierSize, pbbs::utils::addF<intT>(),(intT)0, &(s.nr));
+           return sequence::scan6(st, pt, s.Counts, s.Counts, s.frontierSize, pbbs::utils::addF<intT>(),(intT)0, &(s.nr));
          }),
          dc::stmt([] (sar& s, par& p) {
            p.s3 = 0;
@@ -114,11 +117,14 @@ public:
              intT ngh = s.G[v].Neighbors[j];
              if (s.Visited[ngh] == 0 && !__sync_val_compare_and_swap(&(s.Visited[ngh]), 0, 1)) {
                s.FrontierNext[o+j] = s.G[v].Neighbors[k++] = ngh;
+             } else {
+               s.FrontierNext[o+j] = -1;
              }
-             else s.FrontierNext[o+j] = -1;
            }
            s.G[v].degree = k;
+           p.s3++;
          })),
+         // Filter out the empty slots (marked with -1)
          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
            return sequence::filterDPS5(st, pt, s.FrontierNext, s.Frontier, s.nr, nonNegF(), &(s.frontierSize));
          }),
