@@ -1278,7 +1278,7 @@ public:
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
   using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
   using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
-  using parallel_loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
+  using loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
   using parallel_loop_combine_initializer_type = std::function<void(sar_type&, par_type&)>;
   using parallel_combining_operator_type = std::function<void(sar_type&, par_type&, par_type&)>;
   
@@ -1304,12 +1304,12 @@ public:
     } variant_sequential_loop;
     struct {
       predicate_code_type predicate;
-      parallel_loop_range_getter_type getter;
+      loop_range_getter_type getter;
       std::unique_ptr<stmt_type> body;
     } variant_parallel_for_loop;
     struct {
       predicate_code_type predicate;
-      parallel_loop_range_getter_type getter;
+      loop_range_getter_type getter;
       parallel_loop_combine_initializer_type initialize;
       parallel_combining_operator_type combine;
       std::unique_ptr<stmt_type> body;
@@ -1373,7 +1373,7 @@ private:
       }
       case tag_parallel_for_loop: {
         new (&variant_parallel_for_loop.predicate) predicate_code_type(other.variant_parallel_for_loop.predicate);
-        new (&variant_parallel_for_loop.getter) parallel_loop_range_getter_type(other.variant_parallel_for_loop.getter);
+        new (&variant_parallel_for_loop.getter) loop_range_getter_type(other.variant_parallel_for_loop.getter);
         auto p = new stmt_type;
         p->copy_constructor(*other.variant_parallel_for_loop.body);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(p);
@@ -1381,7 +1381,7 @@ private:
       }
       case tag_parallel_combine_loop: {
         new (&variant_parallel_combine_loop.predicate) predicate_code_type(other.variant_parallel_combine_loop.predicate);
-        new (&variant_parallel_combine_loop.getter) parallel_loop_range_getter_type(other.variant_parallel_combine_loop.getter);
+        new (&variant_parallel_combine_loop.getter) loop_range_getter_type(other.variant_parallel_combine_loop.getter);
         new (&variant_parallel_combine_loop.initialize) parallel_loop_combine_initializer_type(other.variant_parallel_combine_loop.initialize);
         new (&variant_parallel_combine_loop.combine) parallel_combining_operator_type(other.variant_parallel_combine_loop.combine);
         auto p = new stmt_type;
@@ -1465,7 +1465,7 @@ private:
       }
       case tag_parallel_for_loop: {
         new (&variant_parallel_for_loop.predicate) predicate_code_type;
-        new (&variant_parallel_for_loop.getter) parallel_loop_range_getter_type;
+        new (&variant_parallel_for_loop.getter) loop_range_getter_type;
         variant_parallel_for_loop.getter = std::move(other.variant_parallel_for_loop.getter);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body = std::move(other.variant_parallel_for_loop.body);
@@ -1473,7 +1473,7 @@ private:
       }
       case tag_parallel_combine_loop: {
         new (&variant_parallel_combine_loop.predicate) predicate_code_type;
-        new (&variant_parallel_combine_loop.getter) parallel_loop_range_getter_type;
+        new (&variant_parallel_combine_loop.getter) loop_range_getter_type;
         variant_parallel_combine_loop.getter = std::move(other.variant_parallel_combine_loop.getter);
         new (&variant_parallel_combine_loop.initialize) parallel_loop_combine_initializer_type;
         variant_parallel_combine_loop.initialize = std::move(other.variant_parallel_combine_loop.initialize);
@@ -1562,14 +1562,14 @@ public:
       }
       case tag_parallel_for_loop: {
         variant_parallel_for_loop.predicate.~predicate_code_type();
-        variant_parallel_for_loop.getter.~parallel_loop_range_getter_type();
+        variant_parallel_for_loop.getter.~loop_range_getter_type();
         using st = std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body.~st();
         break;
       }
       case tag_parallel_combine_loop: {
         variant_parallel_combine_loop.predicate.~predicate_code_type();
-        variant_parallel_combine_loop.getter.~parallel_loop_range_getter_type();
+        variant_parallel_combine_loop.getter.~loop_range_getter_type();
         variant_parallel_combine_loop.initialize.~parallel_loop_combine_initializer_type();
         variant_parallel_combine_loop.combine.~parallel_combining_operator_type();
         using st = std::unique_ptr<stmt_type>;
@@ -1662,25 +1662,25 @@ public:
   }
   
   static
-  stmt_type parallel_for_loop(predicate_code_type predicate, parallel_loop_range_getter_type getter, stmt_type body) {
+  stmt_type parallel_for_loop(predicate_code_type predicate, loop_range_getter_type getter, stmt_type body) {
     stmt_type s;
     s.tag = tag_parallel_for_loop;
     new (&s.variant_parallel_for_loop.predicate) predicate_code_type(predicate);
-    new (&s.variant_parallel_for_loop.getter) parallel_loop_range_getter_type(getter);
+    new (&s.variant_parallel_for_loop.getter) loop_range_getter_type(getter);
     new (&s.variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
     return s;
   }
   
   static
   stmt_type parallel_combine_loop(predicate_code_type predicate,
-                                  parallel_loop_range_getter_type getter,
+                                  loop_range_getter_type getter,
                                   parallel_loop_combine_initializer_type initialize,
                                   parallel_combining_operator_type combine,
                                   stmt_type body) {
     stmt_type s;
     s.tag = tag_parallel_combine_loop;
     new (&s.variant_parallel_combine_loop.predicate) predicate_code_type(predicate);
-    new (&s.variant_parallel_combine_loop.getter) parallel_loop_range_getter_type(getter);
+    new (&s.variant_parallel_combine_loop.getter) loop_range_getter_type(getter);
     new (&s.variant_parallel_combine_loop.initialize) parallel_loop_combine_initializer_type(initialize);
     new (&s.variant_parallel_combine_loop.combine) parallel_combining_operator_type(combine);
     new (&s.variant_parallel_combine_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
