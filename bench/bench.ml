@@ -162,11 +162,18 @@ module ExpCompare = struct
 
 let name = "compare"
 
+let all_benchmarks =
+  match arg_benchmarks with
+  | ["all"] -> [
+      "convex_hull"; "samplesort"; "radixsort"; "bfs";
+    ]
+  | _ -> arg_benchmarks
+    
 let encore_prog_of n = n ^ ".encore"
 let cilk_prog_of n = n ^ ".cilk"
 
-let encore_progs = List.map encore_prog_of arg_benchmarks
-let cilk_progs = List.map cilk_prog_of arg_benchmarks
+let encore_progs = List.map encore_prog_of all_benchmarks
+let cilk_progs = List.map cilk_prog_of all_benchmarks
 let all_progs = List.concat [encore_progs; cilk_progs]
 
 let mk_proc = mk int "proc" arg_proc
@@ -297,11 +304,9 @@ let benchmarks' : benchmark_descriptor list = [
 
 let benchmarks =
   let p b =
-    List.exists (fun a -> b.bd_name = a) arg_benchmarks
+    List.exists (fun a -> b.bd_name = a) all_benchmarks
   in
-  match arg_benchmarks with
-  | ["all"] -> benchmarks'
-  | _ -> List.filter p benchmarks'
+  List.filter p benchmarks'
 
 let make() =
   build "." all_progs arg_virtual_build
