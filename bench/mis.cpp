@@ -159,7 +159,7 @@ graph::graph<int> to_pbbs(graph::graph<int>& g) {
 }
 
 void benchmark(std::string infile) {
-  graph::graph<int> g = read_from_pasl_file<graph::graph<int>>(infile);
+  graph::graph<int> g = read_from_file<graph::graph<int>>(infile);
   char* flags = nullptr;
   deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
