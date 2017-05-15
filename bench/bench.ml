@@ -299,7 +299,9 @@ let benchmarks =
   let p b =
     List.exists (fun a -> b.bd_name = a) arg_benchmarks
   in
-  List.filter p benchmarks'
+  match arg_benchmarks with
+  | ["all"] -> benchmarks'
+  | _ -> List.filter p benchmarks'
 
 let make() =
   build "." all_progs arg_virtual_build
