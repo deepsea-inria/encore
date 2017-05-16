@@ -20,6 +20,8 @@ namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
 
+int scale_factor = 1;
+
 /*---------------------------------------------------------------------*/
 /* Benchmark for reduce */
 
@@ -315,6 +317,7 @@ void generate(size_t _nb, parray<intT>& dst) {
 }
 
 void generate(size_t nb, container_wrapper<parray<intT>>& c) {
+  nb *= scale_factor;
   generate(nb, c.c);
 }
   
@@ -326,6 +329,7 @@ void generate(size_t _nb, std::pair<parray<intT>,parray<bool>>& dst) {
 }
 
 void generate(size_t nb, container_wrapper<std::pair<parray<intT>,parray<bool>>>& c) {
+  nb *= scale_factor; 
   generate(nb, c.c);
 }
   
@@ -373,7 +377,7 @@ public:
     int_array_wrapper in(_in);
     intT n = (intT)in.c.size();
     value_type result = 0;
-    auto f = pbbs::greater<intT>();
+    auto f = std::greater<intT>();
     auto g = sequence::getA<value_type,intT>(in.c.begin());
     encore::launch_interpreter<sequence::maxIndex<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
     value_type result2 = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
@@ -503,6 +507,7 @@ void benchmark() {
 }
 
 void test() {
+  scale_factor = deepsea::cmdline::parse_or_default("scale_factor", scale_factor);
   int nb_tests = deepsea::cmdline::parse_or_default_int("nb_tests", 1000);
   cmdline::dispatcher d;
   d.add("copy", [&] {
