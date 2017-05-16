@@ -774,7 +774,9 @@ public:
         dc::sequential_loop([] (sar& s, par&) { return s.k < (s.n >> 9); }, dc::stmt([] (sar& s, par&) {
           int rr = 0;
           auto IFl = s.IFl;
-          for (int j=0; j < 128; j++) rr +=IFl[j];
+          for (int j=0; j < 128; j++) {
+            rr +=IFl[j];
+          }
           s.r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
           s.IFl += 128;
           s.k++;
@@ -783,7 +785,9 @@ public:
       dc::sequential_loop([] (sar& s, par&) { return s.j < s.n; }, dc::stmt([] (sar& s, par&) {
         intT r = 0;
         auto Fl = s.Fl;
-        for (intT j=0; j < s.n; j++) r += Fl[j];
+        for (intT j=0; j < s.n; j++) {
+          r += Fl[j];
+        }
         s.r = r;
         s.j++;
       }))),
@@ -902,7 +906,9 @@ public:
         return plusScan(st, pt, s.Sums, s.Sums, s.l, &s.m);
       }),
       dc::stmt([] (sar& s, par& p) {
-        if (s.Out == nullptr) s.Out = malloc_array<ET>(s.m);
+        if (s.Out == nullptr) {
+          s.Out = malloc_array<ET>(s.m);
+        }
         p.s = 0;
         p.e = s.l;
       }),
