@@ -562,8 +562,6 @@ public:
           dc::sequential_loop([] (sar& s, par&) {
             // no initialization
           }, [] (sar& s, par&) {
-            return s.s != s.e;
-          }, [] (sar& s, par&) {
             return std::make_pair(&s.s, &s.e);
           }, [] (sar& s, par&, int lo, int hi) {
             auto f = s.f;
@@ -579,8 +577,6 @@ public:
           dc::sequential_loop([] (sar& s, par&) {
             // no initialization
           }, [] (sar& s, par&) {
-            return s.s != s.e;
-          }, [] (sar& s, par&) {
             return std::make_pair(&s.s, &s.e);
           }, [] (sar& s, par&, int lo, int hi) {
             auto f = s.f;
@@ -595,8 +591,6 @@ public:
         dc::mk_if([] (sar& s, par&) { return s.back; },
           dc::sequential_loop([] (sar& s, par&) {
             // no initialization
-          }, [] (sar& s, par&) {
-            return s.s != s.e;
           }, [] (sar& s, par&) {
             return std::make_pair(&s.s, &s.e);
           }, [] (sar& s, par&, int lo, int hi) {
@@ -614,8 +608,6 @@ public:
           }, dc::backward_loop),
           dc::sequential_loop([] (sar& s, par&) {
             // no initialization
-          }, [] (sar& s, par&) {
-            return s.s != s.e;
           }, [] (sar& s, par&) {
             return std::make_pair(&s.s, &s.e);
           }, [] (sar& s, par&, int lo, int hi) {
@@ -825,24 +817,22 @@ public:
           s.Out = malloc_array<ET>(s.m);
         })
       })),
-      dc::stmt([] (sar& s, par&) {
+      dc::sequential_loop([] (sar& s, par&) {
         s.k = 0;
-      }),
-      dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
+      }, [] (sar& s, par&) {
+        return std::make_pair(&s.s, &s.e);
+      }, [] (sar& s, par&, int lo, int hi) {
         auto Fl = s.Fl;
         auto Out = s.Out;
-        auto kk = s.k;
         auto f = s.f;
-        auto ss = s.s;
-        auto ee = std::min(s.e, ss + threshold);
-        for (; ss < ee; ss++) {
-          if (Fl[ss]) {
-            Out[kk++] = f(ss);
+        auto kk = s.k;
+        for (auto i = lo; i != hi; i++) {
+          if (Fl[i]) {
+            Out[kk++] = f(i);
           }
         }
-        s.s = ss;
         s.k = kk;
-      })),
+      }),
       dc::stmt([] (sar& s, par&) {
         *s.dest = _seq<ET>(s.Out,s.k);
       })

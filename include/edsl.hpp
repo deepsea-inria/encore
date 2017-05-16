@@ -1280,11 +1280,10 @@ public:
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
   using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
   using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
-  using loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
+  using parallel_loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
   using parallel_loop_combine_initializer_type = std::function<void(sar_type&, par_type&)>;
   using parallel_combining_operator_type = std::function<void(sar_type&, par_type&, par_type&)>;
   using loop_range_getter_type = std::function<std::pair<int*, int*>(sar_type&, par_type&)>;
-  using loop_range_taker_type = std::function<std::pair<int, int>(sar_type&, par_type&)>;
   using leaf_loop_body_type = std::function<void(sar_type&, par_type&, int, int)>;
   
   stmt_tag_type tag;
@@ -1309,12 +1308,12 @@ public:
     } variant_sequential_loop;
     struct {
       predicate_code_type predicate;
-      loop_range_getter_type getter;
+      parallel_loop_range_getter_type getter;
       std::unique_ptr<stmt_type> body;
     } variant_parallel_for_loop;
     struct {
       predicate_code_type predicate;
-      loop_range_getter_type getter;
+      parallel_loop_range_getter_type getter;
       parallel_loop_combine_initializer_type initialize;
       parallel_combining_operator_type combine;
       std::unique_ptr<stmt_type> body;
@@ -1378,7 +1377,7 @@ private:
       }
       case tag_parallel_for_loop: {
         new (&variant_parallel_for_loop.predicate) predicate_code_type(other.variant_parallel_for_loop.predicate);
-        new (&variant_parallel_for_loop.getter) loop_range_getter_type(other.variant_parallel_for_loop.getter);
+        new (&variant_parallel_for_loop.getter) parallel_loop_range_getter_type(other.variant_parallel_for_loop.getter);
         auto p = new stmt_type;
         p->copy_constructor(*other.variant_parallel_for_loop.body);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(p);
@@ -1386,7 +1385,7 @@ private:
       }
       case tag_parallel_combine_loop: {
         new (&variant_parallel_combine_loop.predicate) predicate_code_type(other.variant_parallel_combine_loop.predicate);
-        new (&variant_parallel_combine_loop.getter) loop_range_getter_type(other.variant_parallel_combine_loop.getter);
+        new (&variant_parallel_combine_loop.getter) parallel_loop_range_getter_type(other.variant_parallel_combine_loop.getter);
         new (&variant_parallel_combine_loop.initialize) parallel_loop_combine_initializer_type(other.variant_parallel_combine_loop.initialize);
         new (&variant_parallel_combine_loop.combine) parallel_combining_operator_type(other.variant_parallel_combine_loop.combine);
         auto p = new stmt_type;
@@ -1470,7 +1469,7 @@ private:
       }
       case tag_parallel_for_loop: {
         new (&variant_parallel_for_loop.predicate) predicate_code_type;
-        new (&variant_parallel_for_loop.getter) loop_range_getter_type;
+        new (&variant_parallel_for_loop.getter) parallel_loop_range_getter_type;
         variant_parallel_for_loop.getter = std::move(other.variant_parallel_for_loop.getter);
         new (&variant_parallel_for_loop.body) std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body = std::move(other.variant_parallel_for_loop.body);
@@ -1478,7 +1477,7 @@ private:
       }
       case tag_parallel_combine_loop: {
         new (&variant_parallel_combine_loop.predicate) predicate_code_type;
-        new (&variant_parallel_combine_loop.getter) loop_range_getter_type;
+        new (&variant_parallel_combine_loop.getter) parallel_loop_range_getter_type;
         variant_parallel_combine_loop.getter = std::move(other.variant_parallel_combine_loop.getter);
         new (&variant_parallel_combine_loop.initialize) parallel_loop_combine_initializer_type;
         variant_parallel_combine_loop.initialize = std::move(other.variant_parallel_combine_loop.initialize);
@@ -1567,14 +1566,14 @@ public:
       }
       case tag_parallel_for_loop: {
         variant_parallel_for_loop.predicate.~predicate_code_type();
-        variant_parallel_for_loop.getter.~loop_range_getter_type();
+        variant_parallel_for_loop.getter.~parallel_loop_range_getter_type();
         using st = std::unique_ptr<stmt_type>;
         variant_parallel_for_loop.body.~st();
         break;
       }
       case tag_parallel_combine_loop: {
         variant_parallel_combine_loop.predicate.~predicate_code_type();
-        variant_parallel_combine_loop.getter.~loop_range_getter_type();
+        variant_parallel_combine_loop.getter.~parallel_loop_range_getter_type();
         variant_parallel_combine_loop.initialize.~parallel_loop_combine_initializer_type();
         variant_parallel_combine_loop.combine.~parallel_combining_operator_type();
         using st = std::unique_ptr<stmt_type>;
@@ -1667,25 +1666,25 @@ public:
   }
   
   static
-  stmt_type parallel_for_loop(predicate_code_type predicate, loop_range_getter_type getter, stmt_type body) {
+  stmt_type parallel_for_loop(predicate_code_type predicate, parallel_loop_range_getter_type getter, stmt_type body) {
     stmt_type s;
     s.tag = tag_parallel_for_loop;
     new (&s.variant_parallel_for_loop.predicate) predicate_code_type(predicate);
-    new (&s.variant_parallel_for_loop.getter) loop_range_getter_type(getter);
+    new (&s.variant_parallel_for_loop.getter) parallel_loop_range_getter_type(getter);
     new (&s.variant_parallel_for_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
     return s;
   }
   
   static
   stmt_type parallel_combine_loop(predicate_code_type predicate,
-                                  loop_range_getter_type getter,
+                                  parallel_loop_range_getter_type getter,
                                   parallel_loop_combine_initializer_type initialize,
                                   parallel_combining_operator_type combine,
                                   stmt_type body) {
     stmt_type s;
     s.tag = tag_parallel_combine_loop;
     new (&s.variant_parallel_combine_loop.predicate) predicate_code_type(predicate);
-    new (&s.variant_parallel_combine_loop.getter) loop_range_getter_type(getter);
+    new (&s.variant_parallel_combine_loop.getter) parallel_loop_range_getter_type(getter);
     new (&s.variant_parallel_combine_loop.initialize) parallel_loop_combine_initializer_type(initialize);
     new (&s.variant_parallel_combine_loop.combine) parallel_combining_operator_type(combine);
     new (&s.variant_parallel_combine_loop.body) std::unique_ptr<stmt_type>(new stmt_type(body));
@@ -1754,43 +1753,38 @@ public:
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
 
-  static
-  stmt_type sequential_loop(unconditional_jump_code_type initializer,
-                            predicate_code_type predicate,
-                            loop_range_taker_type taker,
-                            leaf_loop_body_type body) {
-    return stmts({
-      stmt(initializer),
-      sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
-        auto rng = taker(s, p);
-        body(s, p, rng.first, rng.second);
-      }))
-    });
-  }
-
   using loop_direction_type = enum { forward_loop, backward_loop };
 
   static
   stmt_type sequential_loop(unconditional_jump_code_type initializer,
-                            predicate_code_type predicate,
                             loop_range_getter_type getter,
                             leaf_loop_body_type body,
                             loop_direction_type direction = forward_loop) {
-    loop_range_taker_type taker = [=, &loop_threshold] (sar_type& s, par_type& p) {
-      auto rng = getter(s, p);
-      auto lo = *rng.first;
-      auto hi = *rng.second;
-      if (direction == forward_loop) {
-        auto mid = std::min(lo + loop_threshold, hi);
-        *rng.first = mid;
-        return std::make_pair(lo, mid);
-      } else { // backward_loop
-        auto mid = std::max(lo, hi - loop_threshold);
-        *rng.second = mid;
-        return std::make_pair(mid, hi);
-      }
-    };
-    return sequential_loop(initializer, predicate, taker, body);
+    return stmts({
+      stmt(initializer),
+      sequential_loop([=] (sar_type& s, par_type& p) {
+        auto rng = getter(s, p);
+        return *rng.first != *rng.second;
+      }, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+        auto rng = getter(s, p);
+        auto lo = *rng.first;
+        auto hi = *rng.second;
+        auto lo2 = 0;
+        auto hi2 = 0;
+        if (direction == forward_loop) {
+          auto mid = std::min(lo + loop_threshold, hi);
+          *rng.first = mid;
+          lo2 = lo;
+          hi2 = mid;
+        } else { // backward_loop
+          auto mid = std::max(lo, hi - loop_threshold);
+          *rng.second = mid;
+          lo2 = mid;
+          hi2 = hi;
+        }
+        body(s, p, lo2, hi2);
+        }))
+    });
   }
   
 };

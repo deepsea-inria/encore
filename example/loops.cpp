@@ -124,8 +124,6 @@ public:
         s.lo = 0;
         s.hi = s.n;
       }, [] (sar& s, par&) {
-        return s.lo != s.hi;
-      }, [] (sar& s, par&) {
         return std::make_pair(&s.lo, &s.hi);
       }, [] (sar& s, par&, int lo, int hi) {
         auto a = s.a;          
