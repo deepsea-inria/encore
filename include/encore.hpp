@@ -133,6 +133,7 @@ void launch_interpreter(Args... args) {
   });
   */
   int nb_workers = cmdline::parse_or_default("proc", 1);
+  edsl::dc::loop_threshold = cmdline::parse_or_default("loop_threshold", edsl::dc::loop_threshold);  
   stats::initialize();
   auto interp = new edsl::pcfg::interpreter;
   auto ty = edsl::pcfg::cactus::Parent_link_sync;

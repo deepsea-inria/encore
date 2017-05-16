@@ -1255,6 +1255,8 @@ public:
 /* Dag Calculus */
 
 namespace dc {
+
+int loop_threshold = 1024;
   
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit,
@@ -1282,6 +1284,7 @@ public:
   using parallel_loop_combine_initializer_type = std::function<void(sar_type&, par_type&)>;
   using parallel_combining_operator_type = std::function<void(sar_type&, par_type&, par_type&)>;
   using loop_range_getter_type = std::function<std::pair<int*, int*>(sar_type&, par_type&)>;
+  using loop_range_taker_type = std::function<std::pair<int, int>(sar_type&, par_type&)>;
   using leaf_loop_body_type = std::function<void(sar_type&, par_type&, int, int)>;
   
   stmt_tag_type tag;
@@ -1754,20 +1757,40 @@ public:
   static
   stmt_type sequential_loop(unconditional_jump_code_type initializer,
                             predicate_code_type predicate,
-                            loop_range_getter_type getter,
+                            loop_range_taker_type taker,
                             leaf_loop_body_type body) {
-    static constexpr int threshold = 1000;
     return stmts({
       stmt(initializer),
       sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
-        auto rng = getter(s, p);
-        auto lo = *rng.first;
-        auto hi = *rng.second;
-        auto lo2 = std::min(lo + threshold, hi);
-        *rng.first=  lo2;
-        body(s, p, lo, lo2);
+        auto rng = taker(s, p);
+        body(s, p, rng.first, rng.second);
       }))
     });
+  }
+
+  using loop_direction_type = enum { forward_loop, backward_loop };
+
+  static
+  stmt_type sequential_loop(unconditional_jump_code_type initializer,
+                            predicate_code_type predicate,
+                            loop_range_getter_type getter,
+                            leaf_loop_body_type body,
+                            loop_direction_type direction = forward_loop) {
+    loop_range_taker_type taker = [=, &loop_threshold] (sar_type& s, par_type& p) {
+      auto rng = getter(s, p);
+      auto lo = *rng.first;
+      auto hi = *rng.second;
+      if (direction == forward_loop) {
+        auto mid = std::min(lo + loop_threshold, hi);
+        *rng.first = mid;
+        return std::make_pair(lo, mid);
+      } else { // backward_loop
+        auto mid = std::max(lo, hi - loop_threshold);
+        *rng.second = mid;
+        return std::make_pair(mid, hi);
+      }
+    };
+    return sequential_loop(initializer, predicate, taker, body);
   }
   
 };
