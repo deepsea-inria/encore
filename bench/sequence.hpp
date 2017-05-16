@@ -558,82 +558,78 @@ public:
         *s.dest = s.zero;
       }),
       dc::mk_if([] (sar& s, par&) { return s.inclusive; },
-        dc::mk_if([] (sar& s, par&) { return s.back; }, dc::stmts({
-            dc::stmt([] (sar& s, par&) {
-              s.i = s.e - 1;
-            }),
-            dc::sequential_loop([] (sar& s, par&) { return s.i >= s.s; }, dc::stmt([] (sar& s, par&) {
-              auto f = s.f;
-              auto g = s.g;
-              intT i = s.i;
-              intT ss = std::max(s.s, i - threshold);
-              ET r = *s.dest;
-              ET* Out = s.Out;
-              for (; i >= ss; i--) {
-                Out[i] = r = f(r, g(i));
-              }
-              *s.dest = r;
-              s.i = i;
-            }))
-          }),
-          dc::stmts({
-            dc::stmt([] (sar& s, par&) {
-              s.i = s.s;
-            }),
-            dc::sequential_loop([] (sar& s, par&) { return s.i < s.e; }, dc::stmt([] (sar& s, par&) {
-              auto f = s.f;
-              auto g = s.g;
-              intT i = s.i;
-              intT ee = std::min(s.e, i + threshold);
-              ET r = *s.dest;
-              ET* Out = s.Out;
-              for (; i < ee; i++) {
-                Out[i] = r = f(r, g(i));
-              }
-              *s.dest = r;
-              s.i = i;
-            }))
-          })),
-        dc::mk_if([] (sar& s, par&) { return s.back; }, dc::stmts({
-          dc::stmt([] (sar& s, par&) {
-            s.i = s.e - 1;
-          }),
-          dc::sequential_loop([] (sar& s, par&) { return s.i >= s.s; }, dc::stmt([] (sar& s, par&) {
+        dc::mk_if([] (sar& s, par&) { return s.back; },
+          dc::sequential_loop([] (sar& s, par&) {
+            // no initialization
+          }, [] (sar& s, par&) {
+            return s.s != s.e;
+          }, [] (sar& s, par&) {
+            return std::make_pair(&s.s, &s.e);
+          }, [] (sar& s, par&, int lo, int hi) {
             auto f = s.f;
             auto g = s.g;
-            intT i = s.i;
-            intT ss = std::max(s.s, i - threshold);
             ET r = *s.dest;
             ET* Out = s.Out;
-            for (; i >= ss; i--) {
+            for (auto _i = hi; _i != lo; _i--) {
+              auto i = _i - 1;
+              Out[i] = r = f(r, g(i));
+            }
+            *s.dest = r;
+          }, dc::backward_loop),
+          dc::sequential_loop([] (sar& s, par&) {
+            // no initialization
+          }, [] (sar& s, par&) {
+            return s.s != s.e;
+          }, [] (sar& s, par&) {
+            return std::make_pair(&s.s, &s.e);
+          }, [] (sar& s, par&, int lo, int hi) {
+            auto f = s.f;
+            auto g = s.g;
+            ET r = *s.dest;
+            ET* Out = s.Out;
+            for (auto i = lo; i != hi; i++) {
+              Out[i] = r = f(r, g(i));
+            }
+            *s.dest = r;
+          }, dc::forward_loop)),
+        dc::mk_if([] (sar& s, par&) { return s.back; },
+          dc::sequential_loop([] (sar& s, par&) {
+            // no initialization
+          }, [] (sar& s, par&) {
+            return s.s != s.e;
+          }, [] (sar& s, par&) {
+            return std::make_pair(&s.s, &s.e);
+          }, [] (sar& s, par&, int lo, int hi) {
+            auto f = s.f;
+            auto g = s.g;
+            ET r = *s.dest;
+            ET* Out = s.Out;
+            for (auto _i = hi; _i != lo; _i--) {
+              auto i = _i - 1;
               ET t = g(i);
               Out[i] = r;
               r = f(r, t);
             }
             *s.dest = r;
-            s.i = i;
-          }))
-        }),
-        dc::stmts({
-          dc::stmt([] (sar& s, par&) {
-            s.i = s.s;
-          }),
-          dc::sequential_loop([] (sar& s, par&) { return s.i < s.e; }, dc::stmt([] (sar& s, par&) {
+          }, dc::backward_loop),
+          dc::sequential_loop([] (sar& s, par&) {
+            // no initialization
+          }, [] (sar& s, par&) {
+            return s.s != s.e;
+          }, [] (sar& s, par&) {
+            return std::make_pair(&s.s, &s.e);
+          }, [] (sar& s, par&, int lo, int hi) {
             auto f = s.f;
             auto g = s.g;
-            intT i = s.i;
-            intT ee = std::min(s.e, i + threshold);
             ET r = *s.dest;
             ET* Out = s.Out;
-            for (; i < ee; i++) {
+            for (auto i = lo; i != hi; i++) {
               ET t = g(i);
               Out[i] = r;
               r = f(r, t);
             }
             *s.dest = r;
-            s.i = i;
-          }))
-        })))
+          }, dc::forward_loop)))
     });
   }
   
