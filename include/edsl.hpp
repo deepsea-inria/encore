@@ -1281,6 +1281,8 @@ public:
   using parallel_loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
   using parallel_loop_combine_initializer_type = std::function<void(sar_type&, par_type&)>;
   using parallel_combining_operator_type = std::function<void(sar_type&, par_type&, par_type&)>;
+  using loop_range_getter_type = std::function<std::pair<int*, int*>(sar_type&, par_type&)>;
+  using leaf_loop_body_type = std::function<void(sar_type&, par_type&, int, int)>;
   
   stmt_tag_type tag;
   
@@ -1747,6 +1749,25 @@ public:
   static
   stmt_type mk_if(predicate_code_type pred, stmt_type branch1) {
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
+  }
+
+  static
+  stmt_type sequential_loop(unconditional_jump_code_type initializer,
+                            predicate_code_type predicate,
+                            loop_range_getter_type getter,
+                            leaf_loop_body_type body) {
+    static constexpr int threshold = 1000;
+    return stmts({
+      stmt(initializer),
+      sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
+        auto rng = getter(s, p);
+        auto lo = *rng.first;
+        auto hi = *rng.second;
+        auto lo2 = std::min(lo + threshold, hi);
+        *rng.first=  lo2;
+        body(s, p, lo, lo2);
+      }))
+    });
   }
   
 };

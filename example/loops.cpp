@@ -101,6 +101,51 @@ public:
 
 encore_pcfg_allocate(sequential_loop_1, get_cfg)
 
+class sequential_loop_2 : public encore::edsl::pcfg::shared_activation_record {
+public:
+    
+  int n;
+  int* a; int lo; int hi;
+  
+  sequential_loop_2() { }
+  
+  sequential_loop_2(int n)
+  : n(n) { }
+  
+  encore_dc_declare(encore::edsl, sequential_loop_2, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par&) {
+        s.a = new int[s.n];
+      }),
+      dc::sequential_loop([] (sar& s, par&) {
+        s.lo = 0;
+        s.hi = s.n;
+      }, [] (sar& s, par&) {
+        return s.lo != s.hi;
+      }, [] (sar& s, par&) {
+        return std::make_pair(&s.lo, &s.hi);
+      }, [] (sar& s, par&, int lo, int hi) {
+        auto a = s.a;          
+        for (int i = lo; i < hi; i++) {
+          a[i] = 0xdeadbeef;
+        }
+      }),
+      dc::stmt([] (sar& s, par&) {
+        for (int i = 0; i < s.n; i++) {
+          assert(s.a[i] == 0xdeadbeef);
+        }
+        delete [] s.a;
+      })
+    });
+  }
+  
+};
+
+encore_pcfg_allocate(sequential_loop_2, get_cfg)
+
 class parallel_loop_0 : public encore::edsl::pcfg::shared_activation_record {
 public:
   
@@ -290,6 +335,9 @@ int main(int argc, char** argv) {
     });
     d.add("sequential_loop_1", [=] {
       encore::launch_interpreter<sequential_loop_1>(n);
+    });
+    d.add("sequential_loop_2", [=] {
+      encore::launch_interpreter<sequential_loop_2>(n);
     });
     d.add("parallel_loop_0", [=] {
       encore::launch_interpreter<parallel_loop_0>(n);
