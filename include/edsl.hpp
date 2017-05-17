@@ -1810,6 +1810,36 @@ public:
       }))
     });
   }
+
+  static
+  stmt_type parallel_combine_loop(parallel_loop_range_getter_type getter,
+                                  parallel_loop_combine_initializer_type initialize,
+                                  parallel_combining_operator_type combine,
+                                  stmt_type body) {
+    return parallel_combine_loop([=] (sar_type& s, par_type& p) {
+      auto rng = getter(p);
+      return *rng.first != *rng.second;
+    }, getter, initialize, combine, body);
+  }
+
+  static
+  stmt_type parallel_combine_loop(unconditional_jump_code_type initializer,
+                                  parallel_loop_range_getter_type getter,
+                                  parallel_loop_combine_initializer_type combine_initializer,
+                                  parallel_combining_operator_type combine,
+                                  leaf_loop_body_type body) {
+    return stmts({
+      stmt(initializer),
+        parallel_combine_loop(getter, combine_initializer, combine,
+                              stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+        auto rng = getter(p);
+        auto lo = *rng.first;
+        auto mid = std::min(lo + loop_threshold, *rng.second);
+        *rng.first = mid;
+        body(s, p, lo, mid);
+      }))
+    });    
+  }
   
 };
   

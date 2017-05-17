@@ -365,6 +365,88 @@ public:
 
 encore_pcfg_allocate(parallel_combine_0, get_cfg)
 
+class parallel_combine_1 : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  static constexpr int nb_loops = 1;
+  
+  int n;
+  int* a;
+  int* b;
+  int result;
+  
+  parallel_combine_1() { }
+  
+  parallel_combine_1(int n)
+  : n(n) { }
+  
+  class private_activation_record
+  : public dsl::pcfg::parallel_loop_private_activation_record<parallel_combine_1,
+  private_activation_record> {
+  public:
+    
+    private_activation_record() {
+      private_activation_record::initialize_descriptors();
+    }
+    
+    dsl::pcfg::parallel_combine_activation_record _ar;
+    dsl::pcfg::parallel_loop_activation_record* _encore_loop_activation_record_of(dsl::pcfg::parallel_loop_id_type id) {
+      assert(id == 0);
+      return &_ar;
+    }
+    
+    int lo; int hi;
+    int acc = 0;
+    
+  };
+  
+  encore_dc_loop_declare(encore::edsl, parallel_combine_1, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.a = new int[s.n];
+        s.b = new int[s.n];
+        for (int i = 0; i < s.n; i++) {
+          s.a[i] = i % 1024;
+          s.b[i] = 0;
+        }
+      }),
+      dc::parallel_combine_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n; p.acc = 0; },
+                                [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                                [] (sar&, par& p) { p.acc = 0; },
+                                [] (sar&, par& p, par& destination) { destination.acc += p.acc; },
+                                [] (sar& s, par& p, int lo, int hi) {
+        auto a = s.a;
+        auto b = s.b;
+        auto acc = p.acc;
+        for (auto i = lo; i != hi; i++) {
+          acc += a[i];
+          b[i] = 0xdeadbeef;
+        }
+        p.acc = acc;
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        s.result = p.acc;
+#ifndef NDEBUG
+        int acc2 = 0;
+        for (int i = 0; i < s.n; i++) {
+          acc2 += s.a[i];
+          assert(s.b[i] == 0xdeadbeef);
+        }
+        assert(s.result == acc2);
+#endif
+        delete [] s.a;
+        delete [] s.b;
+      })
+    });
+  }
+  
+};
+
+encore_pcfg_allocate(parallel_combine_1, get_cfg)
+
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
@@ -391,6 +473,9 @@ int main(int argc, char** argv) {
     });
     d.add("parallel_combine_0", [=] {
       encore::launch_interpreter<parallel_combine_0>(n);
+    });
+    d.add("parallel_combine_1", [=] {
+      encore::launch_interpreter<parallel_combine_1>(n);
     });
     d.dispatch_or_default("function", "sequential_loop_0");
   });
