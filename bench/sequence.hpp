@@ -248,20 +248,13 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
-        p.s = s.s;
-        p.e = s.e;
-      }),
-      dc::parallel_combine_loop([] (sar&, par& p) { return p.s < p.e; },
+      dc::parallel_combine_loop([] (sar& s, par& p) { p.s = s.s; p.e = s.e; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
                                 [] (sar&, par& p) { p.acc = OT(); },
                                 [] (sar& s, par& p, par& dest) { dest.acc = s.f(p.acc, dest.acc); },
-                                dc::stmt([] (sar& s, par& p) {
-        intT ss = p.s;
-        intT ee = std::min(p.e, ss + threshold);
-        p.acc = s.f(p.acc, orig::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
-        p.s = ee;
-      })),
+                                [] (sar& s, par& p, int lo, int hi) {
+        p.acc = s.f(p.acc, orig::sequence::reduceSerial<OT>(lo, hi, s.f, s.g));
+      }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = p.acc;
       })
@@ -427,11 +420,7 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
-        p.s = s.s + 1;
-        p.e = s.e;
-      }),
-      dc::parallel_combine_loop([] (sar&, par& p) { return p.s < p.e; },
+      dc::parallel_combine_loop([] (sar& s, par& p) { p.s = s.s + 1; p.e = s.e; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
                                 [] (sar& s, par& p) { p.k = s.s; p.r = s.g(p.k); },
                                 [] (sar& s, par& p, par& dest) {
@@ -440,14 +429,12 @@ public:
                                     dest.k = p.k;
                                   }
                                 },
-                                dc::stmt([] (sar& s, par& p) {
-        intT ss = p.s;
-        intT ee = std::min(p.e, ss + threshold);
-        intT k = p.k;
-        ET r = p.r;
+                                [] (sar& s, par& p, int lo, int hi) {
         auto g = s.g;
         auto f = s.f;
-        for (intT j = ss; j < ee; j++) {
+        auto k = p.k;
+        ET r = p.r;
+        for (auto j = lo; j != hi; j++) {
           ET v = g(j);
           if (f(v, r)) {
             r = v;
@@ -456,8 +443,7 @@ public:
         }
         p.r = r;
         p.k = k;
-        p.s = ee;
-      })),
+      }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = p.k;
       })

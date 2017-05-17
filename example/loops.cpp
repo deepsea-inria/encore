@@ -213,18 +213,16 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.lo1 != p.hi1; },
                             [] (par& p) { return std::make_pair(&p.lo1, &p.hi1); },
                             dc::stmts({
-        dc::stmt([] (sar& s, par& p) {
-          p.lo2 = 0;
-          p.hi2 = s.n;
-        }),
-        dc::parallel_for_loop([] (sar&, par& p) { return p.lo2 != p.hi2; },
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo2 = 0; p.hi2 = s.n; },
                               [] (par& p) { return std::make_pair(&p.lo2, &p.hi2); },
-                              dc::stmt([] (sar& s, par& p) {
-          int i = p.lo1;
-          int j = p.lo2;
-          s.a[i * s.n + j] = 0xdeadbeef;
-          p.lo2++;
-        })),
+                              [] (sar& s, par& p, int lo2, int hi2) {
+          auto a = s.a;
+          auto n = s.n;
+          auto i = p.lo1;
+          for (auto j = lo2; j != hi2; j++) {
+            a[i * n + j] = 0xdeadbeef;
+          }
+        }),
         dc::stmt([] (sar& s, par& p) {
           p.lo1++;
         })
