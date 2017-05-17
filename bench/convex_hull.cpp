@@ -127,7 +127,7 @@ public:
   
   encore_dc_declare(encore::edsl, quickHull, sar, par, dc, get_dc)
   
-  sattic
+  static
   dc get_dc() {
     return dc::stmts({
       dc::mk_if([&] (sar& s, par&) { return s.n < quickHull_threshold; }, dc::stmts({
@@ -228,18 +228,23 @@ public:
         s.fBot = malloc_array<bool>(s.n);
         s.I = malloc_array<intT>(s.n);
         s.Itmp = malloc_array<intT>(s.n);
-        p.s = 0;
-        p.e = s.n;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) {
-          s.Itmp[p.s] = p.s;
-          double a = triangle_area(s.P[s.l], s.P[s.r], s.P[p.s]);
-          s.fTop[p.s] = a > 0;
-          s.fBot[p.s] = a < 0;
-          p.s++;
-        })),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
+                      [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                      [] (sar& s, par& p, int lo, int hi) {
+        auto Itmp = s.Itmp;
+        auto P = s.P;
+        auto fTop = s.fTop;
+        auto fBot = s.fBot;
+        auto r = s.r;
+        auto l = s.l;
+        for (auto i = lo; i != hi; i++) {
+          Itmp[i] = i;
+          double a = triangle_area(P[l], P[r], P[i]);
+          fTop[i] = a > 0;
+          fBot[i] = a < 0;
+        }
+      }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return pack5(st, pt, s.Itmp, s.I, s.fTop, s.n, &s.tmp);
       }),
