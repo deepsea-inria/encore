@@ -940,24 +940,19 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
+      dc::parallel_for_loop([] (sar& s, par& p) {
         s.Fl = malloc_array<bool>(s.n);
         p.s = 0;
         p.e = s.n;
+      }, [] (par& p) { return std::make_pair(&p.s, &p.e);
+      }, [] (sar& s, par& p, int lo, int hi) {
+        auto Fl = s.Fl;
+        auto pr = s.p;
+        auto In = s.In;
+        for (auto i = lo; i != hi; i++) {
+          Fl[i] = (bool)pr(In[i]);
+        }
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) {
-          auto Fl = s.Fl;
-          auto pr = s.p;
-          auto In = s.In;
-          intT ss = p.s;
-          intT ee = std::min(p.e, p.s + threshold);
-          for (; ss < ee; ss++) {
-            Fl[ss] = (bool)pr(In[ss]);
-          }
-          p.s = ss;
-        })),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return pack5(st, pt, s.In, s.Out, s.Fl, s.n, &s.tmp);
       }),
@@ -996,24 +991,19 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
+      dc::parallel_for_loop([] (sar& s, par& p) {
         s.Fl = malloc_array<bool>(s.n);
         p.s = 0;
         p.e = s.n;
+      }, [] (par& p) { return std::make_pair(&p.s, &p.e);
+      }, [] (sar& s, par& p, int lo, int hi) {
+        auto Fl = s.Fl;
+        auto pr = s.p;
+        auto In = s.In;
+        for (auto i = lo; i != hi; i++) {
+          Fl[i] = (bool)pr(In[i]);
+        }
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-        dc::stmt([] (sar& s, par& p) {
-          auto Fl = s.Fl;
-          auto pr = s.p;
-          auto In = s.In;
-          intT ss = p.s;
-          intT ee = std::min(p.e, p.s + threshold);
-          for (; ss < ee; ss++) {
-            Fl[ss] = (bool)pr(In[ss]);
-          }
-          p.s = ss;
-        })),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return pack4<ET,intT>(st, pt, s.In, s.Fl, s.n, s.dest);
       }),
@@ -1043,24 +1033,14 @@ public:
   
   static
   dc get_dc() {
-    return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
-        p.s = 0;
-        p.e = s.hi - s.lo;
-      }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmts({
-        dc::stmt([] (sar& s, par& p) {
-          intT ss = p.s;
-          intT ee = std::min(p.e, p.s + threshold);
-          auto lo = s.lo + ss;
-          auto hi = s.lo + ee;
-          std::copy(lo, hi, s.dst + (lo - s.lo));
-          p.s = ee;
-        })
-      }))
-    });
+    return 
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.hi - s.lo; },
+                      [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                      [] (sar& s, par& p, int lo, int hi) {
+        auto lo2 = s.lo + lo;
+        auto hi2 = s.lo + hi;
+        std::copy(lo2, hi2, s.dst + (lo2 - s.lo));
+      });
   }
   
 };
