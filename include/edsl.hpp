@@ -1830,8 +1830,8 @@ public:
                                   leaf_loop_body_type body) {
     return stmts({
       stmt(initializer),
-        parallel_combine_loop(getter, combine_initializer, combine,
-                              stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+      parallel_combine_loop(getter, combine_initializer, combine,
+                            stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
         auto mid = std::min(lo + loop_threshold, *rng.second);
