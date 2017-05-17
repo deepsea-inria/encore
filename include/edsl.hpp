@@ -1788,15 +1788,20 @@ public:
   }
 
   static
+  stmt_type parallel_for_loop(parallel_loop_range_getter_type getter, stmt_type body) {
+    return parallel_for_loop([=] (sar_type& s, par_type& p) {
+      auto rng = getter(p);
+      return *rng.first != *rng.second;
+    }, getter, body);
+  }
+  
+  static
   stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
                               parallel_loop_range_getter_type getter,
                               leaf_loop_body_type body) {
     return stmts({
       stmt(initializer),
-      parallel_for_loop([=] (sar_type& s, par_type& p) {
-        auto rng = getter(p);
-        return *rng.first != *rng.second;
-      }, getter, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+      parallel_for_loop(getter, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
         auto mid = std::min(lo + loop_threshold, *rng.second);
