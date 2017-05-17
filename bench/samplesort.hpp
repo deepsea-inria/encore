@@ -108,30 +108,34 @@ public:
         s.over_sample = 4;
         s.sample_set_size = s.segments * s.over_sample;
         s.sample_set = malloc_array<E>(s.sample_set_size);
-        p.s = 0;
-        p.e = s.sample_set_size;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.sample_set_size; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmt([] (sar& s, par& p) { // todo: coarsen
-        intT o = pbbs::utils::hash(p.s)% s.n;
-        s.sample_set[p.s] = s.a[o];
-        p.s++;
-      })),
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto sample_set = s.sample_set;
+        auto a = s.a;
+        auto n = s.n;
+        for (auto i = lo; i != hi; i++) {
+          intT o = pbbs::utils::hash(i)% n;
+          sample_set[i] = a[o];
+        }
+      }),
       dc::stmt([] (sar& s, par& p) {
         std::sort(s.sample_set, s.sample_set + s.sample_set_size, s.compare);
         s.pivots_size = s.segments - 1;
         s.pivots = malloc_array<E>(s.pivots_size);
-        p.s = 0;
-        p.e = s.pivots_size;
       }),
-      dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.pivots_size; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                            dc::stmt([] (sar& s, par& p) { // todo: coarsen
-        intT o = s.over_sample * p.s;
-        s.pivots[p.s] = s.sample_set[o];
-        p.s++;
-      })),
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto over_sample = s.over_sample;
+        auto sample_set = s.sample_set;
+        auto pivots = s.pivots;
+        for (auto i = lo; i != hi; i++) {
+          intT o = over_sample * i;
+          pivots[i] = sample_set[o];
+        }
+      }),
       dc::stmt([] (sar& s, par& p) {
         free(s.sample_set);
         s.segments = 2 * s.segments - 1;
