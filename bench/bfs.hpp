@@ -71,15 +71,12 @@ public:
          s.Visited = malloc_array<intT>(s.numVertices);
          s.FrontierNext = malloc_array<intT>(s.numEdges);
          s.Counts = malloc_array<intT>(s.numVertices);
-         p.s1 = 0;
-         p.e1 = s.numVertices;
        }),
-       dc::parallel_for_loop([] (sar&, par& p) { return p.s1 < p.e1; },
+       dc::parallel_for_loop([] (sar& s, par& p) { p.s1 = 0; p.e1 = s.numVertices; },
                              [] (par& p) { return std::make_pair(&p.s1, &p.e1); },
-                             dc::stmt([] (sar& s, par& p) {
-         s.Visited[p.s1] = 0;
-         p.s1++;
-       })),
+                             [] (sar& s, par& p, int lo, int hi) {
+         std::fill(s.Visited + lo, s.Visited + hi, 0);
+       }),
        dc::stmt([] (sar& s, par& p) {
          s.Frontier[0] = s.start;
          s.frontierSize = 1;
@@ -91,39 +88,43 @@ public:
          dc::stmt([] (sar& s, par& p) {
            s.round++;
            s.totalVisited += s.frontierSize;
-           p.s2 = 0;
-           p.e2 = s.frontierSize;
          }),
-         dc::parallel_for_loop([] (sar&, par& p) { return p.s2 < p.e2; },
-                               [] (par& p) { return std::make_pair(&p.s2, &p.e2); },
-                               dc::stmt([] (sar& s, par& p) {
-           s.Counts[p.s2] = s.G[s.Frontier[p.s2]].degree;         
-           p.s2++;
-         })),  
+         dc::parallel_for_loop([] (sar& s, par& p) { p.s2 = 0; p.e2 = s.frontierSize; },
+                      [] (par& p) { return std::make_pair(&p.s2, &p.e2); },
+                      [] (sar& s, par& p, int lo, int hi) {
+           auto Counts = s.Counts;
+           auto G = s.G;
+           auto Frontier = s.Frontier;
+           for (auto i = lo; i != hi; i++) {
+             Counts[i] = G[Frontier[i]].degree;
+           }
+         }),
          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
            return sequence::scan6(st, pt, s.Counts, s.Counts, s.frontierSize, pbbs::utils::addF<intT>(),(intT)0, &(s.nr));
          }),
-         dc::stmt([] (sar& s, par& p) {
-           p.s3 = 0;
-           p.e3 = s.frontierSize;
-         }),
-         dc::parallel_for_loop([] (sar&, par& p) { return p.s3 < p.e3; },
-                               [] (par& p) { return std::make_pair(&p.s3, &p.e3); },
-                               dc::stmt([] (sar& s, par& p) {
-           intT k = 0;
-           intT v = s.Frontier[p.s3];
-           intT o = s.Counts[p.s3];
-           for (intT j=0; j < s.G[v].degree; j++) {
-             intT ngh = s.G[v].Neighbors[j];
-             if (s.Visited[ngh] == 0 && !__sync_val_compare_and_swap(&(s.Visited[ngh]), 0, 1)) {
-               s.FrontierNext[o+j] = s.G[v].Neighbors[k++] = ngh;
-             } else {
-               s.FrontierNext[o+j] = -1;
+         dc::parallel_for_loop([] (sar& s, par& p) { p.s3 = 0; p.e3 = s.frontierSize; },
+                      [] (par& p) { return std::make_pair(&p.s3, &p.e3); },
+                      [] (sar& s, par& p, int lo, int hi) {
+           auto Frontier = s.Frontier;
+           auto Counts = s.Counts;
+           auto G = s.G;
+           auto Visited = s.Visited;
+           auto FrontierNext = s.FrontierNext;
+           for (auto i = lo; i != hi; i++) {
+             intT k = 0;
+             intT v = Frontier[i];
+             intT o = Counts[i];
+             for (intT j=0; j < G[v].degree; j++) {
+               intT ngh = G[v].Neighbors[j];
+               if (Visited[ngh] == 0 && !__sync_val_compare_and_swap(&(Visited[ngh]), 0, 1)) {
+                 FrontierNext[o+j] = G[v].Neighbors[k++] = ngh;
+               } else {
+                 FrontierNext[o+j] = -1;
+               }
              }
+             G[v].degree = k;
            }
-           s.G[v].degree = k;
-           p.s3++;
-         })),
+         }),
          // Filter out the empty slots (marked with -1)
          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
            return sequence::filterDPS5(st, pt, s.FrontierNext, s.Frontier, s.nr, nonNegF(), &(s.frontierSize));
