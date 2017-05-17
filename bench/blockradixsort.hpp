@@ -351,12 +351,9 @@ namespace intSort {
                 p.s = 0;
                 p.e = s.m;
               }),
-              dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                                    [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                    dc::stmt([] (sar& s, par& p) { // later: replace by memcpy
-                s.bucketOffsets[p.s] = s.BK[0][p.s];
-                p.s++;
-              }))
+              dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+                return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.BK[0], s.BK[0] + s.m, s.bucketOffsets);
+              })
             })),
             dc::exit()
           })),
@@ -371,28 +368,25 @@ namespace intSort {
         dc::mk_if([] (sar& s, par& p) {
           return s.bucketOffsets != NULL;
         }, dc::stmts({
-          dc::stmt([] (sar& s, par& p) {
-            p.s = 0;
-            p.e = s.m;
-          }),
-          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.m; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                dc::stmt([] (sar& s, par& p) { // later: replace by memcpy
-            s.bucketOffsets[p.s] = s.n;
-            p.s++;
-          })),
-          dc::stmt([] (sar& s, par& p) {
-            p.s = 0;
-            p.e = s.n-1;
+                                [] (sar& s, par& p, int lo, int hi) {
+            std::fill(s.bucketOffsets + lo, s.bucketOffsets + hi, s.n);
           }),
-          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n-1; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                dc::stmt([] (sar& s, par& p) { // later: coarsen
-            intT v = s.f(s.A[p.s]);
-            intT vn = s.f(s.A[p.s+1]);
-            if (v != vn) s.bucketOffsets[vn] = p.s+1;
-            p.s++;
-          })),
+                                [] (sar& s, par& p, int lo, int hi) {
+            auto f = s.f;
+            auto A = s.A;
+            auto bucketOffsets = s.bucketOffsets;
+            for (auto i = lo; i != hi; i++) {
+              intT v = f(A[i]);
+              intT vn = f(A[i+1]);
+              if (v != vn) {
+                bucketOffsets[vn] = i+1;
+              }
+            }
+          }),
           dc::stmt([] (sar& s, par& p) {
             s.bucketOffsets[s.f(s.A[0])] = 0;
           }),
