@@ -242,6 +242,49 @@ public:
 
 encore_pcfg_allocate(parallel_loop_1, get_cfg)
 
+class parallel_loop_2 : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  int n;
+  int* a;
+  
+  parallel_loop_2() { }
+  
+  parallel_loop_2(int n)
+  : n(n) { }
+  
+  encore_private_activation_record_begin(encore::edsl, parallel_loop_2, 1)
+    int lo; int hi;
+  encore_private_activation_record_end(encore::edsl, parallel_loop_2, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::parallel_for_loop([] (sar& s, par& p) {
+        p.lo = 0;
+        p.hi = s.n;
+        s.a = new int[s.n];
+      }, [] (par& p) {
+        return std::make_pair(&p.lo, &p.hi);
+      }, [] (sar& s, par& p, int lo, int hi) {
+        auto a = s.a;
+        for (auto i = lo; i != hi; i++) {
+          a[i] = 0xdeadbeef;
+        }
+      }),                       
+      dc::stmt([] (sar& s, par&) {
+        for (int i = 0; i < s.n; i++) {
+          assert(s.a[i] == 0xdeadbeef);
+        }
+        delete [] s.a;
+      })
+    });
+  }
+  
+};
+
+encore_pcfg_allocate(parallel_loop_2, get_cfg)
+
 class parallel_combine_0 : public encore::edsl::pcfg::shared_activation_record {
 public:
   
@@ -342,6 +385,9 @@ int main(int argc, char** argv) {
     });
     d.add("parallel_loop_1", [=] {
       encore::launch_interpreter<parallel_loop_1>(n);
+    });
+    d.add("parallel_loop_2", [=] {
+      encore::launch_interpreter<parallel_loop_2 >(n);
     });
     d.add("parallel_combine_0", [=] {
       encore::launch_interpreter<parallel_combine_0>(n);

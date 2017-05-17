@@ -1783,7 +1783,26 @@ public:
           hi2 = hi;
         }
         body(s, p, lo2, hi2);
-        }))
+      }))
+    });
+  }
+
+  static
+  stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
+                              parallel_loop_range_getter_type getter,
+                              leaf_loop_body_type body) {
+    return stmts({
+      stmt(initializer),
+      parallel_for_loop([=] (sar_type& s, par_type& p) {
+        auto rng = getter(p);
+        return *rng.first != *rng.second;
+      }, getter, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+        auto rng = getter(p);
+        auto lo = *rng.first;
+        auto mid = std::min(lo + loop_threshold, *rng.second);
+        *rng.first = mid;
+        body(s, p, lo, mid);
+      }))
     });
   }
   
