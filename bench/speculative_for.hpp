@@ -90,37 +90,63 @@ public:
           }
           s.size = std::min(s.maxRoundSize, s.e - s.numberDone);
           s.totalProcessed += s.size;
-          p.s = 0;
-          p.e = s.size;
         }),
         dc::mk_if([] (sar& s, par&) { return s.hasState; },
-          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.size; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
-            dc::stmt([] (sar& s, par& p) {
-              if (p.s >= s.numberKeep) s.I[p.s] = s.numberDone + p.s;
-              s.keep[p.s] = s.state[p.s].reserve(s.I[p.s]);
-              p.s++;
-            })),
-          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                                [] (sar& s, par& p, int lo, int hi) {
+            auto numberKeep = s.numberKeep;
+            auto I = s.I;
+            auto numberDone = s.numberDone;
+            auto keep = s.keep;
+            auto& state = s.state;
+            for (auto i = lo; i != hi; i++) {
+              if (i >= numberKeep) {
+                I[i] = numberDone + i;
+              }
+              keep[i] = state[i].reserve(I[i]);
+            }
+          }),
+          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.size; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
-            dc::stmt([] (sar& s, par& p) {
-              if (p.s >= s.numberKeep) s.I[p.s] = s.numberDone + p.s;
-              s.keep[p.s] = s.step.reserve(s.I[p.s]);
-              p.s++;
-          }))),
-        dc::mk_if([] (sar& s, par&) { return s.hasState; },
-          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
-                                [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                dc::stmt([] (sar& s, par& p) {
-            if (s.keep[p.s]) s.keep[p.s] = !s.state[p.s].commit(s.I[p.s]);
-            p.s++;
+                                [] (sar& s, par& p, int lo, int hi) {
+            auto numberKeep = s.numberKeep;
+            auto I = s.I;
+            auto numberDone = s.numberDone;
+            auto keep = s.keep;
+            auto& step = s.step;
+            for (auto i = lo; i != hi; i++) {
+              if (i >= numberKeep) {
+                I[i] = numberDone + i;
+              }
+              keep[i] = step.reserve(I[i]);
+            }
           })),
-          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+        dc::mk_if([] (sar& s, par&) { return s.hasState; },
+          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.size; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                dc::stmt([] (sar& s, par& p) {
-            if (s.keep[p.s]) s.keep[p.s] = !s.step.commit(s.I[p.s]);
-            p.s++;
-          }))),
+                                [] (sar& s, par& p, int lo, int hi) {
+            auto I = s.I;
+            auto keep = s.keep;
+            auto& state = s.state;
+            for (auto i = lo; i != hi; i++) {
+              if (keep[i]) {
+                keep[i] = !state[i].commit(I[i]);
+              }
+            }
+          }),
+          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.size; },
+                                [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                                [] (sar& s, par& p, int lo, int hi) {
+            auto I = s.I;
+            auto keep = s.keep;
+            auto& step = s.step;
+            for (auto i = lo; i != hi; i++) {
+              if (keep[i]) {
+                keep[i] = !step.commit(I[i]);
+              }
+            }
+          })),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return sequence::pack5(st, pt, s.I, s.Ihold, s.keep, s.size, &s.tmp);
         }),
