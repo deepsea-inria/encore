@@ -90,8 +90,8 @@ public:
            s.totalVisited += s.frontierSize;
          }),
          dc::parallel_for_loop([] (sar& s, par& p) { p.s2 = 0; p.e2 = s.frontierSize; },
-                      [] (par& p) { return std::make_pair(&p.s2, &p.e2); },
-                      [] (sar& s, par& p, int lo, int hi) {
+                               [] (par& p) { return std::make_pair(&p.s2, &p.e2); },
+                               [] (sar& s, par& p, int lo, int hi) {
            auto Counts = s.Counts;
            auto G = s.G;
            auto Frontier = s.Frontier;
