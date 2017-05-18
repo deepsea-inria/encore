@@ -27,6 +27,79 @@
 
 namespace encorebench {
 
+template <class E, class BinPred, class intT>
+void insertionSort2(E* A, intT n, BinPred f) {
+  for (intT i=0; i < n; i++) {
+    E v = A[i];
+    E* B = A + i;
+    while (--B >= A && f(v,*B)) *(B+1) = *B;
+    *(B+1) = v;
+  }
+}
+
+#define ISORT 25
+
+template <class E, class BinPred>
+E median2(E a, E b, E c, BinPred f) {
+  return  f(a,b) ? (f(b,c) ? b : (f(a,c) ? c : a))
+           : (f(a,c) ? a : (f(b,c) ? c : b));
+}
+
+// Quicksort based on median of three elements as pivot
+//  and uses insertionSort for small inputs
+template<class E, class BinPred, class intT>
+class quicksort : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  E* A; intT n; BinPred f;
+  E* M; E* L;
+
+  quicksort(E* A, intT n, BinPred f)
+    : A(A), n(n), f(f) { }
+
+  encore_dc_declare(encore::edsl, quicksort, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::mk_if([] (sar& s, par&) { return s.n < ISORT; }, dc::stmt([] (sar& s, par& p) {
+      insertionSort2(s.A, s.n, s.f);
+    }), dc::stmts({dc::stmt([] (sar& s, par&) {
+      auto f = s.f;
+      auto n = s.n;
+      auto A = s.A;
+      E p = median2(A[n/4],A[n/2],A[(3*n)/4],f);
+      E* L = A;   // below L are less than pivot
+      E* M = A;   // between L and M are equal to pivot
+      E* R = A+n-1; // above R are greater than pivot
+      while (1) {
+        while (!f(p,*M)) {
+          if (f(*M,p)) std::swap(*M,*(L++));
+          if (M >= R) break;
+          M++;
+        }
+        while (f(p,*R)) R--;
+        if (M >= R) break;
+        std::swap(*M,*R--);
+        if (f(*M,p)) std::swap(*M,*(L++));
+        M++;
+      }
+      s.L = L;
+      s.M = M;
+    }),
+    dc::spawn2_join(
+       [] (sar& s, par&, plt pt, stt st) {
+         return encore_call<quicksort<E,BinPred,intT>>(st, pt, s.A, s.L-s.A, s.f);
+    }, [] (sar& s, par&, plt pt, stt st) {
+         return encore_call<quicksort<E,BinPred,intT>>(st, pt, s.M, s.A+s.n-s.M, s.f);
+    })}));
+  }
+  
+};
+
+template<class E, class BinPred, class intT>
+typename quicksort<E,BinPred,intT>::cfg_type quicksort<E,BinPred,intT>::cfg = quicksort<E,BinPred,intT>::get_cfg();
+  
+
 template<class E, class BinPred, class intT>
 void split_positions2(E* a, E* b, intT* c, intT length_a, intT length_b, BinPred compare) {
   if (length_a == 0 || length_b == 0) {
@@ -86,8 +159,8 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::mk_if([] (sar& s, par&) { return s.n < SSORT_THR; }, dc::stmts({
-        dc::stmt([] (sar& s, par&) {
-          std::sort(s.a, s.a + s.n, s.compare);
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<quicksort<E,BinPred,intT>>(st, pt, s.a, s.n, s.compare);
         }),
         dc::exit()
       })),
