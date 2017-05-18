@@ -33,7 +33,13 @@ public:
     out_dflt.reset(new outset);
   }
   
-  virtual ~vertex() { }
+  virtual ~vertex() {
+#ifndef NDEBUG
+    if (in) {
+      assert(! in->is_nonzero());
+    }
+#endif
+  }
   
   incounter* get_incounter() {
     return in.get();

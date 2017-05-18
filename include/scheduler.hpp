@@ -66,6 +66,11 @@ public:
   }
   
   void push(vertex* v) {
+#ifndef NDEBUG
+    vs.for_each([&] (vertex* v2) {
+      assert(v != v2);
+    });
+#endif
     assert(v->nb_strands() > 0);
     vs.push_back(v);
   }

@@ -307,6 +307,12 @@ public:
       schedule(v);
     }
   }
+
+#ifndef NDEBUG
+  bool is_nonzero() {
+    return t.is_nonzero();
+  }
+#endif
   
 };
   
@@ -355,7 +361,13 @@ public:
       schedule(v);
     }
   }
-  
+
+#ifndef NDEBUG
+  bool is_nonzero() {
+    return h.counter.load() != 0;
+  }
+#endif
+
 };
 
 #endif
