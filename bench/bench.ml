@@ -165,7 +165,7 @@ let name = "compare"
 let all_benchmarks =
   match arg_benchmarks with
   | ["all"] -> [
-      "convex_hull"; "samplesort"; "radixsort"; "bfs";
+      "convexhull"; "samplesort"; "radixsort"; "bfs";
     ]
   | _ -> arg_benchmarks
     
@@ -193,7 +193,7 @@ let mk_infiles ty descr = fun e ->
 (* Convex hull *)
 
 let prog_hull =
-  "convex_hull"
+  "convexhull"
     
 let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_in_circle_large.bin", "2d", "in circle";
@@ -210,7 +210,7 @@ let mk_progs n =
 let mk_hull_progs =
   mk_progs prog_hull
 
-let mk_convex_hull =
+let mk_convexhull =
     mk_hull_progs
   & mk_proc
   & mk_hull_infiles
@@ -288,7 +288,7 @@ let mk_bfs =
   & mk_bfs_infiles
 
 let benchmarks' : benchmark_descriptor list = [
-  { bd_name = "convex_hull"; bd_args = mk_convex_hull;
+  { bd_name = "convexhull"; bd_args = mk_convexhull;
     bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
   };
   { bd_name = "samplesort"; bd_args = mk_samplesort;
