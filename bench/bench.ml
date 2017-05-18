@@ -165,7 +165,7 @@ let name = "compare"
 let all_benchmarks =
   match arg_benchmarks with
   | ["all"] -> [
-      "convexhull"; "samplesort"; "radixsort"; "bfs";
+      "convexhull"; "samplesort"; "radixsort"; "pbfs";
     ]
   | _ -> arg_benchmarks
     
@@ -268,24 +268,24 @@ let mk_radixsort =
 (*****************)
 (* BFS *)
 
-let prog_bfs =
-  "bfs"
+let prog_pbfs =
+  "pbfs"
 
-let mk_bfs_progs =
-  mk_progs prog_bfs
+let mk_pbfs_progs =
+  mk_progs prog_pbfs
 
-let input_descriptor_bfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", "0", "cube";
   "wikipedia-20070206.bin", "0", "wikipedia";
   "rmat24_large.bin", "0", "rMat24";
 ]
 
-let mk_bfs_infiles = mk_infiles "source" input_descriptor_bfs
+let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
 
-let mk_bfs =
-    mk_bfs_progs
+let mk_pbfs =
+    mk_pbfs_progs
   & mk_proc
-  & mk_bfs_infiles
+  & mk_pbfs_infiles
 
 let benchmarks' : benchmark_descriptor list = [
   { bd_name = "convexhull"; bd_args = mk_convexhull;
@@ -297,8 +297,8 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "radixsort"; bd_args = mk_radixsort;
     bd_infiles = mk_radixsort_infiles; bd_progs = mk_radixsort_progs;
   };
-  { bd_name = "bfs"; bd_args = mk_bfs;
-    bd_infiles = mk_bfs_infiles; bd_progs = mk_bfs_progs;
+  { bd_name = "pbfs"; bd_args = mk_pbfs;
+    bd_infiles = mk_pbfs_infiles; bd_progs = mk_pbfs_progs;
   };
 ]
 
