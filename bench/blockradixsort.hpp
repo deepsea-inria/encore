@@ -421,13 +421,13 @@ namespace intSort {
     static
     dc get_dc() {
       return dc::stmts({
-	dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-	  long x = iSortSpace<E,intT>(s.n);
-	  s.ss = (char*) malloc(x);
-	  return encore_call<iSort<E,F,intT>>(st, pt, s.A, s.bucketOffsets, s.n, s.m, s.bottomUp, s.ss, s.f);
-	}),
-	dc::stmt([] (sar& s, par& p) {
-	  free(s.ss);
+       	dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          long x = iSortSpace<E,intT>(s.n);
+          s.ss = (char*) malloc(x);
+          return encore_call<iSort<E,F,intT>>(st, pt, s.A, s.bucketOffsets, s.n, s.m, s.bottomUp, s.ss, s.f);
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          free(s.ss);
         })
       });
     }
