@@ -421,13 +421,13 @@ namespace intSort {
     static
     dc get_dc() {
       return dc::stmts({
-	dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-	  long x = iSortSpace<E,intT>(s.n);
-	  s.ss = (char*) malloc(x);
-	  return encore_call<iSort<E,F,intT>>(st, pt, s.A, s.bucketOffsets, s.n, s.m, s.bottomUp, s.ss, s.f);
-	}),
-	dc::stmt([] (sar& s, par& p) {
-	  free(s.ss);
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          long x = iSortSpace<E,intT>(s.n);
+          s.ss = (char*) malloc(x);
+          return encore_call<iSort<E,F,intT>>(st, pt, s.A, s.bucketOffsets, s.n, s.m, s.bottomUp, s.ss, s.f);
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          free(s.ss);
         })
       });
     }
@@ -440,6 +440,11 @@ namespace intSort {
   template <class E, class F, class intT>
   stack_type iSort5(stack_type s, plt_type p, E *A, intT* bucketOffsets, intT n, intT m, F f) {
     return sequence::encore_call<iSort6<E,F,intT>>(s, p, A, bucketOffsets, n, m, false, f);
+  }
+
+  template <class E, class F, class intT>
+  stack_type iSort4(stack_type s, plt_type p, E *A, intT n, intT m, F f) {
+    return sequence::encore_call<iSort5<E,F,intT>>(s, p, A, (intT*)NULL, n, m, false, f);
   }
 
 } // end namespace

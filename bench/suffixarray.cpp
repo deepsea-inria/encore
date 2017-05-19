@@ -42,6 +42,8 @@ public:
   intT m;
   intT** table;
   intT depth;
+
+  intT query(intT,intT);
 };
 
 class precompute_queries : public encore::edsl::pcfg::shared_activation_record {
@@ -140,6 +142,371 @@ public:
 
 encore_pcfg_allocate(precompute_queries, get_cfg)
 
+intT myRMQ::query(intT i, intT j){
+  //same block
+  if (j-i < BSIZE) {
+    intT r = i;
+    for (intT k = i+1; k <= j; k++) 
+      if (a[k] < a[r]) r = k;
+    return r;
+  } 
+  intT block_i = i/BSIZE;
+  intT block_j = j/BSIZE;
+  intT min = i;
+  for(intT k=i+1;k<(block_i+1)*BSIZE;k++){
+    if(a[k] < a[min]) min = k;
+  }
+  for(intT k=j; k>=(block_j)*BSIZE;k--){
+    if(a[k] < a[min]) min = k;
+  }
+  if(block_j == block_i + 1) return min;
+  intT outOfBlockMin;
+  //not same or adjacent blocks
+  if(block_j > block_i + 1){
+    block_i++;
+    block_j--;
+    if(block_j == block_i) outOfBlockMin = table[0][block_i];
+    else if(block_j == block_i + 1) outOfBlockMin = table[1][block_i];
+    else {
+      intT k = log2(block_j - block_i);
+      intT p = 1<<k; //2^k
+      outOfBlockMin = a[table[k][block_i]] <= a[table[k][block_j+1-p]]
+	? table[k][block_i] : table[k][block_j+1-p];
+    }
+  }
 
+  return a[min] < a[outOfBlockMin] ? min : outOfBlockMin;
+
+}
+
+#define _MERGE_BSIZE (1 << 12)
+
+template <class ET, class F, class intT> 
+int binSearch(ET* S, intT n, ET v, F f) {
+  ET* T = S;
+  while (n > 0) {
+    intT mid = n/2;
+    if (f(v,T[mid])) n = mid;
+    else {
+      n = (n-mid)-1;
+      T = T + mid + 1;
+    }
+  }
+  return T-S;
+}
+
+template <class ET, class F, class intT> 
+class merge : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  ET* S1; intT l1; ET* S2; intT l2; ET* R; F f;
+  intT lr; intT m1, m2;
+
+  merge(ET* S1, intT l1, ET* S2, intT l2, ET* R, F f)
+    : S1(S1), l1(l1), S2(S2), l2(l2), R(R), f(f) { }
+  
+  encore_dc_declare(encore::edsl, merge, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::mk_if([] (sar& s, par& p) {
+        return s.lr > _MERGE_BSIZE;
+      }, dc::mk_if([] (sar& s, par& p) {
+          return s.l2 > s.l1;
+        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<merge<ET,F,intT>>(st, pt, s.S2, s.l2, s.S1, s.l1, s.R, s.f);
+        }), dc::stmts({dc::stmt([] (sar& s, par& p) {
+              s.m1 = s.l1 / 2;
+              s.m2 = binsearch(s.S2, s.l2, s.S1[s.m1], s.f);
+             }),
+             dc::spawn2_join(
+               [] (sar& s, par&, plt_type pt, stt st) {
+                 return encore_call<merge<ET,F,intT>>(st, pt, s.S1, s.m1, s.S2, s.m2, s.R, s.f);
+               },
+               [] (sar& s, par&, plt_type pt, stt st) {
+                 return encore_call<merge<ET,F,intT>>(st, pt,
+                              s.S1 + s.m1, s.s.l1 - m1, s.S2 + s.m2, s.l2 - s.m2,
+                                                      s.R + s.m1 + s.m2, s.f);
+               })
+            })),
+    dc::stmt([] (sar& s, par& p) {
+      ET* pR = s.R; 
+      ET* pS1 = s.S1; 
+      ET* pS2 = s.S2;
+      ET* eS1 = s.S1 + s.l1; 
+      ET* eS2 = s.S2 + s.l2;
+      auto f = s.f;
+      while (true) {
+        if (pS1==eS1) {std::copy(pS2,eS2,pR); break;}
+        if (pS2==eS2) {std::copy(pS1,eS1,pR); break;}
+        *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
+      }
+    }));
+  }
+  
+};
+
+template <class ET, class F, class intT> 
+typename merge<ET,F,intT>::cfg_type merge<ET,F,intT>::cfg = merge<ET,F,intT>::get_cfg();
+
+inline bool leq(intT a1, intT a2,   intT b1, intT b2) {
+  return(a1 < b1 || a1 == b1 && a2 <= b2); 
+}                                                  
+
+inline bool leq(intT a1, intT a2, intT a3, intT b1, intT b2, intT b3) {
+  return(a1 < b1 || a1 == b1 && leq(a2,a3, b2,b3)); 
+}
+
+struct compS {
+  intT* _s;
+  intT* _s12;
+  compS(intT* s, intT* s12) : _s(s), _s12(s12) {}
+  int operator () (intT i, intT j) {
+    if (i%3 == 1 || j%3 == 1) 
+      return leq(_s[i],_s12[i+1], _s[j],_s12[j+1]);
+    else
+      return leq(_s[i],_s[i+1],_s12[i+2], _s[j],_s[j+1],_s12[j+2]);
+  }
+};
+
+struct mod3is1 { bool operator() (intT i) {return i%3 == 1;}};
+
+inline intT computeLCP(intT* LCP12, intT* rank, myRMQ & RMQ, 
+		      intT j, intT k, intT* s, intT n){
+ 
+  intT rank_j=rank[j]-2;
+  intT rank_k=rank[k]-2;
+  if(rank_j > rank_k) {swap(rank_j,rank_k);} //swap for RMQ query
+
+  intT l = ((rank_j == rank_k-1) ? LCP12[rank_j] 
+	   : LCP12[RMQ.query(rank_j,rank_k-1)]);
+
+  intT lll = 3*l;
+  if (s[j+lll] == s[k+lll]) {
+    if (s[j+lll+1] == s[k+lll+1]) return lll + 2;
+    else return lll + 1;
+  } 
+  return lll;
+}
+
+using stack_type = encore::edsl::pcfg::stack_type;
+  
+using plt_type = encore::edsl::pcfg::cactus::parent_link_type;
+
+template <class Activation_record, class ...Args>
+static stack_type encore_call(stack_type s, plt_type p, Args... args) {
+  return encore::edsl::pcfg::push_call<Activation_record>(s, p, args...);
+}
+
+template <class intT>
+stack_type radixSortPair(stack_type s, plt_type pt, pair<intT,intT> *A, intT n, intT m) {
+  return intSort::iSort4(s, pt, A, n, m, utils::firstF<intT,intT>());
+}
+
+class suffix_array_rec : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  intT* s; intT n; intT K; bool findLCPs;
+  intT n0, n1, n12; pair<intT,intT> *C; intT bits; intT* sorted12;
+  intT* name12; intT tmp; intT names; pair<intT*,intT*> SA12_LCP;
+  intT* SA12; intT* LCP12 = NULL; intT* s12;
+  pair<intT*,intT*> dest;
+  
+  suffix_array_rec() { }
+  
+  suffix_array_rec(intT* s, intT n, intT K, bool findLCPs, pair<intT*,intT*> dest)
+    : s(s), n(n), K(K), findLCPs(findLCPs), dest(dest) { }
+  
+  encore_private_activation_record_begin(encore::edsl, suffix_array_rec, 13)
+    int lo; int hi;
+  encore_private_activation_record_end(encore::edsl, suffix_array_rec, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.n++;
+        s.n0 = (s.n + 2) / 3;
+        s.n1 = (s.n + 1) / 3;
+        s.n12 = s.n - s.n0;
+        s.C = (pair<intT,intT> *) malloc(s.n12*sizeof(pair<intT,intT>));
+        s.bits = utils::logUp(s.K);
+      }),
+      // if 3 chars fit into an int then just do one radix sort
+      dc::mk_if([] (sar& s, par& p) {
+        return s.bits < s.l1;
+      }, dc::stmts({
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          auto bits = s.bits;
+          auto C = s.C;
+          auto _s = s.s;
+          for (auto i = lo; i != hi; i++) {
+            intT j = 1+(i+i+i)/2;
+            C[i].first = (_s[j] << 2*bits) + (_s[j+1] << bits) + _s[j+2];
+            C[i].second = j;
+          }
+        }),
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return radixSortPair(st, pt, s.C, s.n12, s.K);
+        })
+      }), dc::stmts({ // else
+        // otherwise do 3 radix sorts, one per char
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          auto bits = s.bits;
+          auto C = s.C;
+          auto _s = s.s;
+          for (auto i = lo; i != hi; i++) {
+            intT j = 1+(i+i+i)/2;
+            C[i].first = _s[j+2]; 
+            C[i].second = j;
+          }
+        }), 
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return radixSortPair(st, pt, s.C, s.n12, s.K);
+        }),
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          auto C = s.C;
+          auto _s = s.s;
+          for (auto i = lo; i != hi; i++) {
+            C[i].first = _s[C[i].second+1];
+          }
+        }), 
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return radixSortPair(st, pt, s.C, s.n12, s.K);
+        }),
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          auto C = s.C;
+          auto _s = s.s;
+          for (auto i = lo; i != hi; i++) {
+            C[i].first = _s[C[i].second];
+          }
+        }), 
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return radixSortPair(st, pt, s.C, s.n12, s.K);
+        })
+      })), // end if
+
+      // copy sorted results into sorted12
+      dc::stmt([] (sar& s, par& p) {
+        s.sorted12 = malloc_array<intT>(s.n12);
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto sorted12 = s.sorted12;
+        auto C = s.C;
+        for (auto i = lo; i != hi; i++) {
+          sorted12[i] = C[i].second;
+        }
+      }), 
+      dc::stmt([] (sar& s, par& p) {
+        free(s.C);
+      }),
+
+      // generate names based on 3 chars
+      dc::stmt([] (sar& s, par& p) {
+        s.name12 = malloc_array<intT>(s.n12);        
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 1; p.hi = s.n12; },
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto name12 = s.name12;
+        auto sorted = s.sorted;
+        auto _s = s.s;
+        for (auto i = lo; i != hi; i++) {
+          if (_s[sorted12[i]]!=_s[sorted12[i-1]] 
+              || _s[sorted12[i]+1]!=_s[sorted12[i-1]+1] 
+              || _s[sorted12[i]+2]!=_s[sorted12[i-1]+2]) 
+            name12[i] = 1;
+          else name12[i] = 0;
+        }
+      }), 
+      dc::stmt([] (sar& s, par& p) {
+        s.name12[0] = 1;
+      }),
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return sequence::scanI(st, pt, s.name12, s.name12, s.n12, utils::addF<intT>(), (intT)0, &s.tmp);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        s.names = s.name12[s.n12-1];
+      }),
+      // recurse if names are not yet unique
+
+      dc::mk_if([] (sar& s, par& p) {
+        return s.names < s.n12;
+      }, dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          s.s12 = malloc_array<intT>(s.n12 + 3);
+          s.s12[s.n12] = s.s12[s.n12+1] = s.s12[s.n12+2] = 0;
+        }),
+        // move mod 1 suffixes to bottom half and and mod 2 suffixes to top
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          auto sorted12 = s.sorted12;
+          auto s12 = s.s12;
+          auto name12 = s.name12;
+          auto n1 = s.n1;
+          for (auto i = lo; i != hi; i++) {
+            if (sorted12[i]%3 == 1) s12[sorted12[i]/3] = name12[i];
+            else s12[sorted12[i]/3+n1] = name12[i];
+          }
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          free(name12);
+          free(sorted12);
+        }),
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<suffix_array_rec>(st, pt, s.s12, s.n12, s.names+1, s.findLCPs, &(s.SA12_LCP));
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          s.SA12 = s.SA12_LCP.first;
+          s.LCP12 = s.SA12_LCP.second;
+          free(s.s12);
+        }),
+        // restore proper indices into original array
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          auto SA12 = s.SA12;
+          auto n1 = s.n1;
+          for (auto i = lo; i != hi; i++) {
+            intT l = SA12[i]; 
+            SA12[i] = (l<n1) ? 3*l+1 : 3*(l-n1)+2;
+          }
+        })
+      }), dc::stmts({ // else
+          dc::stmt([] (sar& s, par& p) {
+              free(s.name12); // names not needed if we don't recurse
+            }),
+            
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
+                              [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                              [] (sar& s, par& p, int lo, int hi) {
+          for (auto i = lo; i != hi; i++) {
+
+          }
+        }), 
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+
+        })
+      })), // end if
+
+        
+    });
+  }
+  
+};
+
+encore_pcfg_allocate(suffix_array_rec, get_cfg)
+  
   
 } // end namespace
