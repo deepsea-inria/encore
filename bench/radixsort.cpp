@@ -98,7 +98,7 @@ std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& 
 /*---------------------------------------------------------------------*/
 /* Quickcheck generators */
 
-using value_type = unsigned int;
+using value_type = intT;
   
 int m = 1;
 
@@ -138,7 +138,8 @@ public:
   bool holdsFor(const parray_wrapper& _in) {
     parray<value_type> a = _in.c;
     parray<value_type> b = _in.c;
-    encore::launch_interpreter<encorebench::integerSort<int>>(a.begin(), (int)a.size());
+    //    encore::launch_interpreter<encorebench::integerSort<int>>(a.begin(), (int)a.size());
+    pbbs::integerSort<int>(a.begin(), (int)a.size());
     std::sort(b.begin(), b.end(), std::less<value_type>());
     return same_sequence(a.cbegin(), a.cend(), b.cbegin(), b.cend());
   }
