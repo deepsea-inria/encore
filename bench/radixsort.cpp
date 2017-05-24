@@ -98,7 +98,8 @@ std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& 
 /*---------------------------------------------------------------------*/
 /* Quickcheck generators */
 
-using value_type = unsigned int;
+
+using value_type = intT;
   
 int m = 1;
 

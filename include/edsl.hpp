@@ -745,7 +745,9 @@ public:
       s = r.first;
       fuel = r.second;
     }
-    stack = s;
+    stack = cactus::update_mark_stack(s, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
     if (fuel == suspend_tag) {
       fuel = 0;
       is_suspended = true;
@@ -1258,6 +1260,11 @@ namespace dc {
 
 int loop_threshold = 1024;
   
+static inline
+int get_loop_threshold() {
+  return loop_threshold;
+}
+  
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit,
   tag_sequential_loop, tag_parallel_for_loop, tag_parallel_combine_loop,
@@ -1765,19 +1772,20 @@ public:
       sequential_loop([=] (sar_type& s, par_type& p) {
         auto rng = getter(s, p);
         return *rng.first != *rng.second;
-      }, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+      }, stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(s, p);
         auto lo = *rng.first;
         auto hi = *rng.second;
         auto lo2 = 0;
         auto hi2 = 0;
+        auto lt = get_loop_threshold();
         if (direction == forward_loop) {
-          auto mid = std::min(lo + loop_threshold, hi);
+          auto mid = std::min(lo + lt, hi);
           *rng.first = mid;
           lo2 = lo;
           hi2 = mid;
         } else { // backward_loop
-          auto mid = std::max(lo, hi - loop_threshold);
+          auto mid = std::max(lo, hi - lt);
           *rng.second = mid;
           lo2 = mid;
           hi2 = hi;
@@ -1801,10 +1809,11 @@ public:
                               leaf_loop_body_type body) {
     return stmts({
       stmt(initializer),
-      parallel_for_loop(getter, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+      parallel_for_loop(getter, stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto mid = std::min(lo + loop_threshold, *rng.second);
+        auto lt = get_loop_threshold();
+        auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         body(s, p, lo, mid);
       }))
@@ -1831,10 +1840,11 @@ public:
     return stmts({
       stmt(initializer),
       parallel_combine_loop(getter, combine_initializer, combine,
-                            stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+                            stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto mid = std::min(lo + loop_threshold, *rng.second);
+        auto lt = get_loop_threshold();
+        auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         body(s, p, lo, mid);
       }))
@@ -1985,12 +1995,6 @@ private:
         auto header_label = entry;
         auto body_label = new_label();
         auto footer_label = new_label();
-        auto update_label = new_label();
-        add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_mark_stack(st, [&] (char* _ar) {
-            return pcfg::is_splittable(_ar);
-          });
-        }, header_label));
         auto predicate = stmt.variant_parallel_for_loop.predicate;
         auto selector = [predicate, body_label, footer_label] (sar& s, par& p) {
           return predicate(s, p) ? body_label : footer_label;
@@ -2000,7 +2004,7 @@ private:
           return p.get_join(loop_label) == nullptr ? exit : pcfg::exit_block_label;
         };
         add_block(footer_label, bbt::conditional_jump(footer_selector));
-        result = transform(*stmt.variant_parallel_for_loop.body, body_label, update_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_parallel_combine_loop: {
@@ -2028,12 +2032,6 @@ private:
         auto children_loop_body0_label = new_label();
         auto children_loop_body1_label = new_label();
         auto parent_check_label = new_label();
-        auto update_label = new_label();
-        add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_mark_stack(st, [&] (char* _ar) {
-            return pcfg::is_splittable(_ar);
-          });
-        }, header_label));
         add_block(initialize_label, bbt::unconditional_jump(stmt.variant_parallel_combine_loop.initialize, header_label));
         auto predicate = stmt.variant_parallel_combine_loop.predicate;
         auto selector = [predicate, body_label, children_loop_finalize_label] (sar& s, par& p) {
@@ -2087,7 +2085,7 @@ private:
           return exit;
         };
         add_block(parent_check_label, bbt::conditional_jump(parent_check));
-        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, update_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_spawn_join: {
