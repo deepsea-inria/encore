@@ -212,20 +212,6 @@ public :
     return sz;
   }
 
-  template <class F>
-  void applyIndex(int s, F f) {
-    if (IsLeaf())
-      for (int i=0; i < count; i++) f(vertices[i],s+i);
-    else {
-      int ss = s;
-      for (int i=0 ; i < (1 << center.dimension()); i++) {
-        cilk_spawn children[i]->applyIndex(ss,f);
-        ss += children[i]->count;
-      }
-      cilk_sync;
-    }
-  }
-
   struct flatten_FA {
     vertex** _A;
     flatten_FA(vertex** A) : _A(A) {}
@@ -268,48 +254,6 @@ public :
     vertices = NULL;
     nodeMemory = NULL;
   }
-
-
-void buildRecursiveTree(_seq<vertex*> S, int* offsets, int quadrants, gTreeNode *newNodes, gTreeNode* parent, int nodesToLeft, int height, int depth) {
-  parent->count = 0;
-
-  if (height == 1) {
-    for (int i=0; i<(1<<center.dimension()); i++) {
-      point newcenter = (parent->center).offsetPoint(i,parent->size/4.0);
-      int q = (nodesToLeft<<center.dimension()) + i;
-
-      /*
-      {
-	int inquad = ptFindBlock(center.offsetPoint(0,size/2.0),size/(1<<(height+depth-1)),height+depth-1,newcenter);
-	if (inquad != q) {
-	  printf("this guy should be in quadrant %d, but he is in quadrant %d\n", q, inquad);
-	}
-      }
-      */
-
-      int l = ((q==quadrants-1) ? S.n : offsets[q+1]) - offsets[q];
-      _seq<vertex*> A = _seq<vertex*>(S.A + offsets[q],l);
-      parent->children[i] = newNodes+q;
-      cilk_spawn newTree(A,newcenter,parent->size/2.0,newNodes+q,1);
-    } 
-  } else {
-    for (int i=0; i< (1<<center.dimension()); i++) {
-      point newcenter = (parent->center).offsetPoint(i, parent->size/4.0);
-      parent->children[i] = new(newNodes + i + 
-				nodesToLeft*(1<<center.dimension())) gTreeNode(newcenter,parent->size/2.0);
-      cilk_spawn buildRecursiveTree(S, offsets, quadrants, newNodes + (1<<(depth*center.dimension())), parent->children[i], (nodesToLeft << center.dimension())+i, height-1,depth+1);
-    }
-  }
-  cilk_sync;
-  for (int i=0; i<(1<<center.dimension()); i++) {
-    parent->data = parent->data + (parent->children[i])->data;
-    parent->count += (parent->children[i])->count;
-  }
-  if (parent->count == 0) {
-    // make it look like a leaf
-    parent->vertices = S.A;
-  }
-}
 
 typedef pair<int,vertex*> pintv;
 
@@ -449,7 +393,6 @@ class gTree : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
-
   typedef pointT point;
   typedef vectT fvect;
   typedef vertexT vertex;
@@ -492,6 +435,100 @@ public:
 template <class pointT, class vectT, class vertexT, class nodeData>
 typename gTree<pointT,vectT,vertexT,nodeData>::cfg_type gTree<pointT,vectT,vertexT,nodeData>::cfg = gTree<pointT,vectT,vertexT,nodeData>::get_cfg();
 
+template <class F, class pointT, class vectT, class vertexT, class nodeData>
+class applyIndex : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
+  typedef pointT point;
+  typedef vectT fvect;
+  typedef vertexT vertex;
+  typedef pair<point,point> pPair;
+
+  int s; F f; gtn* g;
+  int ss; int i;
+  sched::incounter* join = nullptr;
+
+  applyIndex(int s, F f, gtn* g)
+    : s(s), f(f), g(g) { }
+  
+  encore_dc_declare(encore::edsl, applyIndex, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::mk_if([] (sar& s, par& p) {
+      return s.g->IsLeaf();
+    }, dc::stmt([] (sar& s, par& p) {
+      auto count = s.g->count;
+      auto vertices = s.g->vertices;
+      auto _s = s.s;
+      auto f = s.f;
+      for (int i=0; i < count; i++) f(vertices[i],_s+i);
+    }), dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.ss = s;
+      }),
+      dc::join_plus([] (sar& s, par&, plt pt, stt st) {
+        dc::sequential_loop([] (sar& s, par&) { return (1 << s.g->center.dimension()); }, dc::stmts({
+          dc::spawn_minus([] (sar& s, par&, plt pt, stt st) {
+            return encore_call<applyIndex>(st, pt, s.ss, s.f, s.g->children[s.i]); },
+            [] (sar& s, par&) { return &(s.join); }),
+          dc::stmt([] (sar& s, par& p) {
+            s.ss += s.g->children[s.i]->count;
+            s.i++;
+          })
+        }))
+        [] (sar& s, par&) { return &(s.join); }))
+    }))
+  }
+  
+};
+
+template <class F, class pointT, class vectT, class vertexT, class nodeData>
+typename applyIndex<F,pointT,vectT,vertexT,nodeData>::cfg_type applyIndex<F,pointT,vectT,vertexT,nodeData>::cfg = applyIndex<F,pointT,vectT,vertexT,nodeData>::get_cfg();
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+class buildRecursiveTree : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
+  typedef pointT point;
+  typedef vectT fvect;
+  typedef vertexT vertex;
+  typedef pair<point,point> pPair;
+
+  _seq<vertex*> S; int* offsets; int quadrants; gTreeNode *newNodes;
+  gTreeNode* parent; int nodesToLeft; int height; int depth; gtn* g;
+
+  buildRecursiveTree(_seq<vertex*> S, int* offsets, int quadrants, gTreeNode *newNodes,
+                     gTreeNode* parent, int nodesToLeft, int height, int depth, gtn* g)
+    : S(S), offsets(offsets), quadrants(quadrants), newNodes(newNodes),
+      parent(parent), nodesToLeft(nodesToLeft), height(height), depth(depth), g(g) { }
+  
+  encore_dc_declare(encore::edsl, buildRecursiveTree, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+
+        dc::stmt([] (sar& s, par& p) {
+            s.g->parent->count = 0;
+      dc::mk_if([] (sar& s, par& p) {
+          return s.height == 1;
+    }, dc::stmt([] (sar& s, par& p) {
+
+      })
+
+  }
+  
+};
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+typename buildRecursiveTree<pointT,vectT,vertexT,nodeData>::cfg_type buildRecursiveTree<pointT,vectT,vertexT,nodeData>::cfg = buildRecursiveTree<pointT,vectT,vertexT,nodeData>::get_cfg();
+
+//----------------------------------
+// template
+  
 template <class pointT, class vectT, class vertexT, class nodeData>
 class gTree : public encore::edsl::pcfg::shared_activation_record {
 public:
@@ -501,8 +538,6 @@ public:
   typedef vertexT vertex;
   typedef pair<point,point> pPair;
 
-  vertex** vv; int n;
-  
   encore_dc_declare(encore::edsl, gTree, sar, par, dc, get_dc)
 
   static
