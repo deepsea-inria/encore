@@ -745,7 +745,9 @@ public:
       s = r.first;
       fuel = r.second;
     }
-    stack = s;
+    stack = cactus::update_mark_stack(s, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
     if (fuel == suspend_tag) {
       fuel = 0;
       is_suspended = true;
@@ -1993,12 +1995,6 @@ private:
         auto header_label = entry;
         auto body_label = new_label();
         auto footer_label = new_label();
-        auto update_label = new_label();
-        add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_mark_stack(st, [&] (char* _ar) {
-            return pcfg::is_splittable(_ar);
-          });
-        }, header_label));
         auto predicate = stmt.variant_parallel_for_loop.predicate;
         auto selector = [predicate, body_label, footer_label] (sar& s, par& p) {
           return predicate(s, p) ? body_label : footer_label;
@@ -2008,7 +2004,7 @@ private:
           return p.get_join(loop_label) == nullptr ? exit : pcfg::exit_block_label;
         };
         add_block(footer_label, bbt::conditional_jump(footer_selector));
-        result = transform(*stmt.variant_parallel_for_loop.body, body_label, update_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_parallel_combine_loop: {
@@ -2036,12 +2032,6 @@ private:
         auto children_loop_body0_label = new_label();
         auto children_loop_body1_label = new_label();
         auto parent_check_label = new_label();
-        auto update_label = new_label();
-        add_block(update_label, bbt::spawn_join([&] (sar&, par&, pcfg::cactus::parent_link_type, pcfg::stack_type st) {
-          return pcfg::cactus::update_mark_stack(st, [&] (char* _ar) {
-            return pcfg::is_splittable(_ar);
-          });
-        }, header_label));
         add_block(initialize_label, bbt::unconditional_jump(stmt.variant_parallel_combine_loop.initialize, header_label));
         auto predicate = stmt.variant_parallel_combine_loop.predicate;
         auto selector = [predicate, body_label, children_loop_finalize_label] (sar& s, par& p) {
@@ -2095,7 +2085,7 @@ private:
           return exit;
         };
         add_block(parent_check_label, bbt::conditional_jump(parent_check));
-        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, update_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
         break;
       }
       case tag_spawn_join: {
