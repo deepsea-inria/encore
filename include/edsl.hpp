@@ -1258,6 +1258,11 @@ namespace dc {
 
 int loop_threshold = 1024;
   
+static inline
+int get_loop_threshold() {
+  return loop_threshold;
+}
+  
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit,
   tag_sequential_loop, tag_parallel_for_loop, tag_parallel_combine_loop,
@@ -1765,19 +1770,20 @@ public:
       sequential_loop([=] (sar_type& s, par_type& p) {
         auto rng = getter(s, p);
         return *rng.first != *rng.second;
-      }, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+      }, stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(s, p);
         auto lo = *rng.first;
         auto hi = *rng.second;
         auto lo2 = 0;
         auto hi2 = 0;
+        auto lt = get_loop_threshold();
         if (direction == forward_loop) {
-          auto mid = std::min(lo + loop_threshold, hi);
+          auto mid = std::min(lo + lt, hi);
           *rng.first = mid;
           lo2 = lo;
           hi2 = mid;
         } else { // backward_loop
-          auto mid = std::max(lo, hi - loop_threshold);
+          auto mid = std::max(lo, hi - lt);
           *rng.second = mid;
           lo2 = mid;
           hi2 = hi;
@@ -1801,10 +1807,11 @@ public:
                               leaf_loop_body_type body) {
     return stmts({
       stmt(initializer),
-      parallel_for_loop(getter, stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+      parallel_for_loop(getter, stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto mid = std::min(lo + loop_threshold, *rng.second);
+        auto lt = get_loop_threshold();
+        auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         body(s, p, lo, mid);
       }))
@@ -1831,10 +1838,11 @@ public:
     return stmts({
       stmt(initializer),
       parallel_combine_loop(getter, combine_initializer, combine,
-                            stmt([=, &loop_threshold] (sar_type& s, par_type& p) {
+                            stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto mid = std::min(lo + loop_threshold, *rng.second);
+        auto lt = get_loop_threshold();
+        auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         body(s, p, lo, mid);
       }))
