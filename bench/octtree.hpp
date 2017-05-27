@@ -132,8 +132,6 @@ struct nData {
 
 template <class pointT, class vectT, class vertexT, class nodeData = nData<vertexT> >
 class gTreeNode {
-private :
-
 public :
   typedef pointT point;
   typedef vectT fvect;
@@ -246,6 +244,8 @@ public :
     }
   };
 
+  gTreeNode() { }
+
   gTreeNode(point cnt, double sz) 
   {
     count = 0;
@@ -261,130 +261,6 @@ struct compFirst {
   bool operator()(pintv A, pintv B) {return A.first<B.first; }
 };
 
-static void sortBlocksBig(vertex** S, int count, int quadrants, 
-			      int logdivs, 
-			      double size, point center, int* offsets) {
-  pintv* blk = newA(pintv,count);
-  double blocksize = size/(double)(1 << logdivs);
-  point minpt = center.offsetPoint(0,size/2);
-  {cilk_for (int i=0;i< count; i++) 
-      blk[i] = pintv(ptFindBlock(minpt,blocksize,logdivs,S[i]->pt),
-		    S[i]);}
-  intSort::iSort(blk,offsets,count,quadrants,utils::firstF<int,vertex*>());
-  {cilk_for (int i=0;i< count; i++) 
-      S[i] = blk[i].second;}
-  free(blk);
-}
-
-static void sortBlocksSmall(vertex** S, int count,point center, int* offsets) {
-    vertex* start = S[0];
-    int quadrants = 1 << center.dimension();
-    pintv* blk = newA(pintv,count);
-    for (int i=0;i< count; i++) {
-      //cout << i << " : " << S[i]-start << endl;
-      blk[i] = pintv((S[i]->pt).quadrant(center),S[i]);
-    }
-    compSort(blk,count,compFirst());
-    int j = -1;
-    for (int i=0; i< count; i++) {
-      S[i] = blk[i].second;
-      while (blk[i].first != j) {
-	offsets[++j] = i;
-      }
-    }
-    while (++j < quadrants) offsets[j] = count;
-    free(blk);
-}
-
-/* newNodes is the memory to use for allocated gTreeNodes.  this is
-   currently ignored for the upper levels of recursion (where we build
-   more than 4 or 8 "quadrants" at a time).  It is used at the lower
-   levels where we build just a single level of the tree.  If space is
-   exhausted, more memory is allocated as needed.  The hope is that
-   the number of reallocations are reduced  */
-  gTreeNode(_seq<vertex*> S, point cnt, double sz, gTreeNode* newNodes, int numNewNodes)
-  {
-    count = S.n;
-    size = sz;
-    center = cnt;
-    vertices = NULL;
-    nodeMemory = NULL;
-
-    // divide the space into  ~n**POW "quadrants"
-    int logdivs = (int)(log2(count)*GTREE_SUBPROB_POW/(double)center.dimension());
-    if (logdivs > 1 && count > GTREE_BASE_CASE) {
-      int divisions = (1<<logdivs); // number of quadrants in each dimension
-      //if (count > 1000000) cout << "divisions=" << divisions << endl;
-      int quadrants = (1<<(center.dimension() * logdivs)); // total number
-      int *offsets = newA(int,quadrants);
-      
-      //nextTime("before sort");
-      sortBlocksBig(S.A, count, quadrants, logdivs, 
-                    this->size, this->center,offsets);
-      //nextTime("sort time");
-      
-      numNewNodes = (1<<center.dimension());
-      for (int i=0; i<logdivs;i++) {
-        numNewNodes = ((numNewNodes << center.dimension())
-                       + (1<<center.dimension()));
-      }
-      
-      nodeMemory = newA(gTreeNode, numNewNodes);
-      buildRecursiveTree(S,offsets,quadrants,nodeMemory,this,0,logdivs,1);
-      free(offsets);
-    } else if (count > gMaxLeafSize) {
-      if (numNewNodes < (1<<center.dimension())) { 
-        // allocate ~ count/gMaxLeafSize gTreeNodes here
-        numNewNodes = max(GTREE_ALLOC_FACTOR*
-                          max(count/gMaxLeafSize, 1<<center.dimension()),
-                          1<<center.dimension());
-        nodeMemory = newA(gTreeNode,numNewNodes);
-        newNodes = nodeMemory;
-      }
-      //      newNodes = (nodeMemory = newA(gTreeNode,(1<<center.dimension())));
-      
-      int quadrants = ( 1<< center.dimension());
-      int offsets[8];
-      
-      if (1) {
-        sortBlocksSmall(S.A, S.n, center, offsets);
-      } else {
-        compSort(S.A, S.n, compare(this));
-        for (int q=0; q<quadrants; q++) {
-          int f = 0;
-          int l = S.n;
-          while (f < l) {
-            int g = (f+l)/2;
-            if (findQuadrant(S.A[g]) < q) {
-              f = g+1;
-            } else {
-              l = g;
-            }
-          }
-          offsets[q] = f;
-        }
-      }
-      
-      // Give each child its appropriate center and size
-      // The centers are offset by size/4 in each of the dimensions
-      int usedNodes = 0;
-      for (int i=0 ; i < quadrants; i++) {
-        int l = ((i == quadrants-1) ? S.n : offsets[i+1]) - offsets[i];
-        _seq<vertex*> A = _seq<vertex*>(S.A + offsets[i],l);
-        point newcenter = center.offsetPoint(i, size/4.0);
-       	children[i] = newTree(A,newcenter,size/2.0,newNodes+usedNodes,(numNewNodes - (1<<center.dimension()))*l/count + 1);
-        usedNodes += (numNewNodes - (1<<center.dimension()))*l/count + 1;
-      }
-      for (int i=0 ; i < quadrants; i++) 
-        data = data + children[i]->data;
-    } else {
-      vertices = S.A;
-      for (int i=0; i < count; i++) {
-        data = data + S.A[i];
-      }
-      //S.del();
-    }
-  }
 
 };
 
@@ -499,26 +375,85 @@ public:
 
   _seq<vertex*> S; int* offsets; int quadrants; gTreeNode *newNodes;
   gTreeNode* parent; int nodesToLeft; int height; int depth; gtn* g;
+  int s; int e;
 
   buildRecursiveTree(_seq<vertex*> S, int* offsets, int quadrants, gTreeNode *newNodes,
                      gTreeNode* parent, int nodesToLeft, int height, int depth, gtn* g)
     : S(S), offsets(offsets), quadrants(quadrants), newNodes(newNodes),
       parent(parent), nodesToLeft(nodesToLeft), height(height), depth(depth), g(g) { }
   
-  encore_dc_declare(encore::edsl, buildRecursiveTree, sar, par, dc, get_dc)
+  encore_private_activation_record_begin(encore::edsl, buildRecursiveTree, 2)
+    int s; int e; int q;
+  encore_private_activation_record_end(encore::edsl, buildRecursiveTree, sar, par, dc, get_dc)
 
   static
   dc get_dc() {
     return dc::stmts({
-
         dc::stmt([] (sar& s, par& p) {
-            s.g->parent->count = 0;
-      dc::mk_if([] (sar& s, par& p) {
+          s.g->parent->count = 0;
+        }),
+        dc::mk_if([] (sar& s, par& p) {
           return s.height == 1;
-    }, dc::stmt([] (sar& s, par& p) {
-
-      })
-
+        }, dc::stmts({
+          dc::stmt([] (sar& s, par& p) {
+             p.s = 0; p.e = (1<<s.center.dimension());
+          }),
+          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                                [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                                dc::stmts({
+            dc::stmt([] (sar& s, par& p) {
+              int i = p.s;
+              point newcenter = (s.parent->center).offsetPoint(s.i,s.parent->size/4.0);
+              int q = p.q = (s.nodesToLeft<<s.g->center.dimension()) + i;
+              int l = ((q==s.quadrants-1) ? s.S.n : s.offsets[q+1]) - s.offsets[q];
+              _seq<vertex*> A = _seq<vertex*>(s.S.A + s.offsets[q],l);
+              s.parent->children[i] = s.newNodes+q;
+            }),
+            dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+              int i = p.s;
+              return encore_call<newTree>(st, pt, s.A, s.newcenter, s.parent->size/2.0, s.newNodes+p.q,1);
+            }),
+            dc::stmt([] (sar& s, par& p) {
+              p.s++;
+            })
+          }))
+        }), dc::stmts({ // else
+          dc::stmt([] (sar& s, par& p) {
+             p.s = 0; p.e = (1<<s.center.dimension());
+          }),
+          dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
+                                [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                                dc::stmts({
+          dc::stmt([] (sar& s, par& p) {
+            int i = p.s;
+            point newcenter = (s.parent->center).offsetPoint(i, s.parent->size/4.0);
+            s.parent->children[i] = new(s.newNodes + i + 
+               s.nodesToLeft*(1<<s.g->center.dimension())) gTreeNode(newcenter,s.parent->size/2.0);
+          })),
+          dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+            int i = p.s;
+            return encore_call<buildRecursiveTree>(st, pt, s.S, s.offsets, s.quadrants, s.newNodes + (1<<(s.depth*s.g->center.dimension())), s.parent->children[i], (s.nodesToLeft << s.g->center.dimension())+i, s.height-1,s.depth+1);
+          }),
+          dc::stmt([] (sar& s, par& p) {
+            p.s++;
+            })))
+        })),
+        dc::sequential_loop([] (sar& s, par&) {
+          s.s = 0; s.e = (1<<s.g->center.dimension());
+        }, [] (sar& s, par&) {
+         return std::make_pair(&s.s, &s.e);
+        }, [] (sar& s, par&, int lo, int hi) {
+          int i = s.s;
+          s.parent->data = s.parent->data + (s.parent->children[i])->data;
+          s.parent->count += (s.parent->children[i])->count;
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          if (s.parent->count == 0) {
+            // make it look like a leaf
+            s.parent->vertices = s.S.A;
+          }
+        })
+      });
   }
   
 };
@@ -526,11 +461,8 @@ public:
 template <class pointT, class vectT, class vertexT, class nodeData>
 typename buildRecursiveTree<pointT,vectT,vertexT,nodeData>::cfg_type buildRecursiveTree<pointT,vectT,vertexT,nodeData>::cfg = buildRecursiveTree<pointT,vectT,vertexT,nodeData>::get_cfg();
 
-//----------------------------------
-// template
-  
 template <class pointT, class vectT, class vertexT, class nodeData>
-class gTree : public encore::edsl::pcfg::shared_activation_record {
+class sortBlocksBig : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   typedef pointT point;
@@ -538,16 +470,247 @@ public:
   typedef vertexT vertex;
   typedef pair<point,point> pPair;
 
-  encore_dc_declare(encore::edsl, gTree, sar, par, dc, get_dc)
+  vertex** S; int count; int quadrants; 
+  int logdivs; 
+  double size; point center; int* offsets;
+  pintv* blk; double blocksize; point minpt;
+
+  sortBlocksBig(vertex** S, int count, int quadrants, 
+                int logdivs, 
+                double size, point center, int* offsets)
+    : S(S), count(count), quadrants(quadrants), logdivs(logdivs),
+      size(size), center(center), offsets(offsets) { }
+
+  encore_private_activation_record_begin(encore::edsl, sortBlocksBig, 2)
+    int s; int e;
+  encore_private_activation_record_end(encore::edsl, sortBlocksBig, sar, par, dc, get_dc)
 
   static
   dc get_dc() {
-    return dc::stmts({});
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.blk = newA(pintv,count);
+        s.blocksize = size/(double)(1 << logdivs);
+        s.minpt = center.offsetPoint(0,size/2);
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.count; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto blk = s.blk;
+        auto minpt = s.mintpt;
+        auto blocksize = s.blocksize;
+        auto logdivs = s.logdivs;
+        auto S = s.S;
+        for (auto i = lo; i != hi; i++) {
+          blk[i] = pintv(ptFindBlock(minpt, blocksize, logdivs, S[i]->pt), S[i]);
+        }
+      }),
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return intSort::iSort5(st, pt, s.blk, s.offsets, s.count, s.quadrants, utils::firstF<int,vertex*>());
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.count; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto blk = s.blk;
+        auto S = s.S;
+        for (auto i = lo; i != hi; i++) {
+          S[i] = blk[i].second;
+        }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        free(s.blk);
+      })
+    });
   }
   
 };
 
 template <class pointT, class vectT, class vertexT, class nodeData>
-typename gTree<pointT,vectT,vertexT,nodeData>::cfg_type gTree<pointT,vectT,vertexT,nodeData>::cfg = gTree<pointT,vectT,vertexT,nodeData>::get_cfg();
+typename sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg_type sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg = sortBlocksBig<pointT,vectT,vertexT,nodeData>::get_cfg();
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+class sortBlocksSmall : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  typedef pointT point;
+  typedef vectT fvect;
+  typedef vertexT vertex;
+  typedef pair<point,point> pPair;
+
+  vertex** S; int count; point center; int* offsets;
+  int quadrants;
+
+  sortBlocksSmall(vertex** S, int count, point center, int* offsets)
+    : S(S), count(count), center(center), offsets(offsets) { }
+
+  encore_dc_declare(encore::edsl, sortBlocksSmall, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        vertex* start = S[0];
+        s.quadrants = 1 << s.center.dimension();
+        pintv* blk = malloc_array<pintv>(count);
+        auto count = s.count;
+        auto blk = s.blk;
+        auto S = s.S;
+        auto center = s.center;
+        for (int i=0;i< count; i++) {
+          //cout << i << " : " << S[i]-start << endl;
+          blk[i] = pintv((S[i]->pt).quadrant(center),S[i]);
+        }
+      }),
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<sampleSort<pintv,compFirst>>(st, pt, s.blk, s.count, compFirst());
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        auto count = s.count;
+        auto blk = s.blk;
+        auto S = s.S;
+        auto offsets = s.offsets;
+        int j = -1;
+        for (int i=0; i< count; i++) {
+          S[i] = blk[i].second;
+          while (blk[i].first != j) {
+            offsets[++j] = i;
+          }
+        }
+        while (++j < quadrants) offsets[j] = count;
+        free(blk);
+      }),
+    });
+  }
+  
+};
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+typename sortBlocksSmall<pointT,vectT,vertexT,nodeData>::cfg_type sortBlocksSmall<pointT,vectT,vertexT,nodeData>::cfg = sortBlocksSmall<pointT,vectT,vertexT,nodeData>::get_cfg();
+
+/* newNodes is the memory to use for allocated gTreeNodes.  this is
+   currently ignored for the upper levels of recursion (where we build
+   more than 4 or 8 "quadrants" at a time).  It is used at the lower
+   levels where we build just a single level of the tree.  If space is
+   exhausted, more memory is allocated as needed.  The hope is that
+   the number of reallocations are reduced  */
+template <class pointT, class vectT, class vertexT, class nodeData>
+class gTreeNodeConstructor : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
+  typedef pointT point;
+  typedef vectT fvect;
+  typedef vertexT vertex;
+  typedef pair<point,point> pPair;
+
+  _seq<vertex*> S, point cnt, double sz, gTreeNode* newNodes, int numNewNodes;
+  gtn* g; int logdivs; int usedNodes; int i; int* offsets; int quadrants; int l;
+  _seq<vertex*> A; point newcenter;
+
+  gTreeNodeConstructor(_seq<vertex*> S, point cnt, double sz, gTreeNode* newNodes, int numNewNodes, gtn* g)
+    : S(S), cnt(cnt), sz(sz), newNodes(newNodes), numNewNodes(numNewNodes), g(g) { }
+
+  encore_dc_declare(encore::edsl, gTreeNodeConstructor, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.g->count = S.n;
+        s.g->size = sz;
+        s.g->center = cnt;
+        s.g->vertices = NULL;
+        s.g->nodeMemory = NULL;
+        s.logdivs = (int)(std::log2(s.g->count)*GTREE_SUBPROB_POW/(double)s.g->center.dimension());
+      }),
+      dc::cond({
+        std::make_pair([] (sar& s, par& p) {
+          return s.logdivs > 1 && s.g->count > GTREE_BASE_CASE;
+        }, dc::stmts({
+          dc::stmt([] (sar& s, par& p) {
+            s.quadrants = (1<<(s.g->center.dimension() * s.logdivs)); // total number
+            s.offsets = malloc_array<int>(s.quadrants);
+          }),
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            using fct = sortBlocksBig<pointT,vectT,vertexT,nodeData>;
+            return encore_call<fct>(st, pt, s.S.A, s.g->count, s.quadrants, s.logdivs, s.g->size, s.g->center, s.offsets);
+          }),
+          dc::stmt([] (sar& s, par& p) {
+            s.numNewNodes = (1<<s.g->center.dimension());
+            for (int i=0; i< s.logdivs;i++) {
+              s.numNewNodes = ((s.numNewNodes << s.g->center.dimension())
+                               + (1<< s.g->center.dimension()));
+            }
+            s.g->nodeMemory = malloc_array<gTreeNode>(s.numNewNodes);
+          }),
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            using fct = buildRecursiveTree<pointT,vectT,vertexT,nodeData>;
+            return encore_call<fct>(st, pt, s.S, s.offsets, s.quadrants, s.g->nodeMemory, g, 0, s.logdivs, 1);
+          }),
+          dc::stmt([] (sar& s, par& p) {
+            free(s.offsets);
+          })
+        })),
+        std::make_pair([] (sar& s, par& p) {
+          return s.g->count > gMaxLeafSize;
+        }, dc::stmts({
+          dc::stmt([] (sar& s, par& p) {
+            if (s.numNewNodes < (1<<s.g->center.dimension())) { 
+              // allocate ~ count/gMaxLeafSize gTreeNodes here
+              s.numNewNodes = std::max(GTREE_ALLOC_FACTOR*
+                                       std::max(s.g->count/gMaxLeafSize, 1<< s.g->center.dimension()),
+                                       1<< s.g->center.dimension());
+              s.g->nodeMemory = malloc_array<gTreeNode>(s.numNewNodes);
+              s.newNodes = s.g->nodeMemory;
+              s.quadrants = ( 1<< s.g->center.dimension());
+            }
+          }),
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            using fct = sortBlockSmall<pointT,vectT,vertexT,nodeData>;
+            return encore_call<fct>(st, pt, s.S.A, s.S.n, s.g->center, s.offsets);
+          })
+        })),
+        dc::stmts({
+          dc::stmt([] (sar& s, par& p) {
+            s.usedNodes = 0;
+            s.i = 0;
+          }),
+          dc::sequential_loop([] (sar& s, par&) { return s.j < s.l; }, dc::stmt([] (sar& s, par&) {
+            dc::stmt([] (sar& s, par& p) {
+              s.l = ((s.i == s.quadrants-1) ? s.S.n : s.offsets[i+1]) - s.offsets[s.i];
+              s.A = _seq<vertex*>(s.S.A + s.offsets[s.i], s.l);
+              s.newcenter = s.g->center.offsetPoint(s.i, s.g->size/4.0);
+              s.g->children[s.i] = new (s.newNodes+s.usedNodes) gTreeNode;
+            }),
+            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+              auto x = (s.newNodes+s.usedNodes) + 1;
+              auto y = ((s.numNewNodes - (1<<s.g->center.dimension()))*s.l/s.g->count + 1) - 1;
+              return encore_call<gTreeNodeConstructor>(st, pt, s.A, s.newcenter, s.g->size/2.0, x, y);
+            }),
+            dc::stmt([] (sar& s, par& p) {
+              s.usedNodes += (s.numNewNodes - (1<< s.g->center.dimension()))*s.l/s.g->count + 1;
+              s.i++;
+            })
+          })),
+          dc::stmt([] (sar& s, par& p) {
+            for (int i=0 ; i < s.quadrants; i++) {
+              s.g->data = s.g->data + s.g->children[s.i]->data;
+            }
+          })
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          s.g->vertices = s.S.A;
+          for (int i=0; i < s.g->count; i++) {
+            s.g->data = s.g->data + s.S.A[s.i];
+          }
+        })
+      })
+    });
+  }
+  
+};
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+typename gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>::cfg_type gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>::cfg = gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>::get_cfg();
   
 } // end namespace
