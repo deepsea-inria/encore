@@ -276,7 +276,7 @@ inline intT computeLCP(intT* LCP12, intT* rank, myRMQ & RMQ,
  
   intT rank_j=rank[j]-2;
   intT rank_k=rank[k]-2;
-  if(rank_j > rank_k) {swap(rank_j,rank_k);} //swap for RMQ query
+  if(rank_j > rank_k) {std::swap(rank_j,rank_k);} //swap for RMQ query
 
   intT l = ((rank_j == rank_k-1) ? LCP12[rank_j] 
 	   : LCP12[RMQ.query(rank_j,rank_k-1)]);
@@ -667,3 +667,38 @@ public:
 };
   
 } // end namespace
+
+#include "pks.h"
+
+namespace pasl {
+namespace pctl {
+
+void benchmark(std::string infile) {
+  std::string x = pasl::pctl::io::load<std::string>(infile);
+  std::string algorithm = cmdline::parse<std::string>("algorithm");
+  deepsea::cmdline::dispatcher d;
+  std::pair<intT*, intT*> res;
+  d.add("encore", [&] {
+    encore::launch_interpreter<encorebench::suffix_array>(x.begin(), x.length(), &res);
+  });
+  d.add("pbbs", [&] {
+    encore::run_and_report_elapsed_time([&] {
+      pbbs::suffixArray(x.begin(), (int)x.length());
+    });
+  });
+  d.dispatch("algorithm"); 
+}
+
+} // end namespace
+} // end namespace
+
+int main(int argc, char** argv) {
+  encore::initialize(argc, argv);
+  std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
+  if (infile == "") {
+    std::cerr << "bogus input filename" << std::endl;
+    exit(0);
+  }
+  pasl::pctl::benchmark(infile);
+  return 0;
+}
