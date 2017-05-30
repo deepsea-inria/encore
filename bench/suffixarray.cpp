@@ -69,7 +69,7 @@ public:
         r->depth = std::log2(r->m) + 1;
         r->table = new intT*[r->depth];
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.r->depth; },
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.rmq->depth; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto r = s.rmq;
