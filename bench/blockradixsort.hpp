@@ -444,7 +444,7 @@ namespace intSort {
 
   template <class E, class F, class intT>
   stack_type iSort4(stack_type s, plt_type p, E *A, intT n, intT m, F f) {
-    return sequence::encore_call<iSort5<E,F,intT>>(s, p, A, (intT*)NULL, n, m, false, f);
+    return sequence::encore_call<iSort6<E,F,intT>>(s, p, A, (intT*)NULL, n, m, false, f);
   }
 
 } // end namespace
