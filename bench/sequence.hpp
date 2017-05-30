@@ -24,6 +24,7 @@
 
 #include "edsl.hpp"
 #include "utils.h"
+#include "cmdline.hpp"
 
 #include <limits.h>
 
@@ -1049,8 +1050,8 @@ template <class Iter, class Output_iterator>
 typename copy<Iter,Output_iterator>::cfg_type copy<Iter,Output_iterator>::cfg = copy<Iter,Output_iterator>::get_cfg();
   
 void initialize() {
-  threshold = cmdline::parse_or_default("threshold", sequence::threshold);
-  block_size = cmdline::parse_or_default("block_size", sequence::block_size);
+  threshold = deepsea::cmdline::parse_or_default("threshold", sequence::threshold);
+  block_size = deepsea::cmdline::parse_or_default("block_size", sequence::block_size);
 }
   
 } // end namespace
