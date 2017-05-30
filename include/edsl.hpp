@@ -9,6 +9,7 @@
 #include "vertex.hpp"
 #include "cactus-plus.hpp"
 #include "stats.hpp"
+#include "scheduler.hpp"
 
 #ifndef _ENCORE_EDSL_H_
 #define _ENCORE_EDSL_H_
@@ -895,8 +896,8 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       par->trampoline.pred = pred;
       par->trampoline.succ = spawn_join_block.variant_spawn_join.next;
       branch2->stack = spawn_join_block.variant_spawn_join.code(*sar, *par, cactus::Parent_link_sync, branch2->stack);
-      new_edge(branch2, join);
-      new_edge(branch1, join);
+      sched::new_edge(branch2, join);
+      sched::new_edge(branch1, join);
       release(branch2);
       release(branch1);
       break;
@@ -910,7 +911,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       interpreter* branch = new interpreter(stacks.second);
       sched::incounter* incounter = *block.variant_spawn_minus.getter(*sar, *par);
       assert(incounter != nullptr);
-      new_edge(branch, incounter);
+      sched::new_edge(branch, incounter);
       schedule(continuation);
       release(branch);
       break;
@@ -938,7 +939,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       interpreter* branch = new interpreter(stacks.second);
       assert(*block.variant_join_plus.getter(*sar, *par) == nullptr);
       *block.variant_join_plus.getter(*sar, *par) = continuation->get_incounter();
-      new_edge(branch, continuation);
+      sched::new_edge(branch, continuation);
       release(branch);
       stats::on_promotion();
       break;
