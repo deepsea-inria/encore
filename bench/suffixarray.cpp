@@ -171,7 +171,7 @@ intT myRMQ::query(intT i, intT j){
       intT k = log2(block_j - block_i);
       intT p = 1<<k; //2^k
       outOfBlockMin = a[table[k][block_i]] <= a[table[k][block_j+1-p]]
-	? table[k][block_i] : table[k][block_j+1-p];
+        ? table[k][block_i] : table[k][block_j+1-p];
     }
   }
 
