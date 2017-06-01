@@ -1036,8 +1036,8 @@ public:
   dc get_dc() {
     return 
       dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.hi - s.lo; },
-                      [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                      [] (sar& s, par& p, int lo, int hi) {
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
         auto lo2 = s.lo + lo;
         auto hi2 = s.lo + hi;
         std::copy(lo2, hi2, s.dst + (lo2 - s.lo));
