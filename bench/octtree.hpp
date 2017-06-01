@@ -143,12 +143,13 @@ public :
   typedef vectT fvect;
   typedef vertexT vertex;
   typedef std::pair<point,point> pPair;
+  typedef nodeData ndty;
 
   // used for reduce to find bounding box
   struct minMax {
     pPair operator() (pPair a, pPair b) {
-      return pPair((a.first).minCoords(b.first),
-		   (a.second).maxCoords(b.second));}};
+      return pPair((a.first).min_coord(b.first),
+		   (a.second).max_coord(b.second));}};
 
   struct toPair {
     pPair operator() (vertex* v) {
@@ -228,12 +229,6 @@ public :
   int findQuadrant (vertex* p) {
     return (p->pt).quadrant(center); }
 
-// A hack to get around Cilk shortcomings
-  static gTreeNode *newTree(_seq<vertex*> S, point cnt, double sz, gTreeNode* newNodes, int numNewNodes) {
-    pbbs::utils::myAssert(numNewNodes > 0, "numNewNodes == 0\n");
-    return new(newNodes) gTreeNode(S,cnt,sz,newNodes+1,numNewNodes-1);
-  }
-
   struct compare {
     gTreeNode *tr;
     compare(gTreeNode *t) : tr(t) {}
@@ -255,61 +250,14 @@ public :
     nodeMemory = NULL;
   }
 
-typedef std::pair<int,vertex*> pintv;
-
-struct compFirst {
-  bool operator()(pintv A, pintv B) {return A.first<B.first; }
-};
-
-
-};
-
-template <class pointT, class vectT, class vertexT, class nodeData>
-class gTree : public encore::edsl::pcfg::shared_activation_record {
-public:
+  typedef std::pair<int,vertex*> pintv;
   
-  using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
-  typedef pointT point;
-  typedef vectT fvect;
-  typedef vertexT vertex;
-  typedef std::pair<point,point> pPair;
+  struct compFirst {
+    bool operator()(pintv A, pintv B) {return A.first<B.first; }
+  };
 
-  vertex** vv; int n; gtn* result;
-  pPair minMaxPair; fvect box; point center;
 
-  gTree(vertex** vv, int n, gtn* result)
-    : vv(vv), n(n), result(result) { }
-  
-  encore_dc_declare(encore::edsl, gTree, sar, par, dc, get_dc)
-
-  static
-  dc get_dc() {
-    return dc::stmts({
-      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return sequence::mapReduce(st, p, s.vv, s.n, minMax(), toPair(), &(s.minMaxPair));
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        point minPt = s.minMaxPair.first;
-        point maxPt = s.minMaxPair.second;
-        fvect box = s.box = maxPt-minPt;
-        point center = s.center = minPt+(box/2.0);
-
-        // copy before calling recursive routine since recursive routine is destructive
-        gtn::wv = malloc_array<vertex*>(s.n);
-      }),
-      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return encore_call<sequence::copy<vertex*, vertex*>>(st, pt, gtn::wv, gtn::wv + s.n, s.vv);
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        *s.result = new gtn(_seq<vertex*>(gtn::wv,s.n),s.center,s.box.maxDim(),NULL,0);
-      })
-    });
-  }
-  
 };
-
-template <class pointT, class vectT, class vertexT, class nodeData>
-typename gTree<pointT,vectT,vertexT,nodeData>::cfg_type gTree<pointT,vectT,vertexT,nodeData>::cfg = gTree<pointT,vectT,vertexT,nodeData>::get_cfg();
 
 template <class F, class pointT, class vectT, class vertexT, class nodeData>
 class applyIndex : public encore::edsl::pcfg::shared_activation_record {
@@ -380,18 +328,17 @@ template <class F, class pointT, class vectT, class vertexT, class nodeData>
 typename applyIndex<F,pointT,vectT,vertexT,nodeData>::cfg_type applyIndex<F,pointT,vectT,vertexT,nodeData>::cfg = applyIndex<F,pointT,vectT,vertexT,nodeData>::get_cfg();
 
 using stack_type = encore::edsl::pcfg::stack_type;
-
-template <class Activation_record, class ...Args>
-static stack_type encore_call(stack_type s, plt_type p, Args... args) {
-  return encore::edsl::pcfg::push_call<Activation_record>(s, p, args...);
-}
   
 template <class pointT, class vectT, class vertexT, class nodeData>
-stack_type flatten(gTreeNode<pointT,vectT,vertexT,nodeData>* g, vertexT*** dest) {
+stack_type flatten(stack_type s, plt_type p, gTreeNode<pointT,vectT,vertexT,nodeData>* g, vertexT*** dest) {
   typedef vertexT vertex;
+  using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
+  using fat = typename gtn::flatten_FA;
+  using ait = applyIndex<fat,pointT,vectT,vertexT,nodeData>;
   vertex** A = new vertex*[g->count];
   *dest = A;
-  return encore_call<applyIndex>(0, gTreeNode<pointT,vectT,vertexT,nodeData>::flatten_FA(A));
+  fat fa(A);
+  return sequence::encore_call<ait>(s, p, 0, fa, g);
 }
 
 template <class pointT, class vectT, class vertexT, class nodeData>
@@ -431,7 +378,7 @@ public:
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto blk = s.blk;
-        auto minpt = s.mintpt;
+        auto minpt = s.minpt;
         auto blocksize = s.blocksize;
         auto logdivs = s.logdivs;
         auto S = s.S;
@@ -526,6 +473,9 @@ typename sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg_type sortBlocksBig<po
 template <class pointT, class vectT, class vertexT, class nodeData>
 class buildRecursiveTree;
 
+template <class pointT, class vectT, class vertexT, class nodeData>
+stack_type buildRecursiveTreefwd(stack_type s, plt_type p, _seq<vertexT*> S, int* offsets, int quadrants, gTreeNode<pointT,vectT,vertexT,nodeData> *newNodes, gTreeNode<pointT,vectT,vertexT,nodeData>* parent, int nodesToLeft, int height, int depth, gTreeNode<pointT,vectT,vertexT,nodeData>* g);
+
 /* newNodes is the memory to use for allocated gTreeNodes.  this is
    currently ignored for the upper levels of recursion (where we build
    more than 4 or 8 "quadrants" at a time).  It is used at the lower
@@ -584,62 +534,19 @@ public:
           }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             using fct = buildRecursiveTree<pointT,vectT,vertexT,nodeData>;
-            return encore_call<fct>(st, pt, s.S, s.offsets, s.quadrants, s.g->nodeMemory, s.g, 0, s.logdivs, 1);
+            return encore_call<fct>(st, pt, s.S, s.offsets, s.quadrants, s.g->nodeMemory, s.g, 0, s.logdivs, 1, s.g);
           }),
           dc::stmt([] (sar& s, par& p) {
             free(s.offsets);
           })
-        })),
-        std::make_pair([] (sar& s, par& p) {
-          return s.g->count > gMaxLeafSize;
-        }, dc::stmts({
-          dc::stmt([] (sar& s, par& p) {
-            if (s.numNewNodes < (1<<s.g->center.dimension())) { 
-              // allocate ~ count/gMaxLeafSize gTreeNodes here
-              s.numNewNodes = std::max(GTREE_ALLOC_FACTOR*
-                                       std::max(s.g->count/gMaxLeafSize, 1<< s.g->center.dimension()),
-                                       1<< s.g->center.dimension());
-              s.g->nodeMemory = malloc_array<gtn>(s.numNewNodes);
-              s.newNodes = s.g->nodeMemory;
-              s.quadrants = ( 1<< s.g->center.dimension());
-            }
-          }),
-          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-            using fct = sortBlocksSmall<pointT,vectT,vertexT,nodeData>;
-            return encore_call<fct>(st, pt, s.S.A, s.S.n, s.g->center, s.offsets);
-          }),
-          dc::stmt([] (sar& s, par& p) {
-            s.usedNodes = 0;
-            s.i = 0;
-          }),
-          dc::sequential_loop([] (sar& s, par&) { return s.j < s.l; }, dc::stmt([] (sar& s, par&) {
-              s.l = ((s.i == s.quadrants-1) ? s.S.n : s.offsets[s.i+1]) - s.offsets[s.i];
-              s.A = _seq<vertex*>(s.S.A + s.offsets[s.i], s.l);
-              s.newcenter = s.g->center.offset_point(s.i, s.g->size/4.0);
-              s.g->children[s.i] = new (s.newNodes+s.usedNodes) gtn;
-            }),
-            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-              auto x = (s.newNodes+s.usedNodes) + 1;
-              auto y = ((s.numNewNodes - (1<<s.g->center.dimension()))*s.l/s.g->count + 1) - 1;
-              return encore_call<gTreeNodeConstructor>(st, pt, s.A, s.newcenter, s.g->size/2.0, x, y);
-            }),
-            dc::stmt([] (sar& s, par& p) {
-              s.usedNodes += (s.numNewNodes - (1<< s.g->center.dimension()))*s.l/s.g->count + 1;
-              s.i++;
-          })),
-          dc::stmt([] (sar& s, par& p) {
-            for (int i=0 ; i < s.quadrants; i++) {
-              s.g->data = s.g->data + s.g->children[s.i]->data;
-            }
-          })
         }))
-      }),
+      },
       dc::stmt([] (sar& s, par& p) {
         s.g->vertices = s.S.A;
         for (int i=0; i < s.g->count; i++) {
           s.g->data = s.g->data + s.S.A[s.i];
         }
-      })
+      }))
     });
   }
   
@@ -647,12 +554,66 @@ public:
 
 template <class pointT, class vectT, class vertexT, class nodeData>
 typename gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>::cfg_type gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>::cfg = gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>::get_cfg();
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+class gTreeNodeConstructor2 : public encore::edsl::pcfg::shared_activation_record {
+public:
+  
+  using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
+  using gtnc = gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>;
+  typedef pointT point;
+  typedef vectT fvect;
+  typedef vertexT vertex;
+  typedef std::pair<point,point> pPair;
+
+  vertex** vv; int n; gtn** res;
+  pPair minMaxPair; fvect box; point center;
+
+  gTreeNodeConstructor2(vertex** vv, int n, gtn** res)
+    : vv(vv), n(n), res(res) { }
+  
+  encore_dc_declare(encore::edsl, gTreeNodeConstructor2, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        using mm = typename gtn::minMax;
+        using tp = typename gtn::toPair;
+        return sequence::mapReduce(st, pt, s.vv, s.n, mm(), tp(), &(s.minMaxPair));
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        point minPt = s.minMaxPair.first;
+        point maxPt = s.minMaxPair.second;
+        fvect box = s.box = maxPt-minPt;
+        point center = s.center = minPt+(box/2.0);
+
+        // copy before calling recursive routine since recursive routine is destructive
+        gtn::wv = malloc_array<vertex*>(s.n);
+      }),
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return encore_call<sequence::copy<vertex**, vertex**>>(st, pt, s.vv, s.vv + s.n, gtn::wv);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        *s.res = new gtn;
+      }),
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return encore_call<gtnc>(st, pt, _seq<vertex*>(gtn::wv,s.n),s.center,s.box.max_dim(),NULL,0, *(s.res));
+      })
+    });
+  }
+  
+};
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+typename gTreeNodeConstructor2<pointT,vectT,vertexT,nodeData>::cfg_type gTreeNodeConstructor2<pointT,vectT,vertexT,nodeData>::cfg = gTreeNodeConstructor2<pointT,vectT,vertexT,nodeData>::get_cfg();
   
 template <class pointT, class vectT, class vertexT, class nodeData>
 class buildRecursiveTree : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   using gtn = gTreeNode<pointT,vectT,vertexT,nodeData>;
+  using gtnc = gTreeNodeConstructor<pointT,vectT,vertexT,nodeData>;
   typedef pointT point;
   typedef vectT fvect;
   typedef vertexT vertex;
@@ -660,7 +621,7 @@ public:
 
   _seq<vertex*> S; int* offsets; int quadrants; gtn *newNodes;
   gtn* parent; int nodesToLeft; int height; int depth; gtn* g;
-  int s; int e; point newcenter;
+  int s; int e; point newcenter; _seq<vertex*> A;
 
   buildRecursiveTree(_seq<vertex*> S, int* offsets, int quadrants, gtn *newNodes,
                      gtn* parent, int nodesToLeft, int height, int depth, gtn* g)
@@ -675,29 +636,29 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::stmt([] (sar& s, par& p) {
-        s.g->parent->count = 0;
+        s.parent->count = 0;
       }),
       dc::mk_if([] (sar& s, par& p) {
         return s.height == 1;
       }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-           p.s = 0; p.e = (1<<s.center.dimension());
+           p.s = 0; p.e = (1<<s.g->center.dimension());
         }),
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                               [] (par& p) { return std::make_pair(&p.s, &p.e); },
                               dc::stmts({
           dc::stmt([] (sar& s, par& p) {
             int i = p.s;
-            s.newcenter = (s.parent->center).offset_point(s.i,s.parent->size/4.0);
+            s.newcenter = (s.parent->center).offset_point(i,s.parent->size/4.0);
             int q = p.q = (s.nodesToLeft<<s.g->center.dimension()) + i;
             int l = ((q==s.quadrants-1) ? s.S.n : s.offsets[q+1]) - s.offsets[q];
-            _seq<vertex*> A = _seq<vertex*>(s.S.A + s.offsets[q],l);
+            s.A = _seq<vertex*>(s.S.A + s.offsets[q],l);
             s.parent->children[i] = s.newNodes+q;
           }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             auto ptr = s.newNodes+p.q;
             new (ptr) gtn;
-            return encore_call<gTreeNodeConstructor>(st, pt, s.A, s.newcenter, s.parent->size/2.0, ptr, 1, ptr);
+            return encore_call<gtnc>(st, pt, s.A, s.newcenter, s.parent->size/2.0, ptr + 1, 0, s.g);
           }),
           dc::stmt([] (sar& s, par& p) {
             p.s++;
@@ -705,7 +666,7 @@ public:
         }))
       }), dc::stmts({ // else
         dc::stmt([] (sar& s, par& p) {
-           p.s = 0; p.e = (1<<s.center.dimension());
+           p.s = 0; p.e = (1<<s.g->center.dimension());
         }),
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                               [] (par& p) { return std::make_pair(&p.s, &p.e); },
@@ -718,7 +679,7 @@ public:
           }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             int i = p.s;
-            return encore_call<buildRecursiveTree>(st, pt, s.S, s.offsets, s.quadrants, s.newNodes + (1<<(s.depth*s.g->center.dimension())), s.parent->children[i], (s.nodesToLeft << s.g->center.dimension())+i, s.height-1,s.depth+1);
+            return encore_call<buildRecursiveTree>(st, pt, s.S, s.offsets, s.quadrants, s.newNodes + (1<<(s.depth*s.g->center.dimension())), s.parent->children[i], (s.nodesToLeft << s.g->center.dimension())+i, s.height-1,s.depth+1, s.g);
           }),
           dc::stmt([] (sar& s, par& p) {
             p.s++;
@@ -747,6 +708,15 @@ public:
 
 template <class pointT, class vectT, class vertexT, class nodeData>
 typename buildRecursiveTree<pointT,vectT,vertexT,nodeData>::cfg_type buildRecursiveTree<pointT,vectT,vertexT,nodeData>::cfg = buildRecursiveTree<pointT,vectT,vertexT,nodeData>::get_cfg();
+
+template <class pointT, class vectT, class vertexT, class nodeData>
+stack_type buildRecursiveTreefwd(stack_type s, plt_type p, _seq<vertexT*> S, int* offsets, int quadrants, gTreeNode<pointT,vectT,vertexT,nodeData> *newNodes, gTreeNode<pointT,vectT,vertexT,nodeData>* parent, int nodesToLeft, int height, int depth, gTreeNode<pointT,vectT,vertexT,nodeData>* g) {
+  using brt = buildRecursiveTree<pointT,vectT,vertexT,nodeData>;
+  return sequence::encore_call<brt>(s, p, S, offsets, quadrants, newNodes, parent, nodesToLeft, height, depth, g);
+}
+
+template <class pointT, class vectT, class vertexT, class nodeData> 
+vertexT** gTreeNode<pointT, vectT, vertexT, nodeData>::wv;
   
 } // end namespace
 

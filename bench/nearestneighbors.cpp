@@ -47,6 +47,7 @@ struct kNearestNeighbor {
   typedef typename point::vectT fvect;
 
   typedef gTreeNode<point,fvect,vertex> qoTree;
+  typedef gTreeNodeConstructor2<point,fvect,vertex, typename qoTree::ndty> qoTreeCons;
   qoTree *tree;
 
   void del() {tree->del();}
@@ -78,7 +79,7 @@ struct kNearestNeighbor {
       //inter++;
       point opt = (p->pt);
       fvect v = (ps->pt) - opt;
-      double r = v.Length();
+      double r = v.length();
       if (r < rn[0]) {
         pn[0]=p; rn[0] = r;
         for (int i=1; i < k && rn[i-1]<rn[i]; i++) {
@@ -88,7 +89,7 @@ struct kNearestNeighbor {
 
     // looks for nearest neighbors in boxes for which ps is not in
     void nearestNghTrim(qoTree *T) {
-      if (!(T->center).outOfBox(ps->pt, (T->size/2)+rn[0])) {
+      if (!(T->center).out_of_box(ps->pt, (T->size/2)+rn[0])) {
         if (T->IsLeaf())
           for (int i = 0; i < T->count; i++) update(T->vertices[i]);
         else 
@@ -157,8 +158,8 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        using gt = typename kNNT::qoTree;
-        return encore_call<gt>(st, pt, s.v, s.n, &(s.T.tree));
+        using gtc = typename kNNT::qoTreeCons;
+        return encore_call<gtc>(st, pt, s.v, s.n, &(s.T.tree));
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         // this reorders the vertices for locality          
@@ -186,6 +187,78 @@ public:
 
 template <int maxK, class vertexT>
 typename ANN<maxK,vertexT>::cfg_type ANN<maxK,vertexT>::cfg = ANN<maxK,vertexT>::get_cfg();
+
+template <class PT, int KK>
+struct vertexNN {
+  typedef PT pointT;
+  int identifier;
+  pointT pt;         // the point itself
+  vertexNN* ngh[KK];    // the list of neighbors
+  vertexNN(pointT p, int id) : pt(p), identifier(id) {}
+};
+  
+template <int maxK, class pointT>
+class findNearestNeighbors : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  typedef vertexNN<pointT, maxK> vertex;
+  
+  pointT* p; int n; int k;
+  vertex** v; vertex* vv; intT* result;
+
+  findNearestNeighbors(pointT* p, int n, int k)
+    : p(p), n(n), k(k) { } 
+  
+  encore_private_activation_record_begin(encore::edsl, findNearestNeighbors, 2)
+    int s; int e;
+  encore_private_activation_record_end(encore::edsl, findNearestNeighbors, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.v = malloc_array<vertex*>(s.n);
+        s.vv = malloc_array<vertex>(s.n);
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto v = s.v;
+        auto vv = s.vv;
+        auto _p = s.p;
+        for (auto i = lo; i != hi; i++) {
+          v[i] = new (&vv[i]) vertex(_p[i],i);
+        }
+      }),
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return encore_call<ANN<maxK, vertex>>(st, pt, s.v, s.n, s.k);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        s.result = malloc_array<intT>(s.n * s.k);
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto result = s.result;
+        auto v = s.v;
+        auto k = s.k;
+        auto n = s.n;
+        for (auto i = lo; i != hi; i++) {
+          for (int j = 0; j < std::min(k, n - 1); j++) {
+            result[i * k + j] = v[i]->ngh[j]->identifier;
+          }
+        }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        free(s.result);
+      })
+    });
+  }
+  
+};
+
+template <int maxK, class pointT>
+typename findNearestNeighbors<maxK,pointT>::cfg_type findNearestNeighbors<maxK,pointT>::cfg = findNearestNeighbors<maxK,pointT>::get_cfg();
 
 } // end namespace
 
@@ -219,13 +292,12 @@ void benchmark(parray<Item1>& x, int k) {
   deepsea::cmdline::dispatcher d;
   std::pair<intT*, intT*> res;
   d.add("encore", [&] {
-    parray<Item2> y = to_pbbs(x);
-    encore::launch_interpreter<encorebench::ANN<K, Item2>>(y.begin(), (int)y.size(), k);
+    encore::launch_interpreter<encorebench::findNearestNeighbors<K, Item1>>(x.begin(), (int)x.size(), k);
   });
   d.add("pbbs", [&] {
     parray<Item2> y = to_pbbs(x);
     encore::run_and_report_elapsed_time([&] {
-        pbbs::findNearestNeighbors<K, Item2>(&y[0], (int)y.size(), k);
+      pbbs::findNearestNeighbors<K, Item2>(&y[0], (int)y.size(), k);
     });
   });
   d.dispatch("algorithm"); 
