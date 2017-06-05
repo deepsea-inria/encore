@@ -7,6 +7,7 @@
 #include "vertex.hpp"
 #include "perworker.hpp"
 #include "chunkedseq.hpp"
+#include "logging.hpp"
 #include "stats.hpp"
 
 #ifndef _ENCORE_SCHEDULER_H_
@@ -230,6 +231,7 @@ void worker_loop(vertex* v) {
     }
     assert(my_ready.empty() && my_suspended.empty());
     nb_active_workers--;
+    logging::push_event(logging::enter_wait);
     while (! is_finished()) {
       transfer[my_id].store(no_response);
       int k = random_other_worker();
@@ -237,6 +239,7 @@ void worker_loop(vertex* v) {
       if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
           if (is_finished()) {
+            logging::push_event(logging::exit_wait);
             return;
           }
           communicate();
@@ -247,11 +250,13 @@ void worker_loop(vertex* v) {
           delete f;
           request[my_id].store(no_request);
           stats::on_steal();
+          logging::push_event(logging::exit_wait);
           return;
         }        
       }
       communicate();
     }
+    logging::push_event(logging::exit_wait);
   };
   
   auto promote = [&] {
@@ -312,8 +317,10 @@ void launch_scheduler(int nb_workers, vertex* v) {
     });
     t.detach();
   }
+  logging::push_event(logging::enter_algo);
   worker_loop(v);
   while (nb_running_workers.load() > 0);
+  logging::push_event(logging::exit_algo);
   assert(nb_active_workers == 0);
 }
   

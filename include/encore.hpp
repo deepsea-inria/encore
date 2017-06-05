@@ -104,10 +104,12 @@ void initialize(int argc, char** argv) {
   
 template <class Init>
 void launch(int nb_workers, const Init& init) {
+  logging::log_buffer::initialize();
   stats::initialize();
   sched::vertex* v = init();
   sched::launch_scheduler(nb_workers, v);
   stats::report();
+  logging::log_buffer::output();
   data::perworker::reset();
 }
 
@@ -133,7 +135,8 @@ void launch_interpreter(Args... args) {
   });
   */
   int nb_workers = cmdline::parse_or_default("proc", 1);
-  edsl::dc::loop_threshold = cmdline::parse_or_default("loop_threshold", edsl::dc::loop_threshold);  
+  edsl::dc::loop_threshold = cmdline::parse_or_default("loop_threshold", edsl::dc::loop_threshold);
+  logging::log_buffer::initialize();
   stats::initialize();
   auto interp = new edsl::pcfg::interpreter;
   auto ty = edsl::pcfg::cactus::Parent_link_sync;
@@ -144,6 +147,7 @@ void launch_interpreter(Args... args) {
   interp->stack = edsl::pcfg::push_call<t>(interp->stack, ty, f);
   sched::launch_scheduler(nb_workers, interp);
   stats::report();
+  logging::log_buffer::output();
   data::perworker::reset();
 }
   
