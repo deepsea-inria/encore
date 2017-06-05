@@ -179,7 +179,7 @@ public:
   
   static
   void output_bytes(buffer_type& b) {
-    std::string fname = deepsea::cmdline::parse_or_default("log_bytes_fname", "");
+    std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", "");
     if (fname == "") {
       return;
     }
@@ -193,7 +193,7 @@ public:
   
   static
   void output_text(buffer_type& b) {
-    std::string fname = deepsea::cmdline::parse_or_default("log_text_fname", "");
+    std::string fname = deepsea::cmdline::parse_or_default_string("log_text_fname", "");
     if (fname == "") {
       return;
     }
