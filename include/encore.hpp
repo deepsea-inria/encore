@@ -96,6 +96,7 @@ void initialize_hwloc() {
   
 void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
+  atomic::init_print_lock();
   initialize_hwloc();
   sched::D = cmdline::parse_or_default("dag_freq", sched::D);
   sched::K = cmdline::parse_or_default("sharing_freq", 2 * sched::D);

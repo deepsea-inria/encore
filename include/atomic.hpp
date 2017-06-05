@@ -29,6 +29,10 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
 /* Atomic printing routines */
   
 pthread_mutex_t print_lock;
+  
+void init_print_lock() {
+  pthread_mutex_init(&print_lock, nullptr);
+}
 
 void acquire_print_lock() {
   pthread_mutex_lock (&print_lock);
