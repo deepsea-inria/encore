@@ -92,8 +92,13 @@ public:
     fwrite_int64 (f, tag  );
   }
   
+  void print_byte_descr(FILE* f) {
+
+  }
+  
   void print_byte(FILE* f) {
-    
+    print_byte_header(f);
+    print_byte_descr(f);
   }
   
   void print_text_header(FILE* f) {
@@ -147,6 +152,7 @@ public:
     if (pview) {
       tracking_kind[phases] = true;
     }
+    basetime = now();
     push(event_type(enter_launch));
   }
   
@@ -184,8 +190,7 @@ public:
       return;
     }
     FILE* f = fopen(fname.c_str(), "w");
-    for (auto it = b.begin(); it != b.end(); it++) {
-      event_type& e = *it;
+    for (auto e : b) {
       e.print_byte(f);
     }
     fclose(f);
@@ -198,8 +203,7 @@ public:
       return;
     }
     FILE* f = fopen(fname.c_str(), "w");
-    for (auto it = b.begin(); it != b.end(); it++) {
-      event_type& e = *it;
+    for (auto e : b) {
       e.print_text(f);
     }
     fclose(f);
@@ -211,8 +215,8 @@ public:
     buffer_type b;
     for (auto id = 0; id != data::perworker::get_nb_workers(); id++) {
       buffer_type& b_id = buffers[id];
-      for (auto it = b_id.begin(); it != b_id.end(); it++) {
-        b.push_back(*it);
+      for (auto e : b_id) {
+        b.push_back(e);
       }
     }
     std::stable_sort(b.begin(), b.end(), [] (const event_type& e1, const event_type& e2) {
