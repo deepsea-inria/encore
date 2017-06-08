@@ -1,4 +1,5 @@
 #include <atomic>
+#include <stdarg.h>
 #include <pthread.h>
 
 #include "time.hpp"
