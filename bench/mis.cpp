@@ -170,8 +170,20 @@ void benchmark(std::string infile) {
       flags = maximalIndependentSet(g);
     });
   });
-  d.dispatch("algorithm"); 
+  d.dispatch("algorithm");
+  if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+    auto flags2 = maximalIndependentSet(g);
+    for (auto i = 0; i != g.n; i++) {
+      if (flags[i] != flags2[i]) {
+        char c1 = flags[i];
+        char c2 = flags2[i];
+        std::cout << "bogus i=" << i << " flags[i]= " << c1 << " flags2[i]= " << c2 << std::endl;
+      }
+      assert(flags[i] == flags2[i]);
+    }
+  }
   assert(flags != nullptr);
+  free(flags);
 }
 
 } // end namespace
