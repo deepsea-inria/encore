@@ -76,7 +76,7 @@ public:
         s.keep = malloc_array<bool>(s.maxRoundSize);
         if (s.hasState) {
           s.state = malloc_array<S>(s.maxRoundSize);
-          for (intT i=0; i < s.maxRoundSize; i++) {
+          for (intT i=0; i < s.maxRoundSize; i++) { // todo parallelize loop
             s.state[i] = s.step;
           }
         }
