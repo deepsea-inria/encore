@@ -181,6 +181,7 @@ void benchmark(std::string infile) {
       }
       assert(flags[i] == flags2[i]);
     }
+    free(flags2);
   }
   assert(flags != nullptr);
   free(flags);
