@@ -198,7 +198,7 @@ let prog_hull =
 let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_in_circle_large.bin", "2d", "in circle";
   "array_point2d_kuzmin_large.bin", "2d", "kuzmin";
-(*  "array_point2d_on_circle_large.bin", "2d", "on circle";*)
+  "array_point2d_on_circle_medium.bin", "2d", "on circle";
 ]
 
 let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
