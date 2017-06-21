@@ -50,7 +50,7 @@ public:
   S step; intT s; intT e; int granularity;
   bool hasState; int maxTries; intT* dest;
   
-  intT maxRoundSize; intT *I; intT *Ihold; bool *keep;
+  intT maxRoundSize; intT currentRoundSize; intT *I; intT *Ihold; bool *keep;
   S *state; intT size; _seq<intT> tmp;
   
   int round; intT numberDone; intT numberKeep; intT totalProcessed;
@@ -70,17 +70,20 @@ public:
       dc::stmt([] (sar& s, par& p) {
         if (s.maxTries < 0) s.maxTries = 100 + 200*s.granularity;
         s.maxRoundSize = (s.e-s.s)/s.granularity+1;
+        s.currentRoundSize = s.maxRoundSize;
         s.I = malloc_array<intT>(s.maxRoundSize);
         s.Ihold = malloc_array<intT>(s.maxRoundSize);
         s.keep = malloc_array<bool>(s.maxRoundSize);
         if (s.hasState) {
           s.state = malloc_array<S>(s.maxRoundSize);
-          for (intT i=0; i < s.maxRoundSize; i++) s.state[i] = s.step;
+          for (intT i=0; i < s.maxRoundSize; i++) {
+            s.state[i] = s.step;
+          }
         }
         s.round = 0;
         s.numberDone = s.s; // number of iterations done
         s.numberKeep = 0; // number of iterations to carry to next round
-        s.totalProcessed = 0;
+        s.totalProcessed = 0; // number done including wasteds tries
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.numberDone < s.e; }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
@@ -88,7 +91,7 @@ public:
             std::cout << "speculativeLoop: too many iterations, increase maxTries parameter" << std::endl;
             abort();
           }
-          s.size = std::min(s.maxRoundSize, s.e - s.numberDone);
+          s.size = std::min(s.currentRoundSize, s.e - s.numberDone);
           s.totalProcessed += s.size;
         }),
         dc::mk_if([] (sar& s, par&) { return s.hasState; },
@@ -151,9 +154,17 @@ public:
           return sequence::pack5(st, pt, s.I, s.Ihold, s.keep, s.size, &s.tmp);
         }),
         dc::stmt([] (sar& s, par& p) {
+          // keep iterations that failed for next round
           s.numberKeep = (intT)s.tmp.n;
           std::swap(s.I, s.Ihold);
           s.numberDone += s.size + s.numberKeep;
+          // adjust round size based on number of failed attempts
+          if (float(s.numberKeep)/float(s.size) > .2) {
+            s.currentRoundSize = std::max(s.currentRoundSize/2, 
+                                          std::max(s.maxRoundSize/64 + 1, s.numberKeep));
+          } else if (float(s.numberKeep)/float(s.size) < .1) {
+            s.currentRoundSize = std::min(s.currentRoundSize * 2, s.maxRoundSize);
+          } 
         })
       })),
       dc::stmt([] (sar& s, par& p) {
