@@ -300,9 +300,11 @@ std::ostream& operator<<(std::ostream& out, const pasl::pctl::container_wrapper<
 
 /*---------------------------------------------------------------------*/
 /* Quickcheck generators */
+  
+intT m = 1;
 
 void generate(size_t _nb, parray<point2d>& dst) {
-  intT nb = (intT)_nb;
+  intT nb = m * (intT)_nb;
   if (quickcheck::generateInRange(0, 1) == 0) {
     dst = plummer2d(nb);
   } else {
@@ -457,6 +459,7 @@ void benchmark(std::string infile) {
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
+  pasl::pctl::m = deepsea::cmdline::parse_or_default("m", pasl::pctl::m);
   quickHull_threshold = deepsea::cmdline::parse_or_default("threshold", quickHull_threshold);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile != "") {
