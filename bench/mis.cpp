@@ -71,7 +71,7 @@ class maximalIndependentSet : public encore::edsl::pcfg::shared_activation_recor
 public:
   
   pbbs::graph::graph<intT> GS; char** dest;
-  char* Flags; intT tmp;
+  char* Flags; intT tmp; char z = 0;
   
   maximalIndependentSet() { }
     
@@ -83,12 +83,9 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         s.Flags = malloc_array<char>(s.GS.n);
-        // todo: parallelize this loop
-        for (intT i = 0; i < s.GS.n; i++) {
-          s.Flags[i] = 0;
-        }
+        return encore_call<sequence::fill<char*, char>>(st, pt, s.Flags, s.Flags + s.GS.n, &(s.z));
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         MISstep mis(s.Flags, s.GS.V);

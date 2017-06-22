@@ -74,12 +74,13 @@ public:
         s.I = malloc_array<intT>(s.maxRoundSize);
         s.Ihold = malloc_array<intT>(s.maxRoundSize);
         s.keep = malloc_array<bool>(s.maxRoundSize);
-        if (s.hasState) {
+      }),
+      dc::mk_if([] (sar& s, par&) { return s.hasState; },
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           s.state = malloc_array<S>(s.maxRoundSize);
-          for (intT i=0; i < s.maxRoundSize; i++) { // todo parallelize loop
-            s.state[i] = s.step;
-          }
-        }
+          return encore_call<sequence::fill<S*, S>>(st, pt, s.state, s.state + s.maxRoundSize, &(s.step));
+      })),
+      dc::stmt([] (sar& s, par& p) {
         s.round = 0;
         s.numberDone = s.s; // number of iterations done
         s.numberKeep = 0; // number of iterations to carry to next round
