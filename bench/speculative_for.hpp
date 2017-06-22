@@ -102,7 +102,7 @@ public:
             auto I = s.I;
             auto numberDone = s.numberDone;
             auto keep = s.keep;
-            auto& state = s.state;
+            S* state = s.state;
             for (auto i = lo; i != hi; i++) {
               if (i >= numberKeep) {
                 I[i] = numberDone + i;
@@ -117,7 +117,7 @@ public:
             auto I = s.I;
             auto numberDone = s.numberDone;
             auto keep = s.keep;
-            auto& step = s.step;
+            S& step = s.step;
             for (auto i = lo; i != hi; i++) {
               if (i >= numberKeep) {
                 I[i] = numberDone + i;
@@ -131,7 +131,7 @@ public:
                                 [] (sar& s, par& p, int lo, int hi) {
             auto I = s.I;
             auto keep = s.keep;
-            auto& state = s.state;
+            S* state = s.state;
             for (auto i = lo; i != hi; i++) {
               if (keep[i]) {
                 keep[i] = !state[i].commit(I[i]);
@@ -143,7 +143,7 @@ public:
                                 [] (sar& s, par& p, int lo, int hi) {
             auto I = s.I;
             auto keep = s.keep;
-            auto& step = s.step;
+            S& step = s.step;
             for (auto i = lo; i != hi; i++) {
               if (keep[i]) {
                 keep[i] = !step.commit(I[i]);
@@ -157,7 +157,7 @@ public:
           // keep iterations that failed for next round
           s.numberKeep = (intT)s.tmp.n;
           std::swap(s.I, s.Ihold);
-          s.numberDone += s.size + s.numberKeep;
+          s.numberDone += s.size - s.numberKeep;
           // adjust round size based on number of failed attempts
           if (float(s.numberKeep)/float(s.size) > .2) {
             s.currentRoundSize = std::max(s.currentRoundSize/2, 
