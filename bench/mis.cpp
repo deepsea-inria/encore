@@ -124,14 +124,6 @@ char* maximalIndependentSet(pbbs::graph::graph<intT> GS) {
   return Flags;
 }
   
-graph::graph<int> to_pbbs(graph::graph<int>& g) {
-  graph::vertex<int>* v = (graph::vertex<int>*) malloc(sizeof(graph::vertex<int>) * g.n);
-  for (int i = 0; i < g.n; i++) {
-    v[i] = graph::vertex<int>(g.V[i].Neighbors, g.V[i].degree);
-  }
-  return graph::graph<int>(v, g.n, g.m, g.allocatedInplace);
-}
-
 void benchmark(std::string infile) {
   graph::graph<int> g = read_from_file<graph::graph<int>>(infile);
   char* flags = nullptr;
