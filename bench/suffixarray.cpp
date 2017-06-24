@@ -692,9 +692,16 @@ void benchmark(std::string infile) {
   });
   d.add("pbbs", [&] {
     encore::run_and_report_elapsed_time([&] {
-      pbbs::suffixArray(x.data(), (intT)x.length());
+      res.first = pbbs::suffixArray(x.data(), (intT)x.length());
     });
   });
+  if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+    auto r1 = res.first;
+    auto r2 = pbbs::suffixArray(x.data(), (intT)x.length());
+    for (auto i = 0; i < x.length(); i++) {
+      assert(r1[i] == r2[i]);
+    }
+  }
   d.dispatch("algorithm"); 
 }
 
