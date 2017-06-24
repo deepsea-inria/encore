@@ -1048,7 +1048,37 @@ public:
   
 template <class Iter, class Output_iterator>
 typename copy<Iter,Output_iterator>::cfg_type copy<Iter,Output_iterator>::cfg = copy<Iter,Output_iterator>::get_cfg();
+
+template <class Iter, class Item>
+class fill : public encore::edsl::pcfg::shared_activation_record {
+public:
   
+  Iter lo; Iter hi; const Item* dst;
+    
+  fill(Iter lo, Iter hi, const Item* dst)
+  : lo(lo), hi(hi), dst(dst) { }
+  
+  encore_private_activation_record_begin(encore::edsl, fill, 1)
+    int s; int e;
+  encore_private_activation_record_end(encore::edsl, fill, sar, par, dc, get_dc)
+  
+  static
+  dc get_dc() {
+    return 
+      dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.hi - s.lo; },
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto lo2 = s.lo + lo;
+        auto hi2 = s.lo + hi;
+        std::fill(lo2, hi2, *(s.dst));
+      });
+  }
+  
+};
+  
+template <class Iter, class Item>
+typename fill<Iter,Item>::cfg_type fill<Iter,Item>::cfg = fill<Iter,Item>::get_cfg();
+
 void initialize() {
   threshold = deepsea::cmdline::parse_or_default("threshold", sequence::threshold);
   block_size = deepsea::cmdline::parse_or_default("block_size", sequence::block_size);

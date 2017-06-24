@@ -71,7 +71,7 @@ class maximalIndependentSet : public encore::edsl::pcfg::shared_activation_recor
 public:
   
   pbbs::graph::graph<intT> GS; char** dest;
-  char* Flags; intT tmp;
+  char* Flags; intT tmp; char z = 0;
   
   maximalIndependentSet() { }
     
@@ -83,12 +83,9 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         s.Flags = malloc_array<char>(s.GS.n);
-        // todo: parallelize this loop
-        for (intT i = 0; i < s.GS.n; i++) {
-          s.Flags[i] = 0;
-        }
+        return encore_call<sequence::fill<char*, char>>(st, pt, s.Flags, s.Flags + s.GS.n, &(s.z));
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         MISstep mis(s.Flags, s.GS.V);
@@ -115,49 +112,15 @@ encore_pcfg_allocate(maximalIndependentSet, get_cfg)
 
 namespace pbbs {
 
-// For each vertex:
-//   Flags = 0 indicates undecided
-//   Flags = 1 indicates chosen
-//   Flags = 2 indicates a neighbor is chosen
-struct MISstep {
-  char flag;
-  char *Flags;  graph::vertex<intT>*G;
-  MISstep(char* _F, graph::vertex<intT>* _G) : Flags(_F), G(_G) {}
-
-  bool reserve(intT i) {
-    intT d = G[i].degree;
-    flag = 1;
-    for (intT j = 0; j < d; j++) {
-      intT ngh = G[i].Neighbors[j];
-      if (ngh < i) {
-        if (Flags[ngh] == 1) { flag = 2; return 1;}
-        // need to wait for higher priority neighbor to decide
-        else if (Flags[ngh] == 0) flag = 0;
-      }
-    }
-    return 1;
-  }
-
-  bool commit(intT i) { return (Flags[i] = flag) > 0;}
-};
-
 char* maximalIndependentSet(pbbs::graph::graph<intT> GS) {
   intT n = GS.n;
   graph::vertex<intT>* G = GS.V;
   char* Flags = newArray(n, (char) 0);
-  MISstep mis(Flags, G);
+  encorebench::MISstep mis(Flags, G);
   speculative_for(mis,0,n,20);
   return Flags;
 }
   
-graph::graph<int> to_pbbs(graph::graph<int>& g) {
-  graph::vertex<int>* v = (graph::vertex<int>*) malloc(sizeof(graph::vertex<int>) * g.n);
-  for (int i = 0; i < g.n; i++) {
-    v[i] = graph::vertex<int>(g.V[i].Neighbors, g.V[i].degree);
-  }
-  return graph::graph<int>(v, g.n, g.m, g.allocatedInplace);
-}
-
 void benchmark(std::string infile) {
   graph::graph<int> g = read_from_file<graph::graph<int>>(infile);
   char* flags = nullptr;
@@ -170,8 +133,21 @@ void benchmark(std::string infile) {
       flags = maximalIndependentSet(g);
     });
   });
-  d.dispatch("algorithm"); 
+  d.dispatch("algorithm");
+  if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+    auto flags2 = maximalIndependentSet(g);
+    for (auto i = 0; i != g.n; i++) {
+      if (flags[i] != flags2[i]) {
+        char c1 = flags[i];
+        char c2 = flags2[i];
+        std::cout << "bogus i=" << i << " flags[i]= " << c1 << " flags2[i]= " << c2 << std::endl;
+      }
+      assert(flags[i] == flags2[i]);
+    }
+    free(flags2);
+  }
   assert(flags != nullptr);
+  free(flags);
 }
 
 } // end namespace
