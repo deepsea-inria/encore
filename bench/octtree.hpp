@@ -418,7 +418,7 @@ public:
   typedef std::pair<int,vertex*> pintv;
 
   vertex** S; int count; point center; int* offsets;
-  int quadrants;
+  int quadrants; pintv* blk;
 
   sortBlocksSmall(vertex** S, int count, point center, int* offsets)
     : S(S), count(count), center(center), offsets(offsets) { }
@@ -492,7 +492,7 @@ public:
 
   _seq<vertex*> S; point cnt; double sz; gtn* newNodes; int numNewNodes;
   gtn* g; int logdivs; int usedNodes; int i; int* offsets; int quadrants; int l;
-  _seq<vertex*> A; point newcenter; _seq<vertex*> A;
+  _seq<vertex*> A; point newcenter;
 
   gTreeNodeConstructor(_seq<vertex*> S, point cnt, double sz, gtn* newNodes, int numNewNodes, gtn* g)
     : S(S), cnt(cnt), sz(sz), newNodes(newNodes), numNewNodes(numNewNodes), g(g) { }
@@ -552,10 +552,11 @@ public:
             s.usedNodes = 0;
           }),
           dc::sequential_loop([] (sar& s, par&) { return s.i != s.quadrants; }, dc::stmts({
+                
             dc::stmt([] (sar& s, par&) {
               s.l = ((s.i == s.quadrants-1) ? s.S.n : s.offsets[s.i+1]) - s.offsets[s.i];
               s.A = _seq<vertex*>(s.S.A + s.offsets[s.i],s.l);
-              s.newcenter = s.g->center.offsetPoint(s.i, s.g->size/4.0);
+              s.newcenter = s.g->center.offset_point(s.i, s.g->size/4.0);
             }),
             dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
               auto ptr = s.newNodes+s.usedNodes;
@@ -569,18 +570,24 @@ public:
             })
           })),
           dc::stmt([] (sar& s, par&) {
-            for (int i=0 ; i < s.quadrants; i++) {
-              s.g->data = s.g->data + s.g->children[si]->data;
+            auto g = s.g;
+            auto children = g->children;
+            auto quadrants = s.quadrants;
+            for (int i=0 ; i < quadrants; i++) {
+              g->data = g->data + children[i]->data;
             }
             free(s.offsets);
           })
         }))
       },
       dc::stmt([] (sar& s, par& p) {
-        s.g->vertices = s.S.A;
-        for (int i=0; i < s.g->count; i++) {
-          s.g->data = s.g->data + s.S.A[s.i];
-        }
+        auto g = s.g;
+        auto A = s.S.A;
+        g->vertices = A;
+        auto count = g->count;
+        for (int i=0; i < count; i++) {
+          g->data = g->data + A[i];
+        } 
       }))
     });
   }
