@@ -206,8 +206,8 @@ public:
   pointT* p; int n; int k;
   vertex** v; vertex* vv; intT* result;
 
-  findNearestNeighbors(pointT* p, int n, int k)
-    : p(p), n(n), k(k) { } 
+  findNearestNeighbors(pointT* p, int n, int k, intT* result)
+    : p(p), n(n), k(k), result(result) { } 
   
   encore_private_activation_record_begin(encore::edsl, findNearestNeighbors, 2)
     int s; int e;
@@ -232,9 +232,6 @@ public:
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return encore_call<ANN<maxK, vertex>>(st, pt, s.v, s.n, s.k);
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        s.result = malloc_array<intT>(s.n * s.k);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
@@ -291,16 +288,28 @@ void benchmark(parray<Item1>& x, int k) {
   std::string algorithm = deepsea::cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
   std::pair<intT*, intT*> res;
+  int n = x.size();
+  intT* result = malloc_array<intT>(k * n);
   d.add("encore", [&] {
-    encore::launch_interpreter<encorebench::findNearestNeighbors<K, Item1>>(x.begin(), (int)x.size(), k);
+    encore::launch_interpreter<encorebench::findNearestNeighbors<K, Item1>>(x.begin(), n, k, result);
   });
   d.add("pbbs", [&] {
     parray<Item2> y = to_pbbs(x);
     encore::run_and_report_elapsed_time([&] {
-      pbbs::findNearestNeighbors<K, Item2>(&y[0], (int)y.size(), k);
+      pbbs::findNearestNeighbors<K, Item2>(&y[0], n, k, result);
     });
   });
-  d.dispatch("algorithm"); 
+  d.dispatch("algorithm");
+  if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+    parray<Item2> y = to_pbbs(x);
+    intT* result2 = malloc_array<intT>(k * x.size());
+    pbbs::findNearestNeighbors<K, Item2>(&y[0], n, k, result2);
+    for (auto i = 0; i < n; i++) {
+      assert(result[i] == result2[i]);
+    }
+    free(result2);
+  }
+  free(result);
 }
 
 void benchmark(std::string infile) {
