@@ -165,7 +165,7 @@ let name = "compare"
 let all_benchmarks =
   match arg_benchmarks with
   | ["all"] -> [
-      "convexhull"; "samplesort"; "radixsort"; "pbfs";
+      "convexhull"; "samplesort"; "radixsort"; "pbfs"; "mis"; "nearestneighbors";
     ]
   | _ -> arg_benchmarks
     
@@ -287,6 +287,47 @@ let mk_pbfs =
   & mk_proc
   & mk_pbfs_infiles
 
+(*****************)
+(* Maximum Independent Set *)
+
+let prog_mis =
+  "mis"
+
+let mk_mis_progs =
+  mk_progs prog_mis
+
+let mk_mis =
+    mk_mis_progs
+  & mk_proc
+  & mk_pbfs_infiles
+
+(*****************)
+(* Nearest neighbors *)
+
+let prog_nn =
+  "nearestneighbors"
+
+let mk_nn_progs =
+  mk_progs prog_nn
+
+let input_descriptor_nn = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "array_point2d_in_square_large.bin", "array_point2d", "in square";
+  "array_point2d_kuzmin_large.bin", "array_point2d", "kuzmin";
+  "array_point3d_in_cube_large.bin", "array_point3d", "in cube";
+  "array_point3d_on_sphere_large.bin", "array_point3d", "on sphere";
+  "array_point3d_plummer_large.bin", "array_point3d", "plummer"; 
+]
+
+let mk_nn_infiles = mk_infiles "type" input_descriptor_nn
+
+let mk_nn =
+    mk_nn_progs
+  & mk_proc
+  & mk_nn_infiles
+
+(*****************)
+(* All benchmarks *)
+
 let benchmarks' : benchmark_descriptor list = [
   { bd_name = "convexhull"; bd_args = mk_convexhull;
     bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
@@ -299,6 +340,12 @@ let benchmarks' : benchmark_descriptor list = [
   };
   { bd_name = "pbfs"; bd_args = mk_pbfs;
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_pbfs_progs;
+  };
+  { bd_name = "mis"; bd_args = mk_mis;
+    bd_infiles = mk_pbfs_infiles; bd_progs = mk_mis_progs;
+  };
+  { bd_name = "nearestneighbors"; bd_args = mk_nn;
+    bd_infiles = mk_pbfs_infiles; bd_progs = mk_nn_progs;
   };
 ]
 
