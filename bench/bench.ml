@@ -13,7 +13,19 @@ let arg_mode = Mk_runs.mode_from_command_line "mode"
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
 let arg_benchmarks = XCmd.parse_or_default_list_string "benchmark" ["all"]
-let arg_proc = XCmd.parse_or_default_int "proc" 40
+let hostname = Unix.gethostname ()
+let arg_proc = 
+  let default =
+    if hostname = "teraram" then
+      40
+    else if hostname = "cadmium" then
+      48
+    else if hostname = "hiphi.aladdin.cs.cmu.edu" then
+      64
+    else
+      1
+  in
+  XCmd.parse_or_default_int "proc" default
             
 let run_modes =
   Mk_runs.([
