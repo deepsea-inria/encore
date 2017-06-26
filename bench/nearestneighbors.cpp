@@ -177,7 +177,7 @@ public:
         }
       }),
       dc::stmt([] (sar& s, par& p) {
-        free(s.vr);
+        delete [] s.vr;
         s.T.del();
       })
     });
@@ -245,9 +245,6 @@ public:
             result[i * k + j] = v[i]->ngh[j]->identifier;
           }
         }
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        free(s.result);
       })
     });
   }
@@ -302,10 +299,12 @@ void benchmark(parray<Item1>& x, int k) {
   d.dispatch("algorithm");
   if (deepsea::cmdline::parse_or_default_bool("check", false)) {
     parray<Item2> y = to_pbbs(x);
-    intT* result2 = malloc_array<intT>(k * x.size());
+    intT* result2 = malloc_array<intT>(k * n);
     pbbs::findNearestNeighbors<K, Item2>(&y[0], n, k, result2);
-    for (auto i = 0; i < n; i++) {
-      assert(result[i] == result2[i]);
+    for (auto i = 0; i < (k * n); i++) {
+      auto x = result[i];
+      auto y = result2[i];
+      assert(x == y);
     }
     free(result2);
   }

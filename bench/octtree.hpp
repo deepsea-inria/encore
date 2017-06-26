@@ -728,19 +728,16 @@ public:
           })
         }))
       })),
-      dc::sequential_loop([] (sar& s, par&) {
-        s.s = 0; s.e = (1<<s.g->center.dimension());
-      }, [] (sar& s, par&) {
-       return std::make_pair(&s.s, &s.e);
-      }, [] (sar& s, par&, int lo, int hi) {
-        int i = s.s;
-        s.parent->data = s.parent->data + (s.parent->children[i])->data;
-        s.parent->count += (s.parent->children[i])->count;
-      }),
       dc::stmt([] (sar& s, par& p) {
-        if (s.parent->count == 0) {
+	auto parent = s.parent;
+	auto n = (1<<s.g->center.dimension());
+	for (auto i = 0; i != n; i++) {
+	  parent->data = parent->data + (parent->children[i])->data;
+	  parent->count += (parent->children[i])->count;
+	}
+        if (parent->count == 0) {
           // make it look like a leaf
-          s.parent->vertices = s.S.A;
+          parent->vertices = s.S.A;
         }
       })
     });
