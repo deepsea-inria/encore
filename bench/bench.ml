@@ -13,19 +13,19 @@ let arg_mode = Mk_runs.mode_from_command_line "mode"
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
 let arg_benchmarks = XCmd.parse_or_default_list_string "benchmark" ["all"]
-let hostname = Unix.gethostname ()
-let arg_proc = 
+let arg_proc =
+  let hostname = Unix.gethostname () in
   let default =
     if hostname = "teraram" then
-      40
+      [ 40; ]
     else if hostname = "cadmium" then
-      48
+      [ 48; ]
     else if hostname = "hiphi.aladdin.cs.cmu.edu" then
-      64
+      [ 64; ]
     else
-      1
+      [ 1; ]
   in
-  XCmd.parse_or_default_int "proc" default
+  XCmd.parse_or_default_list_int "proc" default
             
 let run_modes =
   Mk_runs.([
@@ -188,7 +188,7 @@ let encore_progs = List.map encore_prog_of all_benchmarks
 let cilk_progs = List.map cilk_prog_of all_benchmarks
 let all_progs = List.concat [encore_progs; cilk_progs]
 
-let mk_proc = mk int "proc" arg_proc
+let mk_proc = mk_list int "proc" arg_proc
 
 let path_to_infile n = "_data/" ^ n
 
@@ -381,24 +381,7 @@ let run() =
 let check = nothing  (* do something here *)
 
 let plot() =
-  List.iter (fun benchmark ->
-     Mk_bar_plot.(call ([
-      Bar_plot_opt Bar_plot.([
-                              (* Chart_opt Chart.([Dimensions (12.,8.) ]);*)
-                              X_titles_dir Vertical;
-         Y_axis [ Axis.Lower (Some 0.); Axis.Upper (Some 2.5);
-                  Axis.Is_log false ] 
-         ]);
-      Formatter default_formatter;
-      Charts mk_unit;
-      Series benchmark.bd_infiles;
-      X benchmark.bd_progs;
-      Y_label "Time (s)";
-      Y eval_exectime;
-      Y_whiskers eval_exectime_stddev;
-      Output (file_plots benchmark.bd_name);
-      Results (Results.from_file (file_results benchmark.bd_name));
-      ]))) benchmarks
+    ()
 
 let all () = select make run check plot
 
