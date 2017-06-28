@@ -26,7 +26,8 @@ let arg_proc =
       [ 1; ]
   in
   XCmd.parse_or_default_list_int "proc" default
-            
+let arg_print_err = XCmd.parse_or_default_bool "print_error" false
+    
 let run_modes =
   Mk_runs.([
     Mode arg_mode;
@@ -61,6 +62,12 @@ let build path bs is_virtual =
 let file_results exp_name =
   Printf.sprintf "results_%s.txt" exp_name
 
+let file_tables_src exp_name =
+  Printf.sprintf "tables_%s.tex" exp_name
+
+let file_tables exp_name =
+  Printf.sprintf "tables_%s.pdf" exp_name
+
 let file_plots exp_name =
   Printf.sprintf "plots_%s.pdf" exp_name
 
@@ -92,7 +99,23 @@ let formatter_settings = Env.(
   @ ["operation", Format_custom (fun s -> s)])
 
 let default_formatter =
- Env.format formatter_settings
+  Env.format formatter_settings
+    
+let string_of_percentage_value v =
+  let x = 100. *. v in
+  (* let sx = if abs_float x < 10. then (sprintf "%.1f" x) else (sprintf "%.0f" x)  in *)
+  let sx = sprintf "%.1f" x in
+  sx
+    
+let string_of_percentage ?(show_plus=true) v =
+   match classify_float v with
+   | FP_subnormal | FP_zero | FP_normal ->
+       sprintf "%s%s%s"  (if v > 0. && show_plus then "+" else "") (string_of_percentage_value v) "\\%"
+   | FP_infinite -> "$+\\infty$"
+   | FP_nan -> "na"
+
+let string_of_percentage_change ?(show_plus=true) vold vnew =
+  string_of_percentage ~show_plus:show_plus (vnew /. vold -. 1.0)
 
 (*****************************************************************************)
 (** Sequence-library benchmark *)
@@ -215,9 +238,14 @@ let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 
 let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
 
+let mk_encore_prog n =
+  (mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")
+
+let mk_pbbs_prog n =
+  (mk string "prog" (cilk_prog_of n)) & (mk string "algorithm" "pbbs")
+    
 let mk_progs n =
-  ((mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")) ++
-  ((mk string "prog" (cilk_prog_of n)) & (mk string "algorithm" "pbbs"))
+  (mk_encore_prog n) ++ (mk_pbbs_prog n)
 
 let mk_hull_progs =
   mk_progs prog_hull
@@ -227,11 +255,15 @@ let mk_convexhull =
   & mk_proc
   & mk_hull_infiles
 
+type input_descriptor =
+    string * string * string (* file name, type, pretty name *)
+    
 type benchmark_descriptor = {
   bd_name : string;
   bd_args : Params.t;
   bd_infiles : Params.t;
-  bd_progs : Params.t;    
+  bd_progs : Params.t;
+  bd_input_descr : input_descriptor list;
 }
 
 (*****************)
@@ -322,7 +354,7 @@ let prog_nn =
 let mk_nn_progs =
   mk_progs prog_nn
 
-let input_descriptor_nn = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_in_square_large.bin", "array_point2d", "in square";
   "array_point2d_kuzmin_large.bin", "array_point2d", "kuzmin";
   "array_point3d_in_cube_large.bin", "array_point3d", "in cube";
@@ -330,7 +362,7 @@ let input_descriptor_nn = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point3d_plummer_large.bin", "array_point3d", "plummer"; 
 ]
 
-let mk_nn_infiles = mk_infiles "type" input_descriptor_nn
+let mk_nn_infiles = mk_infiles "type" input_descriptor_nearestneighbors
 
 let mk_nn =
     mk_nn_progs
@@ -343,21 +375,27 @@ let mk_nn =
 let benchmarks' : benchmark_descriptor list = [
   { bd_name = "convexhull"; bd_args = mk_convexhull;
     bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
+    bd_input_descr = input_descriptor_hull;
   };
   { bd_name = "samplesort"; bd_args = mk_samplesort;
     bd_infiles = mk_samplesort_infiles; bd_progs = mk_samplesort_progs;
+    bd_input_descr = input_descriptor_samplesort;
   };
   { bd_name = "radixsort"; bd_args = mk_radixsort;
     bd_infiles = mk_radixsort_infiles; bd_progs = mk_radixsort_progs;
+    bd_input_descr = input_descriptor_radixsort;
   };
   { bd_name = "pbfs"; bd_args = mk_pbfs;
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_pbfs_progs;
+    bd_input_descr = input_descriptor_pbfs;
   };
   { bd_name = "mis"; bd_args = mk_mis;
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_mis_progs;
+    bd_input_descr = input_descriptor_pbfs;
   };
   { bd_name = "nearestneighbors"; bd_args = mk_nn;
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_nn_progs;
+    bd_input_descr = input_descriptor_nearestneighbors;
   };
 ]
 
@@ -367,6 +405,14 @@ let benchmarks =
   in
   List.filter p benchmarks'
 
+let input_descriptors =
+  List.flatten (List.map (fun b -> b.bd_input_descr) benchmarks)
+
+let pretty_input_name n =
+  match List.find_all (fun (m, _, _) -> m = n) input_descriptors with
+  | [(m, _, p)] -> p
+  | _ -> failwith "pretty name"
+    
 let make() =
   build "." all_progs arg_virtual_build
 
@@ -381,7 +427,88 @@ let run() =
 let check = nothing  (* do something here *)
 
 let plot() =
-    ()
+    let tex_file = file_tables_src name in
+    let pdf_file = file_tables name in
+    let nb_proc = List.length arg_proc in
+    let main_formatter =
+      Env.format (Env.(
+                  [
+                   ("proc", Format_custom (fun n -> ""));
+                   ("lib_type", Format_custom (fun n -> ""));
+                   ("infile", Format_custom pretty_input_name);
+                   ("prog", Format_custom (fun n -> ""));
+                   ("type", Format_custom (fun n -> ""));
+                   ("source", Format_custom (fun n -> ""));
+                 ]
+                 ))
+    in
+    Mk_table.build_table tex_file pdf_file (fun add ->
+      let hdr =
+        let m = nb_proc * 2 in
+        let ls = String.concat "|" (XList.init m (fun _ -> "l")) in
+        Printf.sprintf "p{1cm}l|%s" ls
+      in
+      add (Latex.tabular_begin hdr);
+      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol 2 "l|" "Application/input");
+      ~~ List.iteri arg_proc (fun i proc ->
+        let last = i + 1 = nb_proc in
+        let label = Printf.sprintf "Nb. Cores %d" proc in
+        let str = if last then "c" else "c|" in
+        let label = Latex.tabular_multicol 2 str label in
+        Mk_table.cell ~escape:false ~last:last add label);
+      add Latex.tabular_newline;
+
+      let _ = Mk_table.cell ~escape:false ~last:false add "" in
+      let _ = Mk_table.cell ~escape:false ~last:false add "" in
+      ~~ List.iteri arg_proc (fun i proc ->
+        let last = i + 1 = nb_proc in
+        let pbbs_str = "\\begin{tabular}[x]{@{}c@{}}Time (s)\\\\PBBS\\end{tabular}" in
+        let encore_str = "\\begin{tabular}[x]{@{}c@{}}Time (s)\\\\Encore\\end{tabular}" in
+        Mk_table.cell ~escape:true ~last:false add pbbs_str;
+        Mk_table.cell ~escape:true ~last:last add encore_str);
+      add Latex.tabular_newline;
+
+      ~~ List.iteri benchmarks (fun benchmark_i benchmark ->
+        Mk_table.cell add (Latex.tabular_multicol 2 "l|" (sprintf "\\textbf{%s}" (Latex.escape benchmark.bd_name)));
+        add Latex.tabular_newline;
+        let results_file = file_results benchmark.bd_name in
+        let all_results = Results.from_file results_file in
+        let results = all_results in
+        let env = Env.empty in
+        let mk_rows = benchmark.bd_infiles in
+        let env_rows = mk_rows env in
+        ~~ List.iter env_rows (fun env_rows ->  (* loop over each input for current benchmark *)
+          let results = Results.filter env_rows results in
+          let env = Env.append env env_rows in
+          let row_title = main_formatter env_rows in
+          let _ = Mk_table.cell ~escape:true ~last:false add "" in
+          let _ = Mk_table.cell ~escape:true ~last:false add row_title in
+          ~~ List.iteri arg_proc (fun proc_i proc ->
+            let last = proc_i + 1 = nb_proc in
+            let mk_procs = mk int "proc" proc in
+            let (pbbs_str, b) = 
+              let [col] = ((mk_pbbs_prog benchmark.bd_name) & mk_procs) env in
+              let env = Env.append env col in
+              let results = Results.filter col results in
+              let v = eval_exectime env all_results results in
+              let e = eval_exectime_stddev env all_results results in
+              let err =  if arg_print_err then Printf.sprintf "(%.2f%s)"  e "$\\sigma$" else "" in
+              (Printf.sprintf "%.3f %s" v err, v)
+            in
+            Mk_table.cell ~escape:false ~last:false add pbbs_str;
+            let pctl_str = 
+              let [col] = ((mk_encore_prog benchmark.bd_name) & mk_procs) env in
+              let results = Results.filter col results in
+              let v = Results.get_mean_of "exectime" results in
+              let vs = string_of_percentage_change b v in
+              Printf.sprintf "%s" vs
+            in
+            Mk_table.cell ~escape:false ~last:last add pctl_str);
+          add Latex.tabular_newline);            
+      );
+      add Latex.tabular_end;
+      add Latex.new_page;
+      ())
 
 let all () = select make run check plot
 
