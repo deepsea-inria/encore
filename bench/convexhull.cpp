@@ -444,14 +444,23 @@ void benchmark(std::string infile) {
     _seq<intT> idxs;
     encore::launch_interpreter<hull>(x.begin(), x.size(), &idxs);
     idxs.del();
+    if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+      parray<intT> idxs2(idxs.A, idxs.A + idxs.n);
+      idxs.del();
+      if (! check_hull(x, idxs2)) {
+        assert(false);
+      }
+    }
   });
   d.add("pbbs", [&] {
+    pbbs::_seq<intT> idxs;
+    parray<pbbs::_point2d<double>> y = to_pbbs(x);
     encore::run_and_report_elapsed_time([&] {
-      parray<pbbs::_point2d<double>> y = to_pbbs(x);
-      pbbs::hull(y.begin(), (int)y.size());
+      idxs = pbbs::hull(y.begin(), (int)y.size());
     });
+    idxs.del();
   });
-  d.dispatch("algorithm"); 
+  d.dispatch("algorithm");
 }
 
 } // end namespace
