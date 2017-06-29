@@ -31,6 +31,7 @@ using event_tag_type = enum {
   enter_algo,       exit_algo,
   enter_wait,       exit_wait,
   algo_phase,
+  frontier_acquire, frontier_split,
   nb_events
 };
 
@@ -42,6 +43,9 @@ std::string name_of(event_tag_type e) {
     case exit_algo: return "exit_algo ";
     case enter_wait: return "enter_wait ";
     case exit_wait: return "exit_wait ";
+    case algo_phase: return "algo_phase ";
+    case frontier_acquire: return "frontier_acquire ";
+    case frontier_split: return "frontier_split ";
     default: return "unknown_event ";
   }
 }
@@ -54,6 +58,9 @@ event_kind_type kind_of(event_tag_type e) {
     case exit_algo:
     case enter_wait:
     case exit_wait: return phases;
+    case algo_phase: return threads;
+    case frontier_acquire:
+    case frontier_split: return migration;
     default: return nb_kinds;
   }
 }
@@ -83,7 +90,8 @@ public:
   : tag(tag) { }
   
   union {
-    
+    int n1;
+    int n2;
   } extra;
   
   void print_byte_header(FILE* f) {
@@ -103,6 +111,16 @@ public:
   
   void print_text_header(FILE* f) {
     fprintf(f, "%lf\t%d\t%s\t", timestamp, worker_id, name_of(tag).c_str());
+    switch (tag) {
+      case frontier_acquire: {
+        fprintf(f, "%d", extra.n1);
+        break;
+      }
+      case frontier_split: {
+        fprintf(f, "%d\t%d", extra.n1, extra.n2);
+        break;
+      }
+    }
   }
   
   void print_text_descr(FILE* f) {
@@ -254,6 +272,21 @@ void push_event(event_tag_type tag) {
   log_buffer::push(event_type(tag));
 }
 
+static inline
+void push_frontier_acquire(int id) {
+  event_type e(frontier_acquire);
+  e.extra.n1 = id;
+  log_buffer::push(e);
+}
+
+static inline
+void push_frontier_split(int n1, int n2) {
+  event_type e(frontier_split);
+  e.extra.n1 = n1;
+  e.extra.n2 = n2;
+  log_buffer::push(e);
+}
+  
 } // end namespace
 } // end namespace
 

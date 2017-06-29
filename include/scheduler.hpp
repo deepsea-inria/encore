@@ -89,7 +89,7 @@ public:
   }
   
   void split(int nb, frontier& other) {
-#ifndef NDEBUG
+#if defined(NDEBUG) || defined(ENCORE_ENABLE_LOGGING)
     int n1 = nb_strands();
 #endif
     vertex* v = nullptr;
@@ -108,11 +108,12 @@ public:
       other.vs.push_back(v2);
       vs.push_front(v1);
     }
-#ifndef NDEBUG
+#if defined(NDEBUG) || defined(ENCORE_ENABLE_LOGGING)
     int n2 = nb_strands();
     assert(n1 == n2 + nb);
     int n3 = other.nb_strands();
     assert(n3 == nb);
+    logging::push_frontier_split(n1, n2);
 #endif
   }
   
@@ -250,6 +251,7 @@ void worker_loop(vertex* v) {
           delete f;
           request[my_id].store(no_request);
           stats::on_steal();
+          logging::push_frontier_acquire(k);
           logging::push_event(logging::exit_wait);
           return;
         }        
