@@ -107,6 +107,11 @@ void benchmark(parray<Item>& xs, const Compare_fn& compare_fn) {
     });
   });
   d.dispatch("algorithm");
+  if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+    parray<Item> ys(xs);
+    std::sort(ys.begin(), ys.end(), compare_fn);
+    assert(pasl::pctl::same_sequence(xs.begin(), xs.end(), ys.begin(), ys.end()));
+  }
 }
 
 void benchmark(std::string infile) {
