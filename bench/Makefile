@@ -38,11 +38,14 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g -DENCORE_USE_SIMPLE_SYNC
 %.encore: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $<
 
-%.cilk: %.cpp $(INCLUDE_FILES)
-	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+%.log: %.cpp $(INCLUDE_FILES)
+	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -DENCORE_ENABLE_LOGGING -o $@ $<
 
 %.dbg: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
+%.cilk: %.cpp $(INCLUDE_FILES)
+	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+
 clean: pbench_clean
-	rm -f *.encore *.cilk *.dbg
+	rm -f *.encore *.cilk *.dbg *.log
