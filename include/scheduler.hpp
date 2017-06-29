@@ -208,6 +208,7 @@ void worker_loop(vertex* v) {
   
   // check for an incoming steal request
   auto communicate = [&] {
+    logging::push_event(logging::worker_communicate);    
     int j = request[my_id].load();
     if (j != no_request) {
       int sz = my_ready.nb_strands();

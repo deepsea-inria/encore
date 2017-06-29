@@ -23,15 +23,17 @@ using event_kind_type = enum {
   phases = 0,
   threads,
   migration,
+  communicate,
   nb_kinds
 };
 
 using event_tag_type = enum {
-  enter_launch = 0, exit_launch,
-  enter_algo,       exit_algo,
-  enter_wait,       exit_wait,
+  enter_launch = 0,  exit_launch,
+  enter_algo,        exit_algo,
+  enter_wait,        exit_wait,
+  worker_communicate, interrupt,
   algo_phase,
-  frontier_acquire, frontier_split,
+  frontier_acquire,  frontier_split,
   nb_events
 };
 
@@ -43,6 +45,8 @@ std::string name_of(event_tag_type e) {
     case exit_algo: return "exit_algo ";
     case enter_wait: return "enter_wait ";
     case exit_wait: return "exit_wait ";
+    case worker_communicate: return "worker_communicate ";
+    case interrupt: return "interrupt ";
     case algo_phase: return "algo_phase ";
     case frontier_acquire: return "frontier_acquire ";
     case frontier_split: return "frontier_split ";
@@ -57,10 +61,12 @@ event_kind_type kind_of(event_tag_type e) {
     case enter_algo:
     case exit_algo:
     case enter_wait:
-    case exit_wait: return phases;
-    case algo_phase: return threads;
+    case exit_wait:                 return phases;
+    case worker_communicate:
+    case interrupt:                 return communicate;
+    case algo_phase:                return threads;
     case frontier_acquire:
-    case frontier_split: return migration;
+    case frontier_split:            return migration;
     default: return nb_kinds;
   }
 }
@@ -93,23 +99,14 @@ public:
     int n1;
     int n2;
   } extra;
-  
-  void print_byte_header(FILE* f) {
+      
+  void print_byte(FILE* f) {
     fwrite_int64 (f, (int64_t) timestamp);
     fwrite_int64 (f, worker_id);
     fwrite_int64 (f, tag  );
   }
-  
-  void print_byte_descr(FILE* f) {
-
-  }
-  
-  void print_byte(FILE* f) {
-    print_byte_header(f);
-    print_byte_descr(f);
-  }
-  
-  void print_text_header(FILE* f) {
+      
+  void print_text(FILE* f) {
     fprintf(f, "%lf\t%d\t%s\t", timestamp, worker_id, name_of(tag).c_str());
     switch (tag) {
       case frontier_acquire: {
@@ -121,15 +118,6 @@ public:
         break;
       }
     }
-  }
-  
-  void print_text_descr(FILE* f) {
-
-  }
-  
-  void print_text(FILE* f) {
-    print_text_header (f);
-    print_text_descr (f);
     fprintf (f, "\n");
   }
   
@@ -207,8 +195,12 @@ public:
     if (fname == "") {
       return;
     }
+    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
     FILE* f = fopen(fname.c_str(), "w");
     for (auto e : b) {
+      if (pview && (kind_of(e.tag) != phases)) {
+        continue;
+      }
       e.print_byte(f);
     }
     fclose(f);
