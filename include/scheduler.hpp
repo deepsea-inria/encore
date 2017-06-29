@@ -113,7 +113,7 @@ public:
     assert(n1 == n2 + nb);
     int n3 = other.nb_strands();
     assert(n3 == nb);
-    logging::push_frontier_split(n1, n2);
+    logging::push_frontier_split(n2, n3);
 #endif
   }
   
