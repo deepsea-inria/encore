@@ -210,18 +210,19 @@ void worker_loop(vertex* v) {
   auto communicate = [&] {
     logging::push_event(logging::worker_communicate);    
     int j = request[my_id].load();
-    if (j != no_request) {
-      int sz = my_ready.nb_strands();
-      if (sz > K || (nb > K && sz > 1)) {
-        nb_active_workers++;
-        nb = 0;
-        // transfer half of the local frontier to worker with id j
-        frontier* f = new frontier;
-        my_ready.split(sz / 2, *f);
-        transfer[j].store(f);
-      } else {
-        transfer[j].store(nullptr); // reject query
-      }
+    if (j == no_request) {
+      return;
+    }
+    int sz = my_ready.nb_strands();
+    if (sz > K || (nb > K && sz > 1)) {
+      nb_active_workers++;
+      nb = 0;
+      // transfer half of the local frontier to worker with id j
+      frontier* f = new frontier;
+      my_ready.split(sz / 2, *f);
+      transfer[j].store(f);
+    } else {
+      transfer[j].store(nullptr); // reject query
     }
     request[my_id].store(no_request);
   };
@@ -292,6 +293,7 @@ void worker_loop(vertex* v) {
       break;
     } else {
       acquire();
+      update_status();
     }
   }
   
