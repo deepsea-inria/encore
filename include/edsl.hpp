@@ -1761,6 +1761,20 @@ public:
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
 
+  static
+  stmt_type sequential_loop(predicate_code_type predicate, unconditional_jump_code_type body) {
+    return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
+      auto lt = get_loop_threshold();
+      for (int i = 0; i < lt; i++) {
+        if (predicate(s, p)) {
+          body(s, p);
+        } else {
+          break;
+        }
+      }
+    }));
+  }
+
   using loop_direction_type = enum { forward_loop, backward_loop };
 
   static
