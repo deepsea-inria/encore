@@ -116,7 +116,7 @@ namespace intSort {
           dc::stmt([] (sar& s, par& p) {
             radixStepSerial(s.A, s.B, s.Tmp, s.BK[0], s.n, s.m, s.extract);
           }),
-          dc::exit()
+          dc::exit_function()
         })),
         dc::stmt([] (sar& s, par& p) {
           s.nn = (s.n+s.blocks-1)/s.blocks;
@@ -239,7 +239,7 @@ namespace intSort {
         dc::cond({
           std::make_pair([] (sar& s, par& p) {
             return s.n == 0;
-          }, dc::exit()),
+          }, dc::exit_function()),
           std::make_pair([] (sar& s, par& p) {
             return s.bits <= MAX_RADIX;
           }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
@@ -355,7 +355,7 @@ namespace intSort {
                 return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.BK[0], s.BK[0] + s.m, s.bucketOffsets);
               })
             })),
-            dc::exit()
+            dc::exit_function()
           })),
           std::make_pair([] (sar& s, par& p) {
             return s.bottomUp;

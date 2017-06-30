@@ -90,7 +90,7 @@ public:
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return encore_call<quicksort<E,BinPred,intT>>(st, pt, s.a, s.n, s.compare);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.sq = (intT)sqrt(s.n);
@@ -103,7 +103,7 @@ public:
         dc::stmt([] (sar& s, par&) {
           std::sort(s.a, s.a + s.n, s.compare);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.over_sample = 4;

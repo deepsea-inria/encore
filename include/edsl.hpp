@@ -1267,7 +1267,7 @@ int get_loop_threshold() {
 }
   
 using stmt_tag_type = enum {
-  tag_stmt, tag_stmts, tag_cond, tag_exit,
+  tag_stmt, tag_stmts, tag_cond, tag_exit_function,
   tag_sequential_loop, tag_parallel_for_loop, tag_parallel_combine_loop,
   tag_spawn_join, tag_spawn2_join,
   tag_join_plus, tag_spawn_minus,
@@ -1309,7 +1309,7 @@ public:
     } variant_cond;
     struct {
       // nothing to put here
-    } variant_exit;
+    } variant_exit_function;
     struct {
       predicate_code_type predicate;
       std::unique_ptr<stmt_type> body;
@@ -1372,7 +1372,7 @@ private:
         new (&variant_cond.otherwise) std::unique_ptr<stmt_type>(p);
         break;
       }
-      case tag_exit: {
+      case tag_exit_function: {
         // nothing to put here
         break;
       }
@@ -1464,7 +1464,7 @@ private:
         variant_cond.otherwise = std::move(other.variant_cond.otherwise);
         break;
       }
-      case tag_exit: {
+      case tag_exit_function: {
         // nothing to put here
         break;
       }
@@ -1562,7 +1562,7 @@ public:
         variant_cond.otherwise.~st();
         break;
       }
-      case tag_exit: {
+      case tag_exit_function: {
         // nothing to put here
         break;
       }
@@ -1658,9 +1658,9 @@ public:
   }
   
   static
-  stmt_type exit() {
+  stmt_type exit_function() {
     stmt_type s;
-    s.tag = tag_exit;
+    s.tag = tag_exit_function;
     return s;
   }
   
@@ -1975,7 +1975,7 @@ private:
         add_block(entry, bbt::conditional_jump(selector));
         break;
       }
-      case tag_exit: {
+      case tag_exit_function: {
         add_block(entry, bbt::unconditional_jump([] (sar&, par&) { }, pcfg::exit_block_label));
         break;
       }

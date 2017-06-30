@@ -134,7 +134,7 @@ public:
         dc::stmt([] (sar& s, par&) {
           *s.dest = serialQuickHull(s.I, s.P, s.n, s.l, s.r);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         auto f = greater<double>();

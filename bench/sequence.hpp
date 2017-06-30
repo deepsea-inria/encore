@@ -290,7 +290,7 @@ public:
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
           return encore_call<reduceSerial<OT,intT,F,G>>(st, pt, s.s, s.e, s.f, s.g, s.dest);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.Sums = malloc_array<OT>(s.l);
@@ -479,7 +479,7 @@ public:
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
           return encore_call<maxIndexSerial<ET, intT, F, G>>(st, pt, s.s, s.e, s.f, s.g, s.dest);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.Idx = malloc_array<intT>(s.l);
@@ -648,7 +648,7 @@ public:
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
           return encore_call<scanSerial<ET,intT,F,G>>(st, pt, s.Out, s.s, s.e, s.f, s.g, s.zero, s.inclusive, s.back, s.dest);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.Sums = malloc_array<ET>(s.l);
@@ -861,7 +861,7 @@ public:
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
           return encore_call<packSerial<ET, intT, F>>(st, pt, s.Out, s.Fl, s.s, s.e, s.f, s.dest);
         }),
-        dc::exit()
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.Sums = malloc_array<intT>(s.l);
