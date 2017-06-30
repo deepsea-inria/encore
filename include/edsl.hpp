@@ -1267,7 +1267,7 @@ int get_loop_threshold() {
 }
   
 using stmt_tag_type = enum {
-  tag_stmt, tag_stmts, tag_cond, tag_exit_function,
+  tag_stmt, tag_stmts, tag_cond, tag_exit_function, tag_exit_loop,
   tag_sequential_loop, tag_parallel_for_loop, tag_parallel_combine_loop,
   tag_spawn_join, tag_spawn2_join,
   tag_join_plus, tag_spawn_minus,
@@ -1310,6 +1310,9 @@ public:
     struct {
       // nothing to put here
     } variant_exit_function;
+    struct {
+      // nothing to put here
+    } variant_exit_loop;
     struct {
       predicate_code_type predicate;
       std::unique_ptr<stmt_type> body;
@@ -1373,6 +1376,10 @@ private:
         break;
       }
       case tag_exit_function: {
+        // nothing to put here
+        break;
+      }
+      case tag_exit_loop: {
         // nothing to put here
         break;
       }
@@ -1465,6 +1472,10 @@ private:
         break;
       }
       case tag_exit_function: {
+        // nothing to put here
+        break;
+      }
+      case tag_exit_loop: {
         // nothing to put here
         break;
       }
@@ -1566,6 +1577,10 @@ public:
         // nothing to put here
         break;
       }
+      case tag_exit_loop: {
+        // nothing to put here
+        break;
+      }
       case tag_sequential_loop: {
         variant_sequential_loop.predicate.~predicate_code_type();
         using st = std::unique_ptr<stmt_type>;
@@ -1663,7 +1678,14 @@ public:
     s.tag = tag_exit_function;
     return s;
   }
-  
+
+  static
+  stmt_type exit_loop() {
+    stmt_type s;
+    s.tag = tag_exit_loop;
+    return s;
+  }
+
   static
   stmt_type sequential_loop(predicate_code_type predicate, stmt_type body) {
     stmt_type s;
@@ -1902,6 +1924,7 @@ private:
   static
   configuration_type transform(stmt_type stmt,
                                lt entry, lt exit,
+                               lt loop_exit_block,
                                std::vector<parallel_loop_id_type> loop_scope,
                                configuration_type config) {
     configuration_type result = config;
@@ -1937,7 +1960,7 @@ private:
         for (auto& s : stmts) {
           lt entry = entries.at(i);
           lt exit2 = (i + 1 == entries.size()) ? exit : entries.at(i + 1);
-          result = transform(s, entry, exit2, loop_scope, result);
+          result = transform(s, entry, exit2, loop_exit_block, loop_scope, result);
           i++;
         }
         break;
@@ -1957,11 +1980,11 @@ private:
         auto otherwise_label = new_label();
         i = 0;
         for (auto& s : stmts) {
-          result = transform(s, entries.at(i), exit, loop_scope, result);
+          result = transform(s, entries.at(i), exit, loop_exit_block, loop_scope, result);
           i++;
         }
         entries.push_back(otherwise_label);
-        result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, loop_scope, result);
+        result = transform(*stmt.variant_cond.otherwise, otherwise_label, exit, loop_exit_block, loop_scope, result);
         auto selector = [predicates, entries] (sar& s, par& p) {
           int i = 0;
           for (auto& pred : predicates) {
@@ -1979,6 +2002,13 @@ private:
         add_block(entry, bbt::unconditional_jump([] (sar&, par&) { }, pcfg::exit_block_label));
         break;
       }
+      case tag_exit_loop: {
+        if (loop_exit_block == -1) {
+          atomic::die("bogus loop exit\n");
+        }
+        add_block(entry, bbt::unconditional_jump([] (sar&, par&) { }, loop_exit_block));
+        break;
+      }
       case tag_sequential_loop: {
         auto header_label = entry;
         auto body_label = new_label();
@@ -1987,7 +2017,7 @@ private:
           return predicate(s, p) ? body_label : exit;
         };
         add_block(header_label, bbt::conditional_jump(selector));
-        result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, loop_scope, result);
+        result = transform(*stmt.variant_sequential_loop.body, body_label, header_label, exit, loop_scope, result);
         break;
       }
       case tag_parallel_for_loop: {
@@ -2019,7 +2049,7 @@ private:
           return p.get_join(loop_label) == nullptr ? exit : pcfg::exit_block_label;
         };
         add_block(footer_label, bbt::conditional_jump(footer_selector));
-        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_for_loop.body, body_label, header_label, loop_exit_block, loop_scope, result);
         break;
       }
       case tag_parallel_combine_loop: {
@@ -2100,7 +2130,7 @@ private:
           return exit;
         };
         add_block(parent_check_label, bbt::conditional_jump(parent_check));
-        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_scope, result);
+        result = transform(*stmt.variant_parallel_combine_loop.body, body_label, header_label, loop_exit_block, loop_scope, result);
         break;
       }
       case tag_spawn_join: {
@@ -2143,7 +2173,7 @@ public:
   pcfg::cfg_type<Shared_activation_record> transform(stmt_type stmt) {
     lt entry = pcfg::entry_block_label;
     lt exit = pcfg::exit_block_label;
-    configuration_type result = transform(stmt, entry, exit, { }, { });
+    configuration_type result = transform(stmt, entry, exit, -1, { }, { });
     pcfg::cfg_type<Shared_activation_record> cfg(result.blocks.size());
     for (int i = 0; i < cfg.nb_basic_blocks(); i++) {
       cfg[i] = result.blocks[i];
