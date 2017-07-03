@@ -121,8 +121,10 @@ public:
           sample_set[i] = a[o];
         }
       }),
+      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+        return encore_call<quicksort<E,BinPred,intT>>(st, pt, s.sample_set, s.sample_set_size, s.compare);
+      }),
       dc::stmt([] (sar& s, par& p) {
-        std::sort(s.sample_set, s.sample_set + s.sample_set_size, s.compare);
         s.pivots_size = s.segments - 1;
         s.pivots = malloc_array<E>(s.pivots_size);
       }),
