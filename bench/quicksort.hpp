@@ -81,7 +81,7 @@ public:
       E* R = s.R;
       auto f = s.f;
       trampoline t = s.t;
-      int fuel = 128;
+      int fuel = 64;
       while (true) {
         switch (t) {
           case loop1: {
