@@ -220,7 +220,7 @@ let mk_infiles ty descr = fun e ->
     let e0 = 
       Env.add Env.empty "infile" (string p)
     in
-    Env.add e0 ty (string t)
+    Env.add e0 ty t
   in
   List.map f descr
 
@@ -231,9 +231,9 @@ let prog_hull =
   "convexhull"
     
 let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
-  "array_point2d_in_circle_large.bin", "2d", "in circle";
-  "array_point2d_kuzmin_large.bin", "2d", "kuzmin";
-  "array_point2d_on_circle_medium.bin", "2d", "on circle";
+  "array_point2d_in_circle_large.bin", string "2d", "in circle";
+  "array_point2d_kuzmin_large.bin", string "2d", "kuzmin";
+  "array_point2d_on_circle_medium.bin", string  "2d", "on circle";
 ]
 
 let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
@@ -256,7 +256,7 @@ let mk_convexhull =
   & mk_hull_infiles
 
 type input_descriptor =
-    string * string * string (* file name, type, pretty name *)
+    string * Env.value * string (* file name, type, pretty name *)
     
 type benchmark_descriptor = {
   bd_name : string;
@@ -276,9 +276,9 @@ let mk_samplesort_progs =
   mk_progs prog_samplesort  
   
 let input_descriptor_samplesort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
-  "array_double_random_large.bin", "double", "random";
-  "array_double_exponential_large.bin", "double", "exponential";
-  "array_double_almost_sorted_10000_large.bin", "double", "almost sorted";
+  "array_double_random_large.bin", string "double", "random";
+  "array_double_exponential_large.bin", string "double", "exponential";
+  "array_double_almost_sorted_10000_large.bin", string "double", "almost sorted";
 ]
     
 let mk_samplesort_infiles = mk_infiles "type" input_descriptor_samplesort
@@ -298,8 +298,8 @@ let mk_radixsort_progs =
   mk_progs prog_radixsort
 
 let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
-  "array_int_random_large.bin", "int", "random";    
-  "array_int_exponential_large.bin", "int", "exponential";
+  "array_int_random_large.bin", string "int", "random";    
+  "array_int_exponential_large.bin", string "int", "exponential";
 ]
 
 let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
@@ -319,9 +319,9 @@ let mk_pbfs_progs =
   mk_progs prog_pbfs
 
 let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
-  "cube_large.bin", "0", "cube";
-  "wikipedia-20070206.bin", "0", "wikipedia";
-  "rmat24_large.bin", "0", "rMat24";
+  "cube_large.bin", int 0, "cube";
+  "wikipedia-20070206.bin", int 0, "wikipedia";
+  "rmat24_large.bin", int 0, "rMat24";
 ]
 
 let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
@@ -348,26 +348,26 @@ let mk_mis =
 (*****************)
 (* Nearest neighbors *)
 
-let prog_nn =
+let prog_nearestneighbors =
   "nearestneighbors"
 
-let mk_nn_progs =
-  mk_progs prog_nn
+let mk_nearestneighbors_progs =
+  mk_progs prog_nearestneighbors
 
 let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
-  "array_point2d_in_square_large.bin", "array_point2d", "in square";
-  "array_point2d_kuzmin_large.bin", "array_point2d", "kuzmin";
-  "array_point3d_in_cube_large.bin", "array_point3d", "in cube";
-  "array_point3d_on_sphere_large.bin", "array_point3d", "on sphere";
-  "array_point3d_plummer_large.bin", "array_point3d", "plummer"; 
+  "array_point2d_in_square_large.bin", string "array_point2d", "in square";
+  "array_point2d_kuzmin_large.bin", string "array_point2d", "kuzmin";
+  "array_point3d_in_cube_large.bin", string "array_point3d", "in cube";
+  "array_point3d_on_sphere_large.bin", string "array_point3d", "on sphere";
+  "array_point3d_plummer_large.bin", string "array_point3d", "plummer"; 
 ]
 
-let mk_nn_infiles = mk_infiles "type" input_descriptor_nearestneighbors
+let mk_nearestneighbors_infiles = mk_infiles "type" input_descriptor_nearestneighbors
 
-let mk_nn =
-    mk_nn_progs
+let mk_nearestneighbors =
+    mk_nearestneighbors_progs
   & mk_proc
-  & mk_nn_infiles
+  & mk_nearestneighbors_infiles
 
 (*****************)
 (* All benchmarks *)
@@ -393,8 +393,8 @@ let benchmarks' : benchmark_descriptor list = [
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_mis_progs;
     bd_input_descr = input_descriptor_pbfs;
   };
-  { bd_name = "nearestneighbors"; bd_args = mk_nn;
-    bd_infiles = mk_pbfs_infiles; bd_progs = mk_nn_progs;
+  { bd_name = "nearestneighbors"; bd_args = mk_nearestneighbors;
+    bd_infiles = mk_nearestneighbors_infiles; bd_progs = mk_nearestneighbors_progs;
     bd_input_descr = input_descriptor_nearestneighbors;
   };
 ]
