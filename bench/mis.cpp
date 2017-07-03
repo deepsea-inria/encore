@@ -154,6 +154,7 @@ void benchmark(std::string infile) {
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
+  sequence::initialize();
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {
     std::cout << "bogus input file name" << std::endl;
