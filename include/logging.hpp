@@ -28,12 +28,12 @@ using event_kind_type = enum {
 };
 
 using event_tag_type = enum {
-  enter_launch = 0,  exit_launch,
-  enter_algo,        exit_algo,
-  enter_wait,        exit_wait,
+  enter_launch = 0,   exit_launch,
+  enter_algo,         exit_algo,
+  enter_wait,         exit_wait,
   worker_communicate, interrupt,
   algo_phase,
-  frontier_acquire,  frontier_split,
+  frontier_acquire,   frontier_split,
   nb_events
 };
 
@@ -61,10 +61,10 @@ event_kind_type kind_of(event_tag_type e) {
     case enter_algo:
     case exit_algo:
     case enter_wait:
-    case exit_wait:                 return phases;
+    case exit_wait:
+    case algo_phase:                return phases;
     case worker_communicate:
     case interrupt:                 return communicate;
-    case algo_phase:                return threads;
     case frontier_acquire:
     case frontier_split:            return migration;
     default: return nb_kinds;
