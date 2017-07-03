@@ -731,7 +731,9 @@ class sumFlagsSerial : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   bool *Fl; intT n; intT* dest;
-  int* IFl; int k; intT r; intT j;
+  int* IFl; int k; intT r; intT j; intT rr;
+  using trampoline = enum { loop0, loop1 };
+  trampoline t;
   
   sumFlagsSerial(bool *Fl, intT n, intT* dest)
   : Fl(Fl), n(n), dest(dest) { }
@@ -749,27 +751,61 @@ public:
       dc::mk_if([] (sar& s, par&) { return (s.n >= 128 && (s.n & 511) == 0 && ((long) s.Fl & 3) == 0); }, dc::stmts({
         dc::stmt([] (sar& s, par&) {
           s.IFl = (int*)s.Fl;
+          s.rr = 0;
+          s.t = loop0;
         }),
         dc::sequential_loop([] (sar& s, par&) { return s.k < (s.n >> 9); }, dc::stmt([] (sar& s, par&) {
-          int rr = 0;
+          int rr = s.rr;
           auto IFl = s.IFl;
-          for (int j=0; j < 128; j++) {
-            rr +=IFl[j];
+          int fuel = 64;
+          intT k = s.k;
+          intT n = s.n;
+          intT r = s.r;
+          intT j = s.j;
+          trampoline t = s.t;
+          while (k < (n >> 9)) {
+            switch (t) {
+              case loop0: {
+                for (; j < 128; j++) {
+                  rr += IFl[j];
+                  if (--fuel == 0) {
+                    goto exit;
+                  }
+                }
+                t = loop1;
+              }
+              case loop1: {
+                r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
+                IFl += 128;
+                k++;
+                if (--fuel == 0) {
+                  goto exit;
+                }
+                j = 0;
+                rr = 0;
+                t = loop0;
+              }
+            }
           }
-          s.r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
-          s.IFl += 128;
-          s.k++;
+        exit:
+          s.j = j;
+          s.k = k;
+          s.r = r;
+          s.rr = rr;
+          s.t = t;
+          s.IFl = IFl;
         }))
-      }),
-      dc::sequential_loop([] (sar& s, par&) { return s.j < s.n; }, dc::stmt([] (sar& s, par&) {
-        intT r = 0;
+      }), // else
+      dc::sequential_loop([] (sar& s, par&) { return s.j < s.n;  },
+                          [] (sar& s, par&) { return std::make_pair(&s.j, &s.n); },
+                          [] (sar& s, par&, int lo, int hi) {
+        intT r = s.r;
         auto Fl = s.Fl;
-        for (intT j=0; j < s.n; j++) {
+        for (intT j = lo; j < hi; j++) {
           r += Fl[j];
         }
         s.r = r;
-        s.j++;
-      }))),
+      })),
       dc::stmt([] (sar& s, par&) {
         *s.dest = s.r;
       })
