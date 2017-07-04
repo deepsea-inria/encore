@@ -131,7 +131,7 @@ public:
 namespace {
   
 // to control the rate of DAG construction
-int D = 4096;
+int D = 32;
 
 // to control the eagerness of work distribution
 int K = 2 * D;

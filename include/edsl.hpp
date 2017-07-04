@@ -1259,7 +1259,7 @@ public:
 
 namespace dc {
 
-int loop_threshold = 1024;
+int loop_threshold = 128;
   
 static inline
 int get_loop_threshold() {
