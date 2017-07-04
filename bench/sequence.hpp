@@ -766,8 +766,9 @@ public:
           while (k < (n >> 9)) {
             switch (t) {
               case loop0: {
-                for (; j < 128; j++) {
+                while (j < 128) {
                   rr += IFl[j];
+                  j++;
                   if (--fuel == 0) {
                     goto exit;
                   }
@@ -788,12 +789,7 @@ public:
             }
           }
         exit:
-          s.j = j;
-          s.k = k;
-          s.r = r;
-          s.rr = rr;
-          s.t = t;
-          s.IFl = IFl;
+          s.j = j; s.k = k; s.r = r; s.rr = rr; s.t = t; s.IFl = IFl;
         }))
       }), // else
       dc::sequential_loop([] (sar& s, par&) { return s.j < s.n;  },
