@@ -35,6 +35,9 @@ public:
   intT rStart; intT rCount; intT rLength;
   intT cStart; intT cCount; intT cLength;
   intT l1; intT l2;
+
+  using trampoline = enum { loop0, loop1, loop_exit };
+  trampoline t; intT i, j;
   
   transpose(E *AA, E *BB,
             intT rStart, intT rCount, intT rLength,
@@ -50,14 +53,43 @@ public:
     return dc::cond({
       std::make_pair([] (sar& s, par& p) {
         return s.cCount < _TRANS_THRESHHOLD_encore && s.rCount < _TRANS_THRESHHOLD_encore;
-      }, dc::stmt([] (sar& s, par& p) { // later: consider encoding as encore loops?
-        auto rStart = s.rStart; auto rCount = s.rCount;
-        auto cStart = s.cStart; auto cCount = s.cCount;
-        auto B = s.B; auto A = s.A;
-        auto rLength = s.rLength; auto cLength = s.cLength;
-        for (intT i=rStart; i < rStart + rCount; i++)
-          for (intT j=cStart; j < cStart + cCount; j++)
-            B[j*cLength + i] = A[i*rLength + j];
+      }, dc::stmts({dc::stmt([] (sar& s, par& p) {
+          s.i = s.rStart;
+          s.t = loop0;
+        }),
+        dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
+          auto rStart = s.rStart; auto rCount = s.rCount;
+          auto cStart = s.cStart; auto cCount = s.cCount;
+          auto B = s.B; auto A = s.A;
+          auto rLength = s.rLength; auto cLength = s.cLength;
+          auto t = s.t; intT i = s.i; intT j = s.j;
+          int fuel = 128;
+          while (i < rStart + rCount) {
+            switch (t) {
+              case loop0: {
+                j = cStart;
+                t = loop1;
+              }
+              case loop1: {
+                while (j < cStart + cCount) {
+                  B[j*cLength + i] = A[i*rLength + j];
+                  j++;
+                  if (--fuel == 0) {
+                    goto exit;
+                  }
+                }
+                i++;
+                t = loop0;
+                if (--fuel == 0) {
+                  goto exit;
+                }
+              }
+            }
+          }
+          t = loop_exit;
+        exit:
+          s.i = i; s.j = j; s.t = t;
+        }))
       })),
       std::make_pair([] (sar& s, par& p) {
         return s.cCount > s.rCount;
@@ -110,6 +142,9 @@ public:
   intT rStart; intT rCount; intT rLength;
   intT cStart; intT cCount; intT cLength;
   intT l1; intT l2;
+
+  using trampoline = enum { loop0, loop1, loop2, loop_exit };
+  trampoline t; intT i, j, k, l; E* pa; E* pb;
     
   blockTrans(E *AA, E *BB,
              intT *OOA, intT *OOB, intT *LL,
@@ -127,20 +162,61 @@ public:
     return dc::cond({
       std::make_pair([] (sar& s, par& p) {
         return s.cCount < _TRANS_THRESHHOLD_encore && s.rCount < _TRANS_THRESHHOLD_encore;
-      }, dc::stmt([] (sar& s, par& p) { // later: consider encoding as encore loops?
-        auto rStart = s.rStart; auto rCount = s.rCount;
-        auto cStart = s.cStart; auto cCount = s.cCount;
-        auto A = s.A; auto B = s.B;
-        auto OA = s.OA; auto OB = s.OB; auto L = s.L;
-        auto rLength = s.rLength; auto cLength = s.cLength;
-        for (intT i=rStart; i < rStart + rCount; i++)
-          for (intT j=cStart; j < cStart + cCount; j++) {
-            E* pa = A+OA[i*rLength + j];
-            E* pb = B+OB[j*cLength + i];
-            intT l = L[i*rLength + j];
-            //cout << "pa,pb,l: " << pa << "," << pb << "," << l << endl;
-            for (intT k=0; k < l; k++) *(pb++) = *(pa++);
+      }, dc::stmts({dc::stmt([] (sar& s, par& p) {
+          s.i = s.rStart;
+          s.t = loop0;
+        }),
+        dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
+          auto rStart = s.rStart; auto rCount = s.rCount;
+          auto cStart = s.cStart; auto cCount = s.cCount;
+          auto A = s.A; auto B = s.B;
+          auto OA = s.OA; auto OB = s.OB; auto L = s.L;
+          auto rLength = s.rLength; auto cLength = s.cLength;
+          auto i = s.i; auto j = s.j; auto k = s.k; auto l = s.l; auto t = s.t;
+          auto pa = s.pa; auto pb = s.pb;
+          int fuel = 128;
+          while (i < rStart + rCount) {
+            switch (t) {
+              case loop0: {
+                j = cStart;
+                t = loop1;
+              }
+              case loop1: {
+                if (j >= cStart + cCount) {
+                  break;
+                }
+                pa = A+OA[i*rLength + j];
+                pb = B+OB[j*cLength + i];
+                l = L[i*rLength + j];
+                k = 0;
+                t = loop2;
+              }
+              case loop2: {
+                while (k < l) {
+                  *(pb++) = *(pa++);
+                  k++;
+                  if (--fuel == 0) {
+                    goto exit;
+                  }
+                }
+                j++;
+                t = loop1;
+                if (--fuel == 0) {
+                  goto exit;
+                }
+                continue;
+              }
+            }
+            i++;
+            t = loop0;
+            if (--fuel == 0) {
+              goto exit;
+            }
           }
+          t = loop_exit;
+        exit:
+          s.i = i; s.j = j; s.t = t; s.k = k; s.l = l; s.pa = pa; s.pb = pb;
+        }))
       })),
       std::make_pair([] (sar& s, par& p) {
         return s.cCount > s.rCount;
