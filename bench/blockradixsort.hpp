@@ -26,6 +26,7 @@
 #include "sequence.hpp"
 #include "transpose.hpp"
 #include "utils.h"
+#include "logging.hpp"
 
 #ifndef _ENCORE_A_RADIX_INCLUDED
 #define _ENCORE_A_RADIX_INCLUDED
@@ -44,111 +45,6 @@ namespace intSort {
   
   // a type that must hold MAX_RADIX bits
   typedef unsigned char bIndexT;
-
-      template <class E, class F, class intT>
-  void radixBlock(E* A, E* B, bIndexT *Tmp, intT counts[BUCKETS], intT offsets[BUCKETS],
-                  intT Boffset, intT n, intT m, F extract) {
-    
-    for (intT i = 0; i < m; i++)  counts[i] = 0;
-    for (intT j = 0; j < n; j++) {
-      intT k = Tmp[j] = extract(A[j]);
-      counts[k]++;
-    }
-    intT s = Boffset;
-    for (intT i = 0; i < m; i++) {
-      s += counts[i];
-      offsets[i] = s;
-    }
-    for (intT j = n-1; j >= 0; j--) {
-      intT x =  --offsets[Tmp[j]];
-      B[x] = A[j];
-    }
-  }
-
-  template <class E, class F, class intT>
-  class radixBlock2 {
-  public:
-
-    E* A; E* B; bIndexT *Tmp; intT* counts; intT* offsets;
-    intT Boffset; intT n; intT m; F extract;
-
-    radixBlock2() { }
-    radixBlock2(E* A, E* B, bIndexT *Tmp, intT* counts, intT* offsets,
-               intT Boffset, intT n, intT m, F extract) :
-      A(A), B(B), Tmp(Tmp), counts(counts), offsets(offsets), Boffset(Boffset), n(n), m(m), extract(extract) { }
-    
-    intT i,j,s;
-    using trampoline = enum { entry, loop1, loop2, loop3, loop4 };
-    trampoline t = entry;
-
-    bool run() {
-      int fuel = 128;
-      switch (t) {
-        case entry: {
-          i = 0;
-          t = loop1;
-        }
-        case loop1: {
-          while (i < m) {
-            counts[i] = 0;
-            i++;
-            if (--fuel == 0) {
-              return true;
-            }
-          }
-          j = 0;
-          t = loop2;
-        }
-        case loop2: {
-          while (j < n) {
-            intT k = Tmp[j] = extract(A[j]);
-            counts[k]++;
-            j++;
-            if (--fuel == 0) {
-              return true;
-            }
-          }
-          s = Boffset;
-          i = 0;
-          t = loop3;
-        }
-        case loop3: {
-          while (i < m) {
-            s += counts[i];
-            offsets[i] = s;
-            i++;
-            if (--fuel == 0) {
-              return true;
-            }
-          }
-          j = n-1;
-          t = loop4;
-        }
-        case loop4: {
-          while (j >= 0) {
-            intT x =  --offsets[Tmp[j]];
-            B[x] = A[j];
-            j--;
-            if (--fuel == 0) {
-              return true;        
-            }
-          }
-        }
-      }
-      return false;
-    }
-    
-  };
-
-
-    template <class E, class F, class intT>
-  void radixStepSerial(E* A, E* B, bIndexT *Tmp, intT buckets[BUCKETS],
-                       intT n, intT m, F extract) {
-    radixBlock(A, B, Tmp, buckets, buckets, (intT)0, n, m, extract);
-    for (intT i=0; i < n; i++) A[i] = B[i];
-    return;
-  }
-
     
   // A is the input and sorted output (length = n)
   // B is temporary space for copying data (length = n)
@@ -291,8 +187,9 @@ namespace intSort {
           s.oA = (intT*) (s.BK+s.blocks);
           s.oB = (intT*) (s.BK+2*s.blocks);
           p.s = 0;
-          p.e = s.blocks;
-        }),
+          p.e = s.blocks; 
+        }), // critical code starting here and ending at the end of the function
+            // (to see how often its invoked, insert algo_phase log events)
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                               [] (par& p) { return std::make_pair(&p.s, &p.e); },
                               dc::stmts({
@@ -326,7 +223,7 @@ namespace intSort {
           p.not_done = true; p.rb.j = 0;
         }),
         dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt([] (sar& s, par& p) {
-          int fuel = 256;
+          int fuel = 512;
           auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
           // put the offsets for each bucket in the first bucket set of BK
           while (j < m) {
@@ -340,11 +237,7 @@ namespace intSort {
           return;
         exit:
           p.rb.j = j; p.not_done = true;
-        })) /*
-        dc::stmt([] (sar& s, par& p) {
-          // put the offsets for each bucket in the first bucket set of BK
-          for (intT j = 0; j < s.m; j++) s.BK[0][j] = s.oA[j*s.blocks];
-          }) */
+        }))
       });
     }
     
