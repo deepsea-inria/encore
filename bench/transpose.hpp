@@ -63,7 +63,7 @@ public:
           auto B = s.B; auto A = s.A;
           auto rLength = s.rLength; auto cLength = s.cLength;
           auto t = s.t; intT i = s.i; intT j = s.j;
-          int fuel = 128;
+          int fuel = 64;
           while (i < rStart + rCount) {
             switch (t) {
               case loop0: {
@@ -174,7 +174,7 @@ public:
           auto rLength = s.rLength; auto cLength = s.cLength;
           auto i = s.i; auto j = s.j; auto k = s.k; auto l = s.l; auto t = s.t;
           auto pa = s.pa; auto pb = s.pb;
-          int fuel = 128;
+          int fuel = 64;
           while (i < rStart + rCount) {
             switch (t) {
               case loop0: {
