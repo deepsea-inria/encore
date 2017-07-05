@@ -44,8 +44,8 @@ namespace intSort {
   
   // a type that must hold MAX_RADIX bits
   typedef unsigned char bIndexT;
-  
-  template <class E, class F, class intT>
+
+      template <class E, class F, class intT>
   void radixBlock(E* A, E* B, bIndexT *Tmp, intT counts[BUCKETS], intT offsets[BUCKETS],
                   intT Boffset, intT n, intT m, F extract) {
     
@@ -64,15 +64,92 @@ namespace intSort {
       B[x] = A[j];
     }
   }
-  
+
   template <class E, class F, class intT>
+  class radixBlock2 {
+  public:
+
+    E* A; E* B; bIndexT *Tmp; intT* counts; intT* offsets;
+    intT Boffset; intT n; intT m; F extract;
+
+    radixBlock2() { }
+    radixBlock2(E* A, E* B, bIndexT *Tmp, intT* counts, intT* offsets,
+               intT Boffset, intT n, intT m, F extract) :
+      A(A), B(B), Tmp(Tmp), counts(counts), offsets(offsets), Boffset(Boffset), n(n), m(m), extract(extract) { }
+    
+    intT i,j,s;
+    using trampoline = enum { entry, loop1, loop2, loop3, loop4 };
+    trampoline t = entry;
+
+    bool run() {
+      int fuel = 128;
+      switch (t) {
+        case entry: {
+          i = 0;
+          t = loop1;
+        }
+        case loop1: {
+          while (i < m) {
+            counts[i] = 0;
+            i++;
+            if (--fuel == 0) {
+              return true;
+            }
+          }
+          j = 0;
+          t = loop2;
+        }
+        case loop2: {
+          while (j < n) {
+            intT k = Tmp[j] = extract(A[j]);
+            counts[k]++;
+            j++;
+            if (--fuel == 0) {
+              return true;
+            }
+          }
+          s = Boffset;
+          i = 0;
+          t = loop3;
+        }
+        case loop3: {
+          while (i < m) {
+            s += counts[i];
+            offsets[i] = s;
+            i++;
+            if (--fuel == 0) {
+              return true;
+            }
+          }
+          j = n-1;
+          t = loop4;
+        }
+        case loop4: {
+          while (j >= 0) {
+            intT x =  --offsets[Tmp[j]];
+            B[x] = A[j];
+            j--;
+            if (--fuel == 0) {
+              return true;        
+            }
+          }
+        }
+      }
+      return false;
+    }
+    
+  };
+
+
+    template <class E, class F, class intT>
   void radixStepSerial(E* A, E* B, bIndexT *Tmp, intT buckets[BUCKETS],
                        intT n, intT m, F extract) {
     radixBlock(A, B, Tmp, buckets, buckets, (intT)0, n, m, extract);
     for (intT i=0; i < n; i++) A[i] = B[i];
     return;
   }
-  
+
+    
   // A is the input and sorted output (length = n)
   // B is temporary space for copying data (length = n)
   // Tmp is temporary space for extracting the bytes (length = n)
@@ -96,14 +173,94 @@ namespace intSort {
               intT numBK, intT n, intT m, bool top, F extract)
     : A(A), B(B), Tmp(Tmp), BK(BK), numBK(numBK), n(n),
     m(m), top(top), extract(extract) { }
+
+    using trampoline = enum { entry, loop1, loop2, loop3, loop4 };
+    
+    using rbty = struct radixBlock2 {
+      E* A; E* B; bIndexT *Tmp; intT* counts; intT* offsets;
+      intT Boffset; intT n; intT m; F extract;
+
+      radixBlock2() { }
+      radixBlock2(E* A, E* B, bIndexT *Tmp, intT* counts, intT* offsets,
+                 intT Boffset, intT n, intT m, F extract) :
+        A(A), B(B), Tmp(Tmp), counts(counts), offsets(offsets), Boffset(Boffset), n(n), m(m), extract(extract) { }
+
+      intT i,j,s; trampoline t = entry;
+    };
     
     encore_private_activation_record_begin(encore::edsl, radixStep, 1)
     int s; int e;
-    intT od; intT nni;
+    intT od; intT nni; bool not_done;
+    rbty rb;
     encore_private_activation_record_end(encore::edsl, radixStep, sar, par, dc, get_dc)
     
     static
     dc get_dc() {
+      auto radixBlock = [] (sar& , par& p) {
+        auto i = p.rb.i; auto j = p.rb.j; auto s = p.rb.s; auto t = p.rb.t;
+        auto A = p.rb.A; auto B = p.rb.B; bIndexT *Tmp = p.rb.Tmp; intT* counts = p.rb.counts;
+        intT* offsets = p.rb.offsets;
+        intT Boffset = p.rb.Boffset; intT n = p.rb.n; intT m = p.rb.m; F extract = p.rb.extract;
+        int fuel = 256;
+        switch (t) {
+          case entry: {
+            i = 0;
+            t = loop1;
+          }
+          case loop1: {
+            while (i < m) {
+              counts[i] = 0;
+              i++;
+              if (--fuel == 0) {
+                goto exit;
+              }
+            }
+            j = 0;
+            t = loop2;
+          }
+          case loop2: {
+            while (j < n) {
+              intT k = Tmp[j] = extract(A[j]);
+              counts[k]++;
+              j++;
+              if (--fuel == 0) {
+                goto exit;
+              }
+            }
+            s = Boffset;
+            i = 0;
+            t = loop3;
+          }
+          case loop3: {
+            while (i < m) {
+              s += counts[i];
+              offsets[i] = s;
+              i++;
+              if (--fuel == 0) {
+                goto exit;
+              }
+            }
+            j = n-1;
+            t = loop4;
+          }
+          case loop4: {
+            while (j >= 0) {
+              intT x =  --offsets[Tmp[j]];
+              B[x] = A[j];
+              j--;
+              if (--fuel == 0) {
+                goto exit;        
+              }
+            }
+          }
+        }
+        p.not_done = false;
+        return;
+      exit:
+        p.rb.t = t; p.rb.i = i; p.rb.j = j; p.rb.s = s;
+        p.not_done = true;
+        return;
+      };
       return dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           // need 3 bucket sets per block
@@ -114,8 +271,18 @@ namespace intSort {
           return s.blocks < 2;
         }, dc::stmts({
           dc::stmt([] (sar& s, par& p) {
-            radixStepSerial(s.A, s.B, s.Tmp, s.BK[0], s.n, s.m, s.extract);
+            p.not_done = true;
+            new (&p.rb) rbty(s.A, s.B, s.Tmp, s.BK[0], s.BK[0], (intT) 0, s.n, s.m, s.extract);
           }),
+          dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt(radixBlock)),
+          dc::stmt([] (sar& s, par& p) {
+            s.ss = 0;
+          }),
+          dc::sequential_loop([] (sar& s, par&) { return s.ss < s.n; },
+                              [] (sar& s, par&) { return std::make_pair(&s.ss, &s.n); },
+                              [] (sar& s, par&, int lo, int hi) {
+            std::copy(s.B + lo, s.B + hi, s.A + lo);
+          }), 
           dc::exit_function()
         })),
         dc::stmt([] (sar& s, par& p) {
@@ -132,7 +299,13 @@ namespace intSort {
           dc::stmt([] (sar& s, par& p) {
             intT od = p.s*s.nn;
             intT nni = std::min(std::max<intT>(s.n-od,0),s.nn);
-            radixBlock(s.A+od, s.B, s.Tmp+od, s.cnts + s.m*p.s, s.oB + s.m*p.s, od, nni, s.m, s.extract);
+            //            radixBlock(s.A+od, s.B, s.Tmp+od, s.cnts + s.m*p.s, s.oB + s.m*p.s, od, nni, s.m, s.extract);
+            //            p.s++;
+            p.not_done = true;
+            new (&p.rb) rbty(s.A+od, s.B, s.Tmp+od, s.cnts + s.m*p.s, s.oB + s.m*p.s, od, nni, s.m, s.extract);
+          }),
+          dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt(radixBlock)),  
+          dc::stmt([] (sar& s, par& p) {
             p.s++;
           })
         })),
@@ -150,9 +323,28 @@ namespace intSort {
           return blockTrans2(st, pt, s.B, s.A, s.oB, s.oA, s.cnts, s.blocks, s.m);
         }),
         dc::stmt([] (sar& s, par& p) {
+          p.not_done = true; p.rb.j = 0;
+        }),
+        dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt([] (sar& s, par& p) {
+          int fuel = 256;
+          auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
+          // put the offsets for each bucket in the first bucket set of BK
+          while (j < m) {
+            BK[0][j] = oA[j*blocks];
+            j++;
+            if (--fuel == 0) {
+              goto exit;
+            }
+          }
+          p.not_done = false;
+          return;
+        exit:
+          p.rb.j = j; p.not_done = true;
+        })) /*
+        dc::stmt([] (sar& s, par& p) {
           // put the offsets for each bucket in the first bucket set of BK
           for (intT j = 0; j < s.m; j++) s.BK[0][j] = s.oA[j*s.blocks];
-        })
+          }) */
       });
     }
     
@@ -165,6 +357,7 @@ namespace intSort {
   template <class E, class F>
   struct eBits {
     F _f;  intT _mask;  intT _offset;
+    eBits() { }
     eBits(int bits, intT offset, F f): _mask((1<<bits)-1),
     _offset(offset), _f(f) {}
     intT operator() (E p) {return _mask&(_f(p)>>_offset);}
@@ -273,8 +466,8 @@ namespace intSort {
               }),
               dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
                 return encore_call<radixLoopTopDown<E,F,intT>>(st, pt, s.A + p.segOffset, s.B + p.segOffset, s.Tmp + p.segOffset,
-                                                         s.BK + p.blocksOffset, p.blockLen, p.segLen,
-                                                         s.bits-MAX_RADIX, s.f);
+                                                               s.BK + p.blocksOffset, p.blockLen, p.segLen,
+                                                               s.bits-MAX_RADIX, s.f);
               }),
               dc::stmt([] (sar& s, par& p) {
                 p.s++;
