@@ -200,7 +200,8 @@ let name = "compare"
 let all_benchmarks =
   match arg_benchmarks with
   | ["all"] -> [
-      "convexhull"; "samplesort"; "radixsort"; "pbfs"; "mis"; "nearestneighbors";
+    "convexhull"; "samplesort"; "radixsort"; "pbfs"; "mis"; "nearestneighbors";
+    "suffixarray";
     ]
   | _ -> arg_benchmarks
     
@@ -346,6 +347,28 @@ let mk_mis =
   & mk_pbfs_infiles
 
 (*****************)
+(* Suffix array *)
+
+let prog_suffixarray =
+  "suffixarray"
+
+let mk_suffixarray_progs =
+  mk_progs prog_suffixarray
+
+let input_descriptor_suffixarray = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "chr22.dna.bin", string "string", "dna";
+  "etext99.bin", string "string", "etext";
+  "wikisamp.xml.bin", string "string", "wikisamp";
+]
+      
+let mk_suffixarray_infiles = mk_infiles "type" input_descriptor_suffixarray
+
+let mk_suffixarray =
+    mk_suffixarray_progs
+  & mk_proc
+  & mk_suffixarray_infiles
+
+(*****************)
 (* Nearest neighbors *)
 
 let prog_nearestneighbors =
@@ -396,6 +419,10 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "nearestneighbors"; bd_args = mk_nearestneighbors;
     bd_infiles = mk_nearestneighbors_infiles; bd_progs = mk_nearestneighbors_progs;
     bd_input_descr = input_descriptor_nearestneighbors;
+  };
+  { bd_name = "suffixarray"; bd_args = mk_suffixarray;
+    bd_infiles = mk_suffixarray_infiles; bd_progs = mk_suffixarray_progs;
+    bd_input_descr = input_descriptor_suffixarray;
   };
 ]
 
