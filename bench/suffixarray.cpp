@@ -695,6 +695,7 @@ void benchmark(std::string infile) {
       res.first = pbbs::suffixArray(x.data(), (intT)x.length());
     });
   });
+  d.dispatch("algorithm");
   if (deepsea::cmdline::parse_or_default_bool("check", false)) {
     auto r1 = res.first;
     auto r2 = pbbs::suffixArray(x.data(), (intT)x.length());
@@ -702,7 +703,6 @@ void benchmark(std::string infile) {
       assert(r1[i] == r2[i]);
     }
   }
-  d.dispatch("algorithm"); 
 }
 
 } // end namespace
