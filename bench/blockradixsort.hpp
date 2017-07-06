@@ -187,7 +187,7 @@ namespace intSort {
           s.oA = (intT*) (s.BK+s.blocks);
           s.oB = (intT*) (s.BK+2*s.blocks);
           p.s = 0;
-          p.e = s.blocks; 
+          p.e = s.blocks;
         }), // critical code starting here and ending at the end of the function
             // (to see how often its invoked, insert algo_phase log events)
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
