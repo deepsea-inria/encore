@@ -37,6 +37,8 @@ namespace encorebench {
 
 using intT = int;
 
+#define BSIZE 16
+
 class myRMQ{
 public:
   intT* a;
@@ -45,10 +47,15 @@ public:
   intT** table;
   intT depth;
 
+  myRMQ() { }
+  myRMQ(intT* _a, intT _n) {
+    a = _a;
+    n = _n;
+    m = 1 + (n-1)/BSIZE;
+  }
+
   intT query(intT,intT);
 };
-
-#define BSIZE 16
 
 class precompute_queries : public encore::edsl::pcfg::shared_activation_record {
 public:
@@ -61,7 +68,7 @@ public:
   precompute_queries(myRMQ* rmq)
     : rmq(rmq) { }
   
-  encore_private_activation_record_begin(encore::edsl, precompute_queries, 1)
+  encore_private_activation_record_begin(encore::edsl, precompute_queries, 4)
     int lo; int hi;
   encore_private_activation_record_end(encore::edsl, precompute_queries, sar, par, dc, get_dc)
   
@@ -308,6 +315,8 @@ stack_type radixSortPair(stack_type s, plt_type pt, std::pair<intT,intT> *A, int
   return intSort::iSort4(s, pt, A, n, m, pbbs::utils::firstF<intT,intT>());
 }
 
+int zero = 0;
+
 class suffix_array_rec : public encore::edsl::pcfg::shared_activation_record {
 public:
 
@@ -316,7 +325,7 @@ public:
   intT* name12; intT tmp; intT names; std::pair<intT*,intT*> SA12_LCP;
   intT* SA12; intT* LCP12 = NULL; intT* s12; intT* rank;
   intT* s0; intT x; std::pair<intT,intT> *D; intT* SA0; intT o;
-  intT* SA; intT* LCP; myRMQ RMQ;
+  intT* SA; intT* LCP; myRMQ RMQ; 
   std::pair<intT*,intT*>* dest;
   
   suffix_array_rec() { }
@@ -324,7 +333,7 @@ public:
   suffix_array_rec(intT* s, intT n, intT K, bool findLCPs, std::pair<intT*,intT*>* dest)
     : s(s), n(n), K(K), findLCPs(findLCPs), dest(dest) { }
   
-  encore_private_activation_record_begin(encore::edsl, suffix_array_rec, 13)
+  encore_private_activation_record_begin(encore::edsl, suffix_array_rec, 12)
     int lo; int hi;
   encore_private_activation_record_end(encore::edsl, suffix_array_rec, sar, par, dc, get_dc)
   
@@ -356,7 +365,7 @@ public:
           }
         }),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return radixSortPair(st, pt, s.C, s.n12, s.K);
+          return radixSortPair(st, pt, s.C, s.n12, (intT) 1 << 3*s.bits);
         })
       }), dc::stmts({ // else
         // otherwise do 3 radix sorts, one per char
@@ -494,14 +503,15 @@ public:
         }),
         dc::mk_if([] (sar& s, par& p) {
           return s.findLCPs;
-        }, dc::parallel_for_loop([] (sar& s, par& p) {
-             s.LCP12 = malloc_array<intT>(s.n12 + 3);
-             p.lo = 0; p.hi = s.n12 + 3;
-           }, [] (par& p) {
-             return std::make_pair(&p.lo, &p.hi);
-           }, [] (sar& s, par& p, int lo, int hi) {
-             std::fill(s.LCP12 + lo, s.LCP12 + hi, 0);  //LCP's are all 0 if not recursing
-        }))
+        }, dc::stmts({
+            dc::stmt([] (sar& s, par& p) {
+              s.LCP12 = malloc_array<intT>(s.n12 + 3);
+            }),
+            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+              //LCP's are all 0 if not recursing
+              return encore_call<sequence::fill<intT*, intT>>(st, pt, s.LCP12, s.LCP12 + s.n12+3, &zero);
+            })
+          })) // end if
       })), // end if
       dc::stmt([] (sar& s, par& p) {
         s.rank = malloc_array<intT>(s.n + 2);
@@ -520,7 +530,7 @@ public:
         s.s0 = malloc_array<intT>(s.n0);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return encore_call<sequence::filterDPS<intT,intT,mod3is1>>(st, pt, s.SA12, s.s0, s.n12, mod3is1(), &(s.x));
+        return encore_call<sequence::filterDPS<intT,intT,mod3is1>>(st, pt, s.SA12, s.s0, s.n12, mod3is1(), &(s.x));
       }),
       dc::stmt([] (sar& s, par& p) {
         s.D = malloc_array<std::pair<intT,intT>>(s.n0);
@@ -542,6 +552,9 @@ public:
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return radixSortPair(st, pt, s.D, s.n0, s.K);
       }),
+      dc::stmt([] (sar& s, par& p) {
+        s.SA0  = s.s0; // reuse memory since not overlapping
+      }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n0; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
@@ -562,16 +575,16 @@ public:
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.SA0); free(s.SA12);
+        s.LCP = NULL;
       }),
+      //get LCP from LCP12
       dc::mk_if([] (sar& s, par& p) {
         return s.findLCPs;
       }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           s.LCP = malloc_array<intT>(s.n);
           s.LCP[s.n-1] = s.LCP[s.n-2] = 0;
-          s.RMQ.a = s.LCP12;
-          s.RMQ.n = s.n12 + 3;
-          s.RMQ.m = 1 + (s.n-1)/BSIZE;
+          new (&s.RMQ) myRMQ(s.LCP12, s.n12+3);
         }),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return encore_call<precompute_queries>(st, pt, &(s.RMQ));
