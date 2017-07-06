@@ -295,11 +295,9 @@ public:
     }), dc::stmts({ // else
       dc::stmt([] (sar& s, par& p) {
         int ss = s.s;
-        auto& center = s.g->center;
-        auto& children = s.g->children;
-        auto n = (1 << center.dimension());
-        s.css = malloc_array<int>(n);
-        int* css = s.css;
+        auto children = s.g->children;
+        auto n = (1 << s.g->center.dimension());
+        int* css = s.css = malloc_array<int>(n);
         for (int i=0 ; i < n; i++) {
           css[i] = ss;        
           ss += children[i]->count;
@@ -310,7 +308,9 @@ public:
       dc::parallel_for_loop([] (sar&, par& p) { return p.s != p.e; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); }, dc::stmts({
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return encore_call<applyIndex>(st, pt, s.css[p.s], s.f, s.g->children[p.s]);
+          auto i = p.s;
+          auto ss = s.css[i];
+          return encore_call<applyIndex>(st, pt, ss, s.f, s.g->children[i]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.s++;
@@ -407,6 +407,9 @@ public:
 };
 
 template <class pointT, class vectT, class vertexT, class nodeData>
+typename sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg_type sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg = sortBlocksBig<pointT,vectT,vertexT,nodeData>::get_cfg();
+
+template <class pointT, class vectT, class vertexT, class nodeData>
 class sortBlocksSmall : public encore::edsl::pcfg::shared_activation_record {
 public:
 
@@ -468,9 +471,6 @@ template <class pointT, class vectT, class vertexT, class nodeData>
 typename sortBlocksSmall<pointT,vectT,vertexT,nodeData>::cfg_type sortBlocksSmall<pointT,vectT,vertexT,nodeData>::cfg = sortBlocksSmall<pointT,vectT,vertexT,nodeData>::get_cfg();
 
 template <class pointT, class vectT, class vertexT, class nodeData>
-typename sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg_type sortBlocksBig<pointT,vectT,vertexT,nodeData>::cfg = sortBlocksBig<pointT,vectT,vertexT,nodeData>::get_cfg();
-
-template <class pointT, class vectT, class vertexT, class nodeData>
 class buildRecursiveTree;
 
 /* newNodes is the memory to use for allocated gTreeNodes.  this is
@@ -492,7 +492,7 @@ public:
 
   _seq<vertex*> S; point cnt; double sz; gtn* newNodes; int numNewNodes;
   gtn* g; int logdivs; int usedNodes; int i; int* offsets; int quadrants; int l;
-  _seq<vertex*> A; point newcenter;
+  _seq<vertex*> A; point newcenter; int offsets2[8];
 
   gTreeNodeConstructor(_seq<vertex*> S, point cnt, double sz, gtn* newNodes, int numNewNodes, gtn* g)
     : S(S), cnt(cnt), sz(sz), newNodes(newNodes), numNewNodes(numNewNodes), g(g) { }
@@ -541,28 +541,36 @@ public:
         std::make_pair([] (sar& s, par& p) {
           return s.g->count > gMaxLeafSize;
         }, dc::stmts({
+          dc::stmt([] (sar& s, par&) {
+            if (s.numNewNodes < (1<<s.g->center.dimension())) { 
+              // allocate ~ count/gMaxLeafSize gTreeNodes here
+              s.numNewNodes = std::max(GTREE_ALLOC_FACTOR*
+                                       std::max(s.g->count/gMaxLeafSize, 1<<s.g->center.dimension()),
+                                1<<s.g->center.dimension());
+              s.g->nodeMemory = malloc_array<gtn>(s.numNewNodes);
+              s.newNodes = s.g->nodeMemory;
+              s.quadrants = ( 1<< s.g->center.dimension());
+            }
+          }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-            s.quadrants = ( 1<< s.g->center.dimension());
-            s.offsets = malloc_array<int>(8);
             using fct = sortBlocksSmall<pointT,vectT,vertexT,nodeData>;
-            return encore_call<fct>(st, pt, s.S.A, s.S.n, s.g->center, s.offsets);
+            return encore_call<fct>(st, pt, s.S.A, s.S.n, s.g->center, s.offsets2);
           }),
           dc::stmt([] (sar& s, par&) {
             s.i = 0;
             s.usedNodes = 0;
           }),
           dc::sequential_loop([] (sar& s, par&) { return s.i != s.quadrants; }, dc::stmts({
-                
             dc::stmt([] (sar& s, par&) {
-              s.l = ((s.i == s.quadrants-1) ? s.S.n : s.offsets[s.i+1]) - s.offsets[s.i];
-              s.A = _seq<vertex*>(s.S.A + s.offsets[s.i],s.l);
+              s.l = ((s.i == s.quadrants-1) ? s.S.n : s.offsets2[s.i+1]) - s.offsets2[s.i];
+              s.A = _seq<vertex*>(s.S.A + s.offsets2[s.i],s.l);
               s.newcenter = s.g->center.offset_point(s.i, s.g->size/4.0);
             }),
             dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
               auto ptr = s.newNodes+s.usedNodes;
               new (ptr) gtn;
               s.g->children[s.i] = ptr;
-              return encore_call<gtnc>(st, pt, s.A, s.newcenter, s.g->size/2.0, ptr + 1, (s.numNewNodes - (1<<s.g->center.dimension()))*s.l/s.g->count + 1, ptr);
+              return encore_call<gtnc>(st, pt, s.A, s.newcenter, s.g->size/2.0, ptr + 1, ((s.numNewNodes - (1<<s.g->center.dimension()))*s.l/s.g->count + 1) - 1, ptr);
             }),
             dc::stmt([] (sar& s, par&) {
               s.usedNodes += (s.numNewNodes - (1<<s.g->center.dimension()))*s.l/s.g->count + 1;
@@ -576,7 +584,6 @@ public:
             for (int i=0 ; i < quadrants; i++) {
               g->data = g->data + children[i]->data;
             }
-            free(s.offsets);
           })
         }))
       },

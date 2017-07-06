@@ -159,6 +159,7 @@ public:
     return dc::stmts({
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         using gtc = typename kNNT::qoTreeCons;
+        new (&s.T) kNNT;
         return encore_call<gtc>(st, pt, s.v, s.n, &(s.T.tree));
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
