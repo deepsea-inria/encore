@@ -594,7 +594,7 @@ public:
         auto count = g->count;
         for (int i=0; i < count; i++) {
           g->data = g->data + A[i];
-        } 
+        }
       }))
     });
   }
@@ -678,7 +678,7 @@ public:
       parent(parent), nodesToLeft(nodesToLeft), height(height), depth(depth), g(g) { }
   
   encore_private_activation_record_begin(encore::edsl, buildRecursiveTree, 2)
-    int s; int e; int q;
+    int s; int e;
   encore_private_activation_record_end(encore::edsl, buildRecursiveTree, sar, par, dc, get_dc)
 
   static
@@ -696,16 +696,14 @@ public:
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                               [] (par& p) { return std::make_pair(&p.s, &p.e); },
                               dc::stmts({
-          dc::stmt([] (sar& s, par& p) {
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             int i = p.s;
             s.newcenter = (s.parent->center).offset_point(i,s.parent->size/4.0);
-            int q = p.q = (s.nodesToLeft<<s.g->center.dimension()) + i;
+            int q = (s.nodesToLeft<<s.g->center.dimension()) + i;
             int l = ((q==s.quadrants-1) ? s.S.n : s.offsets[q+1]) - s.offsets[q];
             s.A = _seq<vertex*>(s.S.A + s.offsets[q],l);
-            s.parent->children[i] = s.newNodes+q;
-          }),
-          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-            auto ptr = s.newNodes+p.q;
+            auto ptr = s.newNodes+q;
+            s.parent->children[i] = ptr;
             new (ptr) gtn;
             return encore_call<gtnc>(st, pt, s.A, s.newcenter, s.parent->size/2.0, ptr + 1, 0, ptr);
           }),
@@ -715,17 +713,16 @@ public:
         }))
       }), dc::stmts({ // else
         dc::stmt([] (sar& s, par& p) {
-           p.s = 0; p.e = (1<<s.g->center.dimension());
+           p.s = 0; p.e = (1<<s.g->center.dimension()); 
+           for (int i=0; i< p.e; i++) {
+             point newcenter = s.newcenter = (s.parent->center).offset_point(i, s.parent->size/4.0);
+             s.parent->children[i] = new(s.newNodes + i + 
+                                         s.nodesToLeft*(1<<s.g->center.dimension())) gtn(newcenter,s.parent->size/2.0);
+           } 
         }),
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                               [] (par& p) { return std::make_pair(&p.s, &p.e); },
                               dc::stmts({
-          dc::stmt([] (sar& s, par& p) {
-            int i = p.s;
-            point newcenter = s.newcenter = (s.parent->center).offset_point(i, s.parent->size/4.0);
-            s.parent->children[i] = new(s.newNodes + i + 
-               s.nodesToLeft*(1<<s.g->center.dimension())) gtn(newcenter,s.parent->size/2.0);
-          }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             int i = p.s;
             return encore_call<buildRecursiveTree>(st, pt, s.S, s.offsets, s.quadrants, s.newNodes + (1<<(s.depth*s.g->center.dimension())), s.parent->children[i], (s.nodesToLeft << s.g->center.dimension())+i, s.height-1,s.depth+1, s.g);
