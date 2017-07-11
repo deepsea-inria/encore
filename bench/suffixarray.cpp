@@ -455,11 +455,11 @@ public:
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
-          auto rank = s.rank;
-          auto SA12 = s.SA12;
-          for (auto i = lo; i != hi; i++) {
-            rank[SA12[i]] = i+2;
-          }
+        auto rank = s.rank;
+        auto SA12 = s.SA12;
+        for (auto i = lo; i != hi; i++) {
+          rank[SA12[i]] = i+2;
+        }
       }),
       dc::stmt([] (sar& s, par& p) {
         s.s0 = malloc_array<intT>(s.n0);
@@ -659,6 +659,7 @@ void benchmark(std::string infile) {
 
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
+  sequence::initialize();  
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {
     std::cerr << "bogus input filename" << std::endl;
