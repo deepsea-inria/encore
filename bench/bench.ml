@@ -378,11 +378,11 @@ let mk_nearestneighbors_progs =
   mk_progs prog_nearestneighbors
 
 let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
-  "array_point2d_in_square_large.bin", string "array_point2d", "in square";
-  "array_point2d_kuzmin_large.bin", string "array_point2d", "kuzmin";
-  "array_point3d_in_cube_large.bin", string "array_point3d", "in cube";
-  "array_point3d_on_sphere_large.bin", string "array_point3d", "on sphere";
-  "array_point3d_plummer_large.bin", string "array_point3d", "plummer"; 
+  "array_point2d_kuzmin_medium.bin", string "array_point2d", "kuzmin";
+  (*  "array_point3d_on_sphere_medium.bin", string "array_point3d", "on sphere";*)
+  "array_point3d_plummer_medium.bin", string "array_point3d", "plummer";
+  (*  "array_point2d_in_square_medium.bin", string "array_point2d", "in square";*)
+  "array_point3d_in_cube_medium.bin", string "array_point3d", "in cube";
 ]
 
 let mk_nearestneighbors_infiles = mk_infiles "type" input_descriptor_nearestneighbors
