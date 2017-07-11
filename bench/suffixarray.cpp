@@ -32,10 +32,13 @@
 #include "blockradixsort.hpp"
 #include "utils.h"
 #include "encore.hpp"
+#include "logging.hpp"
 
 namespace encorebench {
 
 using intT = int;
+
+  /*
 
 #define BSIZE 16
 
@@ -190,7 +193,26 @@ intT myRMQ::query(intT i, intT j){
 
 }
 
-#define _MERGE_BSIZE (1 << 12)
+inline intT computeLCP(intT* LCP12, intT* rank, myRMQ & RMQ, 
+		      intT j, intT k, intT* s, intT n){
+ 
+  intT rank_j=rank[j]-2;
+  intT rank_k=rank[k]-2;
+  if(rank_j > rank_k) {std::swap(rank_j,rank_k);} //swap for RMQ query
+
+  intT l = ((rank_j == rank_k-1) ? LCP12[rank_j] 
+	   : LCP12[RMQ.query(rank_j,rank_k-1)]);
+
+  intT lll = 3*l;
+  if (s[j+lll] == s[k+lll]) {
+    if (s[j+lll+1] == s[k+lll+1]) return lll + 2;
+    else return lll + 1;
+  } 
+  return lll;
+}
+  */
+
+#define _MERGE_BSIZEE (1 << 12)
 
 template <class ET, class F, class intT> 
 int binSearch(ET* S, intT n, ET v, F f) {
@@ -211,7 +233,11 @@ class merge : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   ET* S1; intT l1; ET* S2; intT l2; ET* R; F f;
-  intT lr; intT m1, m2;
+  intT lr; intT m1, m2; bool not_done = true;
+  ET* pR; ET* pS1; ET* pS2;
+
+  using trampoline = enum { copy1, copy2, loop };
+  trampoline t = copy1;
 
   merge(ET* S1, intT l1, ET* S2, intT l2, ET* R, F f)
     : S1(S1), l1(l1), S2(S2), l2(l2), R(R), f(f) { }
@@ -221,7 +247,7 @@ public:
   static
   dc get_dc() {
     return dc::mk_if([] (sar& s, par& p) {
-        return s.lr > _MERGE_BSIZE;
+        return s.lr > _MERGE_BSIZEE;
       }, dc::mk_if([] (sar& s, par& p) {
           return s.l2 > s.l1;
         }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
@@ -240,20 +266,70 @@ public:
                               s.S1 + s.m1, s.l1 - s.m1, s.S2 + s.m2, s.l2 - s.m2,
                                                       s.R + s.m1 + s.m2, s.f);
              })
-           })),
-    dc::stmt([] (sar& s, par& p) {
-      ET* pR = s.R; 
-      ET* pS1 = s.S1; 
-      ET* pS2 = s.S2;
-      ET* eS1 = s.S1 + s.l1; 
-      ET* eS2 = s.S2 + s.l2;
-      auto f = s.f;
-      while (true) {
-        if (pS1==eS1) {std::copy(pS2,eS2,pR); break;}
-        if (pS2==eS2) {std::copy(pS1,eS1,pR); break;}
-        *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
-      }
-    }));
+      })),
+      dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          s.pR = s.R; 
+          s.pS1 = s.S1; 
+          s.pS2 = s.S2;
+        }),
+        dc::sequential_loop([] (sar& s, par& p) { return s.not_done; }, dc::stmt([] (sar& s, par& p) {
+          ET* pR = s.pR; 
+          ET* pS1 = s.pS1; 
+          ET* pS2 = s.pS2;
+          ET* eS1 = s.S1 + s.l1; 
+          ET* eS2 = s.S2 + s.l2;
+          auto f = s.f;
+          int fuel = 32;
+          trampoline t = s.t;
+          while (true) {
+            switch (t) {
+              case copy1: {
+                if (pS1==eS1) {
+                  auto m = eS2-pS2;
+                  auto n = std::min((int)m, fuel);
+                  std::copy(pS2,pS2+n,pR);
+                  pS2 += n; pR += n; fuel = n;
+                  if (m == n) {
+                    s.not_done = false;
+                    return;
+                  } else {
+                    goto exit;
+                  }
+                }
+                t = copy2;
+              }
+              case copy2: {
+                if (pS2==eS2) {
+                  auto m = eS1-pS1;
+                  auto n = std::min((int)m, fuel);
+                  std::copy(pS1,pS1+n,pR);
+                  pS1 += n; pR += n; fuel = n;
+                  if (m == n) {
+                    s.not_done = false;
+                    return;
+                  } else {
+                    goto exit;
+                  }
+                }
+                t = loop;
+              }
+              case loop: {
+                *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
+                t = copy1;
+                if (--fuel <= 0) {
+                  goto exit;
+                }
+              }
+            }
+          }
+        exit:
+          s.pR = pR;
+          s.pS1 = pS1;
+          s.pS2 = pS2;
+          s.t = t;
+        }))
+      }));
   }
   
 };
@@ -283,24 +359,6 @@ struct compS {
 
 struct mod3is1 { bool operator() (intT i) {return i%3 == 1;}};
 
-inline intT computeLCP(intT* LCP12, intT* rank, myRMQ & RMQ, 
-		      intT j, intT k, intT* s, intT n){
- 
-  intT rank_j=rank[j]-2;
-  intT rank_k=rank[k]-2;
-  if(rank_j > rank_k) {std::swap(rank_j,rank_k);} //swap for RMQ query
-
-  intT l = ((rank_j == rank_k-1) ? LCP12[rank_j] 
-	   : LCP12[RMQ.query(rank_j,rank_k-1)]);
-
-  intT lll = 3*l;
-  if (s[j+lll] == s[k+lll]) {
-    if (s[j+lll+1] == s[k+lll+1]) return lll + 2;
-    else return lll + 1;
-  } 
-  return lll;
-}
-
 using stack_type = encore::edsl::pcfg::stack_type;
   
 using plt_type = encore::edsl::pcfg::cactus::parent_link_type;
@@ -325,7 +383,7 @@ public:
   intT* name12; intT tmp; intT names; std::pair<intT*,intT*> SA12_LCP;
   intT* SA12; intT* LCP12 = NULL; intT* s12; intT* rank;
   intT* s0; intT x; std::pair<intT,intT> *D; intT* SA0; intT o;
-  intT* SA; intT* LCP; myRMQ RMQ; 
+  intT* SA; intT* LCP; //myRMQ RMQ; 
   std::pair<intT*,intT*>* dest;
   
   suffix_array_rec() { }
@@ -500,7 +558,8 @@ public:
         dc::stmt([] (sar& s, par& p) {
           free(s.name12); // names not needed if we don't recurse
           s.SA12 = s.sorted12; // suffix array is sorted array
-        }),
+        })
+          /* ,
         dc::mk_if([] (sar& s, par& p) {
           return s.findLCPs;
         }, dc::stmts({
@@ -511,7 +570,7 @@ public:
               //LCP's are all 0 if not recursing
               return encore_call<sequence::fill<intT*, intT>>(st, pt, s.LCP12, s.LCP12 + s.n12+3, &zero);
             })
-          })) // end if
+            })) */ // end if
       })), // end if
       dc::stmt([] (sar& s, par& p) {
         s.rank = malloc_array<intT>(s.n + 2);
@@ -571,12 +630,15 @@ public:
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         compS comp(s.s,s.rank);
+                                                                                                                                                                          encore::logging::push_event(encore::logging::algo_phase);
+                                                                                                                                                                          encore::atomic::aprintf("l1 = %d l2 = %d\n",s.n0 - s.o,s.n12 + s.o - 1);
         return encore_call<merge<intT,compS,intT>>(st, pt, s.SA0 + s.o, s.n0 - s.o, s.SA12 + 1 - s.o, s.n12 + s.o - 1, s.SA, comp);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.SA0); free(s.SA12);
         s.LCP = NULL;
       }),
+        /*
       //get LCP from LCP12
       dc::mk_if([] (sar& s, par& p) {
         return s.findLCPs;
@@ -620,7 +682,7 @@ public:
         dc::stmt([] (sar& s, par& p) {
           free(s.LCP12);
         })
-      })), // end if
+        })), */ // end if
       dc::stmt([] (sar& s, par& p) {
         free(s.rank);
         *s.dest = std::make_pair(s.SA, s.LCP);
