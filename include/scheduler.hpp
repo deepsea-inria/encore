@@ -47,7 +47,7 @@ private:
   weighted_seq_type vs;
   
   vertex* pop() {
-    assert(vs.size() >= 1);
+    assert(! vs.empty());
 #ifdef ENCORE_RANDOMIZE_SCHEDULE
     int pos = rand() % vs.size();
     vertex* tmp = vs.pop_back();
@@ -89,9 +89,6 @@ public:
   }
   
   void split(int nb, frontier& other) {
-#if defined(NDEBUG) || defined(ENCORE_ENABLE_LOGGING)
-    int n1 = nb_strands();
-#endif
     vertex* v = nullptr;
     vs.split([&] (int n) { return nb < n; }, v, other.vs);
     int vnb = v->nb_strands();
@@ -102,17 +99,19 @@ public:
     } else if (spill == vnb) {
       vs.push_back(v);
     } else {
+      // this split operation might create and push into this frontier
+      // new threads; as such, if the combined number of strands of the
+      // threads is greater than zero, the frontier after this split
+      // operation will hold more strands than before.
       auto vertices = v->split(vnb - spill);
       vertex* v1 = vertices.first;
       vertex* v2 = vertices.second;
       other.vs.push_back(v2);
       vs.push_front(v1);
     }
-#if defined(NDEBUG) || defined(ENCORE_ENABLE_LOGGING)
+#if defined(ENCORE_ENABLE_LOGGING)
     int n2 = nb_strands();
-    assert(n1 == n2 + nb);
     int n3 = other.nb_strands();
-    assert(n3 == nb);
     logging::push_frontier_split(n2, n3);
 #endif
   }
