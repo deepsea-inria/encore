@@ -29,6 +29,8 @@
 
 namespace encorebench {
 
+using stack_type = encore::edsl::pcfg::stack_type;
+
 #define _MERGE_BSIZEE (1 << 12)
 
 template <class ET, class F, class intT> 
@@ -50,7 +52,7 @@ class merge : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   ET* S1; intT l1; ET* S2; intT l2; ET* R; F f;
-  intT lr; intT m1, m2; bool not_done = true;
+  intT m1, m2; bool not_done = true;
   ET* pR; ET* pS1; ET* pS2;
 
   using trampoline = enum { copy1, copy2, loop };
@@ -64,7 +66,7 @@ public:
   static
   dc get_dc() {
     return dc::mk_if([] (sar& s, par& p) {
-        return s.lr > _MERGE_BSIZEE;
+        return (s.l1 + s.l2) > _MERGE_BSIZEE;
       }, dc::mk_if([] (sar& s, par& p) {
           return s.l2 > s.l1;
         }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
@@ -97,7 +99,7 @@ public:
           ET* eS1 = s.S1 + s.l1; 
           ET* eS2 = s.S2 + s.l2;
           auto f = s.f;
-          int fuel = 32;
+          int fuel = 64;
           trampoline t = s.t;
           while (true) {
             switch (t) {
