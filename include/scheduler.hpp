@@ -291,7 +291,9 @@ void worker_loop(vertex* v) {
       nb_active_workers--;
       break;
     } else {
+      auto s = stats::on_enter_acquire();
       acquire();
+      stats::on_exit_acquire(s);
       update_status();
     }
   }

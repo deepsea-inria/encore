@@ -108,7 +108,9 @@ void launch(int nb_workers, const Init& init) {
   logging::log_buffer::initialize();
   stats::initialize();
   sched::vertex* v = init();
+  stats::on_enter_launch();
   sched::launch_scheduler(nb_workers, v);
+  stats::on_exit_launch();
   stats::report();
   logging::log_buffer::output();
   data::perworker::reset();
@@ -146,7 +148,9 @@ void launch_interpreter(Args... args) {
   };
   using t = call_and_report_elapsed<typeof(f)>;
   interp->stack = edsl::pcfg::push_call<t>(interp->stack, ty, f);
+  stats::on_enter_launch();
   sched::launch_scheduler(nb_workers, interp);
+  stats::on_exit_launch();
   stats::report();
   logging::log_buffer::output();
   data::perworker::reset();
