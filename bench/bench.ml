@@ -321,7 +321,7 @@ let mk_pbfs_progs =
 
 let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
-  "wikipedia-20070206.bin", int 0, "wikipedia";
+(*  "wikipedia-20070206.bin", int 0, "wikipedia";*)
   "rmat24_large.bin", int 0, "rMat24";
 ]
 
@@ -407,15 +407,15 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "radixsort"; bd_args = mk_radixsort;
     bd_infiles = mk_radixsort_infiles; bd_progs = mk_radixsort_progs;
     bd_input_descr = input_descriptor_radixsort;
-  };
+  }; (*
   { bd_name = "pbfs"; bd_args = mk_pbfs;
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_pbfs_progs;
     bd_input_descr = input_descriptor_pbfs;
-  };
+  }; *)
   { bd_name = "mis"; bd_args = mk_mis;
     bd_infiles = mk_pbfs_infiles; bd_progs = mk_mis_progs;
     bd_input_descr = input_descriptor_pbfs;
-  };
+  }; 
   { bd_name = "nearestneighbors"; bd_args = mk_nearestneighbors;
     bd_infiles = mk_nearestneighbors_infiles; bd_progs = mk_nearestneighbors_progs;
     bd_input_descr = input_descriptor_nearestneighbors;
@@ -438,7 +438,7 @@ let input_descriptors =
 let pretty_input_name n =
   match List.find_all (fun (m, _, _) -> m = n) input_descriptors with
   | [(m, _, p)] -> p
-  | _ -> failwith "pretty name"
+  | _ -> failwith ("pretty name: " ^ n)
     
 let make() =
   build "." all_progs arg_virtual_build
