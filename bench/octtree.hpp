@@ -670,7 +670,7 @@ public:
 
   _seq<vertex*> S; int* offsets; int quadrants; gtn *newNodes;
   gtn* parent; int nodesToLeft; int height; int depth; gtn* g;
-  int s; int e; point newcenter; _seq<vertex*> A;
+  int s; int e; 
 
   buildRecursiveTree(_seq<vertex*> S, int* offsets, int quadrants, gtn *newNodes,
                      gtn* parent, int nodesToLeft, int height, int depth, gtn* g)
@@ -698,14 +698,14 @@ public:
                               dc::stmts({
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             int i = p.s;
-            s.newcenter = (s.parent->center).offset_point(i,s.parent->size/4.0);
+            auto newcenter = (s.parent->center).offset_point(i,s.parent->size/4.0);
             int q = (s.nodesToLeft<<s.g->center.dimension()) + i;
             int l = ((q==s.quadrants-1) ? s.S.n : s.offsets[q+1]) - s.offsets[q];
-            s.A = _seq<vertex*>(s.S.A + s.offsets[q],l);
+            auto A = _seq<vertex*>(s.S.A + s.offsets[q],l);
             auto ptr = s.newNodes+q;
             s.parent->children[i] = ptr;
             new (ptr) gtn;
-            return encore_call<gtnc>(st, pt, s.A, s.newcenter, s.parent->size/2.0, ptr + 1, 0, ptr);
+            return encore_call<gtnc>(st, pt, A, newcenter, s.parent->size/2.0, ptr + 1, 0, ptr);
           }),
           dc::stmt([] (sar& s, par& p) {
             p.s++;
@@ -715,7 +715,7 @@ public:
         dc::stmt([] (sar& s, par& p) {
            p.s = 0; p.e = (1<<s.g->center.dimension()); 
            for (int i=0; i< p.e; i++) {
-             point newcenter = s.newcenter = (s.parent->center).offset_point(i, s.parent->size/4.0);
+             point newcenter = (s.parent->center).offset_point(i, s.parent->size/4.0);
              s.parent->children[i] = new(s.newNodes + i + 
                                          s.nodesToLeft*(1<<s.g->center.dimension())) gtn(newcenter,s.parent->size/2.0);
            } 
