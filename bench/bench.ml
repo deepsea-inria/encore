@@ -93,7 +93,7 @@ let formatter_settings = Env.(
   @ ["algorithm", Format_custom (fun s -> s)]
   @ ["n", Format_custom (fun s -> sprintf "Input: %s million 32-bit ints" (string_of_millions (float_of_string s)))]
   @ ["proc", Format_custom (fun s -> sprintf "#CPUs %s" s)]
-  @ ["dag_freq", Format_custom (fun s -> sprintf "F=%s" s)]
+  @ ["promotion_threshold", Format_custom (fun s -> sprintf "F=%s" s)]
   @ ["threshold", Format_custom (fun s -> sprintf "K=%s" s)]
   @ ["block_size", Format_custom (fun s -> sprintf "B=%s" s)]      
   @ ["operation", Format_custom (fun s -> s)])
@@ -128,10 +128,10 @@ let prog_encore = name^".encore"
 
 let prog_cilk = name^".cilk"
 
-let mk_encore_setting threshold block_size dag_freq =
+let mk_encore_setting threshold block_size promotion_threshold =
     mk int "threshold" threshold
   & mk int "block_size" block_size
-  & mk int "dag_freq" dag_freq
+  & mk int "promotion_threshold" promotion_threshold
 
 let mk_encore_settings = (
     mk_encore_setting 512  1024 1024
