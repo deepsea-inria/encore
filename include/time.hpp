@@ -2,7 +2,7 @@
 #define _ENCORE_TIME_H_
 
 namespace encore {
-namespace time {
+namespace cycle_counter {
   
 namespace {
   

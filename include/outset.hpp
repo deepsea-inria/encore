@@ -305,7 +305,7 @@ private:
         return false;
       }
       if ( (s == nullptr) || (tagged::tag_of(s) == creating_shortcuts_tag) ) {
-        time::spin_for(128);
+        cycle_counter::spin_for(128);
         continue;
       }
       assert(s != nullptr);
