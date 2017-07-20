@@ -22,7 +22,7 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   if (cell.compare_exchange_strong(expected, desired)) {
     return true;
   }
-  cycle_counter::spin_for(backoff_nb_cycles);
+  spin_for(backoff_nb_cycles);
   return false;
 }
 

@@ -1,10 +1,8 @@
-
+#include <chrono>
 #include <vector>
 #include <string>
 #include <cstdlib>
 #include <cstdio>
-#include <sys/time.h>
-#include <time.h>
 #include <algorithm>
 
 #include "perworker.hpp"
@@ -128,6 +126,8 @@ public:
 /* Log buffer */
   
 using buffer_type = std::vector<event_type>;
+  
+using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
 
 template <bool enabled>
 class logging_base {
@@ -143,7 +143,7 @@ public:
   bool tracking_kind[nb_kinds];
   
   static
-  uint64_t basetime;
+  time_point_type basetime;
   
   static
   void initialize() {
@@ -158,15 +158,8 @@ public:
     if (pview) {
       tracking_kind[phases] = true;
     }
-    basetime = now();
+    basetime = std::chrono::system_clock::now();
     push(event_type(enter_launch));
-  }
-  
-  static
-  uint64_t now() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return 1000000l * ((uint64_t) tv.tv_sec) + ((uint64_t) tv.tv_usec);
   }
   
   static inline
@@ -179,7 +172,8 @@ public:
     if (! tracking_kind[k]) {
       return;
     }
-    e.timestamp = now() - basetime;
+    std::chrono::duration<double> elapsed = std::chrono::system_clock::now() - basetime;
+    e.timestamp = elapsed.count();
     e.worker_id = data::perworker::get_my_id();
     if (real_time) {
       atomic::acquire_print_lock();
@@ -248,7 +242,7 @@ template <bool enabled>
 bool logging_base<enabled>::real_time;
 
 template <bool enabled>
-uint64_t logging_base<enabled>::basetime;
+time_point_type logging_base<enabled>::basetime;
 
 #ifdef ENCORE_ENABLE_LOGGING
 using log_buffer = logging_base<true>;

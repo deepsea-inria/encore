@@ -1,9 +1,9 @@
+
 #ifndef _ENCORE_TIME_H_
 #define _ENCORE_TIME_H_
 
 namespace encore {
-namespace cycle_counter {
-  
+
 namespace {
   
 static inline
@@ -43,7 +43,6 @@ void spin_for(uint64_t nb_cycles) {
   rdtsc_wait(nb_cycles);
 }
   
-} // end namespace
 } // end namespace
 
 #endif /*! _ENCORE_TIME_H_ */

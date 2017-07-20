@@ -1,4 +1,4 @@
-
+#include <chrono>
 #include <map>
 
 #include "perworker.hpp"
@@ -10,6 +10,10 @@ namespace encore {
 
 template <bool enabled>
 class stats_base {
+public:
+  
+  using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
+  
 private:
   
   using counter_id_type = enum {
@@ -46,25 +50,20 @@ private:
   }
   
   static
-  uint64_t now() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return 1000000l * ((uint64_t) tv.tv_sec) + ((uint64_t) tv.tv_usec);
-  }
-  
-  static
-  double seconds(uint64_t t) {
-    return ((double) t) / 1000000l;
-  }
-  
-  static
-  uint64_t enter_launch_time;
+  time_point_type enter_launch_time;
   
   static
   double launch_duration;
   
   static
   data::perworker::array<double> all_total_idle_time;
+  
+  static
+  double since(time_point_type start) {
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    return elapsed.count();
+  }
   
 public:
   
@@ -90,28 +89,28 @@ public:
   
   static
   void on_enter_launch() {
-    enter_launch_time = now();
+    enter_launch_time = std::chrono::system_clock::now();
   }
   
   static
   void on_exit_launch() {
-    launch_duration = seconds(now() - enter_launch_time);
+    launch_duration = since(enter_launch_time);
   }
   
   static
-  uint64_t on_enter_acquire() {
+  time_point_type on_enter_acquire() {
     if (! enabled) {
-      return 0;
+      return time_point_type();
     }
-    return now();
+    return std::chrono::system_clock::now();
   }
   
   static
-  void on_exit_acquire(uint64_t enter_acquire_time) {
+  void on_exit_acquire(time_point_type enter_acquire_time) {
     if (! enabled) {
       return;
     }
-    all_total_idle_time.mine() += seconds(now() - enter_acquire_time);
+    all_total_idle_time.mine() += since(enter_acquire_time);
   }
   
   static
@@ -156,7 +155,7 @@ template <bool enabled>
 data::perworker::array<typename stats_base<enabled>::private_counters> stats_base<enabled>::all_counters;
   
 template <bool enabled>
-uint64_t stats_base<enabled>::enter_launch_time;
+typename stats_base<enabled>::time_point_type stats_base<enabled>::enter_launch_time;
   
 template <bool enabled>
 double stats_base<enabled>::launch_duration;
