@@ -98,8 +98,8 @@ void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   atomic::init_print_lock();
   initialize_hwloc();
-  sched::D = cmdline::parse_or_default("promotion_threshold", sched::D);
-  sched::K = cmdline::parse_or_default("sharing_threshold", 2 * sched::D);
+  sched::promotion_threshold = cmdline::parse_or_default("promotion_threshold", sched::promotion_threshold);
+  sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 2 * sched::promotion_threshold);
   cilk_set_nb_cores();
 }
   

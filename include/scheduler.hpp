@@ -130,10 +130,10 @@ public:
 namespace {
   
 // to control the rate of DAG construction
-int D = 32;
+int promotion_threshold = 32;
 
 // to control the eagerness of work distribution
-int K = 2 * D;
+int sharing_threshold = 2 * promotion_threshold;
   
 template <class Item>
 using perworker_array = data::perworker::array<Item>;
@@ -171,7 +171,7 @@ void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   frontier& my_ready = frontiers[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
-  int fuel = D;
+  int fuel = promotion_threshold;
   int nb = 0;
   
   if (v != nullptr) {
@@ -213,7 +213,7 @@ void worker_loop(vertex* v) {
       return;
     }
     int sz = my_ready.nb_strands();
-    if (sz > K || (nb > K && sz > 1)) {
+    if (sz > sharing_threshold || (nb > sharing_threshold && sz > 1)) {
       nb_active_workers++;
       nb = 0;
       // transfer half of the local frontier to worker with id j
@@ -279,7 +279,7 @@ void worker_loop(vertex* v) {
       nb += fuel - remaining_fuel;
       if (remaining_fuel == 0) {
         promote();
-        fuel = D;
+        fuel = promotion_threshold;
       } else {
         fuel = remaining_fuel;
       }
@@ -481,7 +481,7 @@ void parallel_notify(bool is_future, outset* out) {
   todo.push_back(root);
   item_iterator lo = nullptr;
   item_iterator hi = nullptr;
-  out->notify_nb(D, lo, hi, todo, [&] (incounter_handle* h) {
+  out->notify_nb(promotion_threshold, lo, hi, todo, [&] (incounter_handle* h) {
     incounter::decrement(h);
   });
   auto is_finished = [&] {
@@ -492,7 +492,7 @@ void parallel_notify(bool is_future, outset* out) {
   }
   if (is_future) {
     while (! is_finished()) {
-      out->notify_nb(D, lo, hi, todo, [&] (incounter_handle* h) {
+      out->notify_nb(promotion_threshold, lo, hi, todo, [&] (incounter_handle* h) {
         incounter::decrement(h);
       });
     }
@@ -531,7 +531,7 @@ public:
         // unblocked by the call to deallocate_nb()
         continue_with(header);
         outset::deallocate_nb(fuel, todo);
-        fuel -= std::min(fuel, D);
+        fuel -= std::min(fuel, promotion_threshold);
         break;
       }
       case header: {
@@ -569,7 +569,7 @@ void parallel_deallocate(outset* out) {
   }
   std::deque<outset_tree_node_type*> todo;
   todo.push_back(root);
-  outset::deallocate_nb(D, todo);
+  outset::deallocate_nb(promotion_threshold, todo);
   if (! todo.empty()) {
     auto v = new parallel_deallocate_heavy;
     todo.swap(v->todo);
