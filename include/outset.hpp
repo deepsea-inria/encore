@@ -3,7 +3,7 @@
 
 #include "forward.hpp"
 #include "tagged.hpp"
-#include "time.hpp"
+#include "cycles.hpp"
 #include "atomic.hpp"
 #include "aligned.hpp"
 #include "perworker.hpp"

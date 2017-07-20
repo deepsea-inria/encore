@@ -1,6 +1,6 @@
 
-#ifndef _ENCORE_TIME_H_
-#define _ENCORE_TIME_H_
+#ifndef _ENCORE_CYCLES_H_
+#define _ENCORE_CYCLES_H_
 
 namespace encore {
 
@@ -45,4 +45,4 @@ void spin_for(uint64_t nb_cycles) {
   
 } // end namespace
 
-#endif /*! _ENCORE_TIME_H_ */
+#endif /*! _ENCORE_CYCLES_H_ */

@@ -2,7 +2,7 @@
 #include <stdarg.h>
 #include <pthread.h>
 
-#include "time.hpp"
+#include "cycles.hpp"
 
 #ifndef _ENCORE_ATOMIC_H_
 #define _ENCORE_ATOMIC_H_
