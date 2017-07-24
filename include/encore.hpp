@@ -98,9 +98,12 @@ void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   atomic::init_print_lock();
   initialize_hwloc();
+  edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
+  if (edsl::pcfg::never_promote) {
+    sched::promotion_threshold = 1 << 20;
+  }
   sched::promotion_threshold = cmdline::parse_or_default("promotion_threshold", sched::promotion_threshold);
   sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 2 * sched::promotion_threshold);
-  edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
   cilk_set_nb_cores();
 }
   
