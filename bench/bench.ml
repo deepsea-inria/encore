@@ -227,9 +227,6 @@ let mk_infiles ty descr = fun e ->
 
 (*****************)
 (* Convex hull *)
-
-let prog_hull =
-  "convexhull"
     
 let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_in_circle_large.bin", string "2d", "in circle";
@@ -238,43 +235,24 @@ let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 ]
 
 let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
-
+                                 
 let mk_encore_prog n =
   (mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")
 
 let mk_pbbs_prog n =
   (mk string "prog" (cilk_prog_of n)) & (mk string "algorithm" "pbbs")
     
-let mk_progs n =
-  (mk_encore_prog n) ++ (mk_pbbs_prog n)
-
-let mk_hull_progs =
-  mk_progs prog_hull
-
-let mk_convexhull =
-    mk_hull_progs
-  & mk_proc
-  & mk_hull_infiles
-
 type input_descriptor =
     string * Env.value * string (* file name, type, pretty name *)
     
 type benchmark_descriptor = {
   bd_name : string;
-  bd_args : Params.t;
   bd_infiles : Params.t;
-  bd_progs : Params.t;
   bd_input_descr : input_descriptor list;
 }
 
 (*****************)
 (* Sample sort *)
-
-let prog_samplesort =
-  "samplesort"
-
-let mk_samplesort_progs =
-  mk_progs prog_samplesort  
   
 let input_descriptor_samplesort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_double_random_large.bin", string "double", "random";
@@ -284,19 +262,8 @@ let input_descriptor_samplesort = List.map (fun (p, t, n) -> (path_to_infile p, 
     
 let mk_samplesort_infiles = mk_infiles "type" input_descriptor_samplesort
 
-let mk_samplesort =
-    mk_samplesort_progs
-  & mk_proc
-  & mk_samplesort_infiles
-
 (*****************)
 (* Radix sort *)
-
-let prog_radixsort =
-  "radixsort"
-
-let mk_radixsort_progs =
-  mk_progs prog_radixsort
 
 let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_int_random_large.bin", string "int", "random";    
@@ -305,19 +272,8 @@ let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t
 
 let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
     
-let mk_radixsort =
-    mk_radixsort_progs
-  & mk_proc
-  & mk_radixsort_infiles
-
 (*****************)
 (* BFS *)
-
-let prog_pbfs =
-  "pbfs"
-
-let mk_pbfs_progs =
-  mk_progs prog_pbfs
 
 let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
@@ -327,33 +283,11 @@ let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 
 let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
 
-let mk_pbfs =
-    mk_pbfs_progs
-  & mk_proc
-  & mk_pbfs_infiles
-
 (*****************)
 (* Maximum Independent Set *)
 
-let prog_mis =
-  "mis"
-
-let mk_mis_progs =
-  mk_progs prog_mis
-
-let mk_mis =
-    mk_mis_progs
-  & mk_proc
-  & mk_pbfs_infiles
-
 (*****************)
 (* Suffix array *)
-
-let prog_suffixarray =
-  "suffixarray"
-
-let mk_suffixarray_progs =
-  mk_progs prog_suffixarray
 
 let input_descriptor_suffixarray = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "chr22.dna.bin", string "string", "dna";
@@ -363,19 +297,8 @@ let input_descriptor_suffixarray = List.map (fun (p, t, n) -> (path_to_infile p,
       
 let mk_suffixarray_infiles = mk_infiles "type" input_descriptor_suffixarray
 
-let mk_suffixarray =
-    mk_suffixarray_progs
-  & mk_proc
-  & mk_suffixarray_infiles
-
 (*****************)
 (* Nearest neighbors *)
-
-let prog_nearestneighbors =
-  "nearestneighbors"
-
-let mk_nearestneighbors_progs =
-  mk_progs prog_nearestneighbors
 
 let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_kuzmin_medium.bin", string "array_point2d", "kuzmin";
@@ -387,42 +310,33 @@ let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infi
 
 let mk_nearestneighbors_infiles = mk_infiles "type" input_descriptor_nearestneighbors
 
-let mk_nearestneighbors =
-    mk_nearestneighbors_progs
-  & mk_proc
-  & mk_nearestneighbors_infiles
-
 (*****************)
 (* All benchmarks *)
 
 let benchmarks' : benchmark_descriptor list = [
-  { bd_name = "convexhull"; bd_args = mk_convexhull;
-    bd_infiles = mk_hull_infiles; bd_progs = mk_hull_progs;
+  { bd_name = "convexhull";
+    bd_infiles = mk_hull_infiles;
     bd_input_descr = input_descriptor_hull;
   };
-  { bd_name = "samplesort"; bd_args = mk_samplesort;
-    bd_infiles = mk_samplesort_infiles; bd_progs = mk_samplesort_progs;
+  { bd_name = "samplesort";
+    bd_infiles = mk_samplesort_infiles;
     bd_input_descr = input_descriptor_samplesort;
   };
-  { bd_name = "radixsort"; bd_args = mk_radixsort;
-    bd_infiles = mk_radixsort_infiles; bd_progs = mk_radixsort_progs;
+  { bd_name = "radixsort";
+    bd_infiles = mk_radixsort_infiles;
     bd_input_descr = input_descriptor_radixsort;
-  }; (*
-  { bd_name = "pbfs"; bd_args = mk_pbfs;
-    bd_infiles = mk_pbfs_infiles; bd_progs = mk_pbfs_progs;
-    bd_input_descr = input_descriptor_pbfs;
-  }; *)
-  { bd_name = "mis"; bd_args = mk_mis;
-    bd_infiles = mk_pbfs_infiles; bd_progs = mk_mis_progs;
+  };
+  { bd_name = "mis";
+    bd_infiles = mk_pbfs_infiles;
     bd_input_descr = input_descriptor_pbfs;
   }; 
-  { bd_name = "nearestneighbors"; bd_args = mk_nearestneighbors;
-    bd_infiles = mk_nearestneighbors_infiles; bd_progs = mk_nearestneighbors_progs;
-    bd_input_descr = input_descriptor_nearestneighbors;
-  };
-  { bd_name = "suffixarray"; bd_args = mk_suffixarray;
-    bd_infiles = mk_suffixarray_infiles; bd_progs = mk_suffixarray_progs;
+  { bd_name = "suffixarray";
+    bd_infiles = mk_suffixarray_infiles;
     bd_input_descr = input_descriptor_suffixarray;
+  };
+  { bd_name = "nearestneighbors";
+    bd_infiles = mk_nearestneighbors_infiles;
+    bd_input_descr = input_descriptor_nearestneighbors;
   };
 ]
 
@@ -439,17 +353,29 @@ let pretty_input_name n =
   match List.find_all (fun (m, _, _) -> m = n) input_descriptors with
   | [(m, _, p)] -> p
   | _ -> failwith ("pretty name: " ^ n)
-    
+                  
 let make() =
   build "." all_progs arg_virtual_build
 
+let mk_never_promote =
+  mk int "never_promote" 1
+
+let file_results_never_promote exp_name =
+  file_results (exp_name ^ "_never_promote")
+        
 let run() =
   List.iter (fun benchmark ->
-    Mk_runs.(call (run_modes @ [
-      Output (file_results benchmark.bd_name);
-      Timeout 400;
-      Args benchmark.bd_args;
-    ]))) benchmarks
+    let r mk_progs file_results = 
+      Mk_runs.(call (run_modes @ [
+        Output file_results;
+        Timeout 400;
+        Args (mk_progs & benchmark.bd_infiles); ]))
+    in
+    let encore_prog = mk_encore_prog benchmark.bd_name in
+    let pbbs_prog = mk_pbbs_prog benchmark.bd_name in
+    (r ((encore_prog ++ pbbs_prog) & mk_proc) (file_results benchmark.bd_name);
+     r ((encore_prog & mk_never_promote) & mk int "proc" 1) (file_results_never_promote benchmark.bd_name))
+  ) benchmarks
 
 let check = nothing  (* do something here *)
 
@@ -472,7 +398,7 @@ let plot() =
     Mk_table.build_table tex_file pdf_file (fun add ->
       let hdr =
         let m = nb_proc * 2 in
-        let ls = String.concat "|" (XList.init m (fun _ -> "l")) in
+        let ls = String.concat "|" (XList.init m (fun _ -> "c")) in
         Printf.sprintf "p{1cm}l|%s" ls
       in
       add (Latex.tabular_begin hdr);
@@ -504,8 +430,11 @@ let plot() =
         let env = Env.empty in
         let mk_rows = benchmark.bd_infiles in
         let env_rows = mk_rows env in
+        let results_file_never_promote = file_results_never_promote benchmark.bd_name in
+        let results_never_promote = Results.from_file results_file_never_promote in
         ~~ List.iter env_rows (fun env_rows ->  (* loop over each input for current benchmark *)
           let results = Results.filter env_rows results in
+          let results_never_promote = Results.filter env_rows results_never_promote in
           let env = Env.append env env_rows in
           let row_title = main_formatter env_rows in
           let _ = Mk_table.cell ~escape:true ~last:false add "" in
@@ -523,15 +452,25 @@ let plot() =
               (Printf.sprintf "%.3f %s" v err, v)
             in
             Mk_table.cell ~escape:false ~last:false add pbbs_str;
-            let pctl_str = 
+            let encore_str = 
               let [col] = ((mk_encore_prog benchmark.bd_name) & mk_procs) env in
               let results = Results.filter col results in
               let v = Results.get_mean_of "exectime" results in
               let vs = string_of_percentage_change b v in
-              Printf.sprintf "%s" vs
+              let never_promote_str =
+                if proc = 1 then
+                  let [col] = (mk_encore_prog benchmark.bd_name & mk_never_promote & (mk int "proc" 1)) env in
+                  let results = Results.filter col results_never_promote in
+                  let v' = Results.get_mean_of "exectime" results_never_promote in
+                  let vs = string_of_percentage_change v v' in
+                  Printf.sprintf " (%s)" vs
+                else
+                  ""
+              in
+              Printf.sprintf "%s%s" vs never_promote_str
             in
-            Mk_table.cell ~escape:false ~last:last add pctl_str);
-          add Latex.tabular_newline);            
+            Mk_table.cell ~escape:false ~last:last add encore_str);
+          add Latex.tabular_newline);
       );
       add Latex.tabular_end;
       add Latex.new_page;
