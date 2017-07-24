@@ -717,6 +717,8 @@ std::pair<stack_type, stack_type> fork_stack(stack_type s) {
   });
 }
   
+bool never_promote = false;
+  
 class interpreter : public sched::vertex {
 public:
 
@@ -759,6 +761,10 @@ public:
     }
     if (fuel > 0) {
       return fuel;
+    }
+    if (never_promote) {
+      schedule(this);
+      return sched::promotion_threshold;
     }
     assert(fuel == 0);
     auto r = peek_mark(stack);

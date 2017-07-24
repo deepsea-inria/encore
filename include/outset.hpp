@@ -359,7 +359,7 @@ public:
       shortcuts_type* s = shortcuts.load();
       assert(tagged::tag_of(s) != finished_tag);
       if (tagged::tag_of(s) == creating_shortcuts_tag) {
-        time::spin_for(128);
+        spin_for(128);
         continue;
       }
       shortcuts_type* orig = s;

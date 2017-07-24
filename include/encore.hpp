@@ -100,6 +100,7 @@ void initialize(int argc, char** argv) {
   initialize_hwloc();
   sched::promotion_threshold = cmdline::parse_or_default("promotion_threshold", sched::promotion_threshold);
   sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 2 * sched::promotion_threshold);
+  edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
   cilk_set_nb_cores();
 }
   
