@@ -17,11 +17,73 @@ namespace encore {
 namespace sched {
   
 /*---------------------------------------------------------------------*/
-/* Frontier */
+/* Global scheduler configuration */
   
-namespace {
+using scheduler_tag = enum {
+  steal_half_work_stealing_tag,
+  steal_one_work_stealing_tag
+};
   
-int run_vertex(vertex*, int);
+scheduler_tag scheduler = steal_half_work_stealing_tag;
+  
+// to control the rate of DAG construction
+int promotion_threshold = 32;
+
+// to control the eagerness of work distribution
+int sharing_threshold = 2 * promotion_threshold;
+
+template <class Item>
+using perworker_array = data::perworker::array<Item>;
+  
+perworker_array<vertex*> vertices;
+  
+perworker_array<std::deque<vertex*>> suspended;
+  
+int run_vertex(vertex* v, int fuel) {
+  vertices.mine() = v;
+  return v->run(fuel);
+}
+  
+/*---------------------------------------------------------------------*/
+/* Steal-one, work-stealing scheduler */
+
+namespace steal_one_work_stealing {
+
+std::atomic<int> nb_active_workers; // later: use SNZI instead
+
+std::atomic<int> nb_running_workers;
+
+perworker_array<std::atomic<bool>> status;
+
+static constexpr int no_request = -1;
+
+perworker_array<std::atomic<int>> request;
+
+perworker_array<std::mt19937> rngs;  // random-number generators
+
+perworker_array<std::deque<vertex*>> deques;
+  
+// one instance of this function is to be run by each
+// participating worker thread
+void worker_loop(vertex* v) {
+  int my_id = data::perworker::get_my_id();
+  std::deque<vertex*>& my_ready = deques[my_id];
+  std::deque<vertex*>& my_suspended = suspended[my_id];
+  int fuel = promotion_threshold;
+  int nb = 0;
+  
+}
+  
+void launch(int nb_workers, vertex* v) {
+
+}
+  
+} // end namespace
+ 
+/*---------------------------------------------------------------------*/
+/* Steal-half, work-stealing scheduler */
+  
+namespace steal_half_work_stealing {
   
 class frontier {
 private:
@@ -122,22 +184,6 @@ public:
   
 };
   
-} // end namespace
-  
-/*---------------------------------------------------------------------*/
-/* Parallel work-stealing scheduler */
-  
-namespace {
-  
-// to control the rate of DAG construction
-int promotion_threshold = 32;
-
-// to control the eagerness of work distribution
-int sharing_threshold = 2 * promotion_threshold;
-  
-template <class Item>
-using perworker_array = data::perworker::array<Item>;
-  
 std::atomic<int> nb_active_workers; // later: use SNZI instead
   
 std::atomic<int> nb_running_workers;
@@ -155,15 +201,6 @@ perworker_array<std::atomic<frontier*>> transfer;
 perworker_array<std::mt19937> rngs;  // random-number generators
   
 perworker_array<frontier> frontiers;
-  
-perworker_array<vertex*> vertices;
-  
-perworker_array<std::deque<vertex*>> suspended;
-  
-int run_vertex(vertex* v, int fuel) {
-  vertices.mine() = v;
-  return v->run(fuel);
-}
   
 // one instance of this function is to be run by each
 // participating worker thread
@@ -302,10 +339,8 @@ void worker_loop(vertex* v) {
   assert(my_suspended.empty());
   nb_running_workers--;
 }
-
-} // end namespace
   
-void launch_scheduler(int nb_workers, vertex* v) {
+void launch(int nb_workers, vertex* v) {
   status.for_each([&] (int, std::atomic<bool>& b) {
     b.store(false);
   });
@@ -329,6 +364,16 @@ void launch_scheduler(int nb_workers, vertex* v) {
   logging::push_event(logging::exit_algo);
   assert(nb_active_workers == 0);
 }
+
+} // end namespace
+  
+void launch_scheduler(int nb_workers, vertex* v) {
+  if (scheduler == steal_half_work_stealing_tag) {
+    steal_half_work_stealing::launch(nb_workers, v);
+  } else if (scheduler == steal_one_work_stealing_tag) {
+    steal_one_work_stealing::launch(nb_workers, v);
+  }
+}
   
 /*---------------------------------------------------------------------*/
 /* Scheduling primitives */
@@ -347,7 +392,11 @@ void schedule(vertex* v) {
     delete v;
     return;
   }
-  frontiers.mine().push(v);
+  if (scheduler == steal_half_work_stealing_tag) {
+    steal_half_work_stealing::frontiers.mine().push(v);
+  } else if (scheduler == steal_one_work_stealing_tag) {
+    steal_one_work_stealing::deques.mine().push_back(v);
+  }
 }
   
 void new_edge(outset* source_outset, incounter* destination_incounter) {
