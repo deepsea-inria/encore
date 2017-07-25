@@ -98,6 +98,14 @@ void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   atomic::init_print_lock();
   initialize_hwloc();
+  auto scheduler = cmdline::parse_or_default_string("scheduler", "steal_half_work_stealing");
+  if (scheduler == "steal_half_work_stealing") {
+    sched::scheduler = sched::steal_half_work_stealing_tag;
+  } else if (scheduler == "steal_one_work_stealing") {
+    sched::scheduler = sched::steal_one_work_stealing_tag;
+  } else {
+    atomic::die("bogus scheduler\n");
+  }
   edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
   if (edsl::pcfg::never_promote) {
     sched::promotion_threshold = 1 << 20;

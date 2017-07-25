@@ -63,6 +63,10 @@ perworker_array<std::mt19937> rngs;  // random-number generators
 
 perworker_array<std::deque<vertex*>> deques;
   
+vertex* no_response = tagged::tag_with((vertex*)nullptr, 1);
+
+perworker_array<std::atomic<vertex*>> transfer;
+  
 // one instance of this function is to be run by each
 // participating worker thread
 void worker_loop(vertex* v) {
@@ -72,10 +76,184 @@ void worker_loop(vertex* v) {
   int fuel = promotion_threshold;
   int nb = 0;
   
+  if (v != nullptr) {
+    // this worker is the leader
+    release(v);
+    v = nullptr;
+  } else {
+    nb_active_workers++;
+  }
+  
+  auto is_finished = [&] {
+    return nb_active_workers.load() == 0;
+  };
+  
+  auto random_other_worker = [&] {
+    int P = data::perworker::get_nb_workers();
+    assert(P != 1);
+    std::uniform_int_distribution<int> distribution(0, 2*P);
+    int i = distribution(rngs[my_id]) % (P - 1);
+    if (i >= my_id) {
+      i++;
+    }
+    return i;
+  };
+  
+  // update the status flag
+  auto update_status = [&] {
+    bool b = false;
+    if (my_ready.size() >= 2) {
+      b = true;
+    } else if (my_ready.size() == 1) {
+      vertex* v = my_ready.front();
+      b = (v->nb_strands() >= 2);
+    }
+    if (status[my_id].load() != b) {
+      status[my_id].store(b);
+    }
+  };
+  
+  // check for an incoming steal request
+  auto communicate = [&] {
+    logging::push_event(logging::worker_communicate);
+    int j = request[my_id].load();
+    if (j == no_request) {
+      return;
+    }
+    auto sz = my_ready.size();
+    if (sz > sharing_threshold || (nb > sharing_threshold && sz > 1)) {
+      assert(sz >= 1);
+      nb_active_workers++;
+      nb = 0;
+      vertex* v = my_ready.front();
+      auto n = v->nb_strands();
+      if (n >= 2) {
+        my_ready.pop_front();
+        auto vs = v->split(n / 2);
+        my_ready.push_front(vs.first);
+        v = vs.second;
+      } else {
+        my_ready.pop_front();
+      }
+      transfer[j].store(v);
+    } else {
+      transfer[j].store(nullptr); // reject query
+    }
+    request[my_id].store(no_request);
+  };
+  
+  // called by workers when running out of work
+  auto acquire = [&] {
+    if (data::perworker::get_nb_workers() == 1) {
+      return;
+    }
+    assert(my_ready.empty() && my_suspended.empty());
+    nb_active_workers--;
+    logging::push_event(logging::enter_wait);
+    while (! is_finished()) {
+      transfer[my_id].store(no_response);
+      int k = random_other_worker();
+      int orig = no_request;
+      if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
+        while (transfer[my_id].load() == no_response) {
+          if (is_finished()) {
+            logging::push_event(logging::exit_wait);
+            return;
+          }
+          communicate();
+        }
+        vertex* v = transfer[my_id].load();
+        if (v != nullptr) {
+          my_ready.push_back(v);
+          request[my_id].store(no_request);
+          stats::on_steal();
+          logging::push_frontier_acquire(k);
+          logging::push_event(logging::exit_wait);
+          return;
+        }
+      }
+      communicate();
+    }
+    logging::push_event(logging::exit_wait);
+  };
+
+  auto promote = [&] {
+    if (my_suspended.empty()) {
+      return;
+    }
+    vertex* v = my_suspended.front();
+    my_suspended.pop_front();
+    run_vertex(v, 0);
+  };
+  
+  auto run = [&] (int fuel) {
+    while (fuel > 0 && ! my_ready.empty()) {
+      vertex* v = my_ready.back();
+      my_ready.pop_back();
+      fuel = run_vertex(v, fuel);
+      if (v->nb_strands() == 0) {
+        parallel_notify(v->is_future(), v->get_outset());
+        delete v;
+      }
+    }
+    return fuel;
+  };
+  
+  while (! is_finished()) {
+    if (! my_ready.empty()) {
+      communicate();
+      int remaining_fuel = run(fuel);
+      assert(fuel - remaining_fuel >= 0);
+      nb += fuel - remaining_fuel;
+      if (remaining_fuel == 0) {
+        promote();
+        fuel = promotion_threshold;
+      } else {
+        fuel = remaining_fuel;
+      }
+      update_status();
+    } else if (my_suspended.size() >= 1) {
+      communicate();
+      promote();
+    } else if (data::perworker::get_nb_workers() == 1) {
+      nb_active_workers--;
+      break;
+    } else {
+      auto s = stats::on_enter_acquire();
+      acquire();
+      stats::on_exit_acquire(s);
+      update_status();
+    }
+  }
+  
+  assert(my_ready.empty());
+  assert(my_suspended.empty());
+  nb_running_workers--;
 }
   
 void launch(int nb_workers, vertex* v) {
-
+  status.for_each([&] (int, std::atomic<bool>& b) {
+    b.store(false);
+  });
+  request.for_each([&] (int, std::atomic<int>& r) {
+    r.store(no_request);
+  });
+  transfer.for_each([&] (int, std::atomic<vertex*>& t) {
+    t.store(no_response);
+  });
+  nb_active_workers.store(1);
+  nb_running_workers.store(nb_workers);
+  for (int i = 1; i < nb_workers; i++) {
+    auto t = std::thread([] {
+      worker_loop(nullptr);
+    });
+    t.detach();
+  }
+  logging::push_event(logging::enter_algo);
+  worker_loop(v);
+  while (nb_running_workers.load() > 0);
+  logging::push_event(logging::exit_algo);
+  assert(nb_active_workers == 0);
 }
   
 } // end namespace
