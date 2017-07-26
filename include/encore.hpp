@@ -48,6 +48,7 @@ public:
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<float> diff = end - s.start;
         printf ("exectime %.3lf\n", diff.count());
+        sched::should_exit = true;
       })
     });
   }

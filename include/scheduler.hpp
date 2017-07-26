@@ -44,12 +44,12 @@ int run_vertex(vertex* v, int fuel) {
   return v->run(fuel);
 }
   
+bool should_exit = false;
+  
 /*---------------------------------------------------------------------*/
 /* Steal-one, work-stealing scheduler */
 
 namespace steal_one_work_stealing {
-
-std::atomic<int> nb_active_workers; // later: use SNZI instead
 
 std::atomic<int> nb_running_workers;
 
@@ -80,12 +80,10 @@ void worker_loop(vertex* v) {
     // this worker is the leader
     release(v);
     v = nullptr;
-  } else {
-    nb_active_workers++;
   }
   
   auto is_finished = [&] {
-    return nb_active_workers.load() == 0;
+    return should_exit && my_ready.empty();
   };
   
   auto random_other_worker = [&] {
@@ -123,7 +121,6 @@ void worker_loop(vertex* v) {
     auto sz = my_ready.size();
     if (sz > sharing_threshold || (nb > sharing_threshold && sz > 1)) {
       assert(sz >= 1);
-      nb_active_workers++;
       nb = 0;
       vertex* v = my_ready.front();
       auto n = v->nb_strands();
@@ -148,7 +145,6 @@ void worker_loop(vertex* v) {
       return;
     }
     assert(my_ready.empty() && my_suspended.empty());
-    nb_active_workers--;
     logging::push_event(logging::enter_wait);
     while (! is_finished()) {
       transfer[my_id].store(no_response);
@@ -216,7 +212,6 @@ void worker_loop(vertex* v) {
       communicate();
       promote();
     } else if (data::perworker::get_nb_workers() == 1) {
-      nb_active_workers--;
       break;
     } else {
       auto s = stats::on_enter_acquire();
@@ -241,7 +236,6 @@ void launch(int nb_workers, vertex* v) {
   transfer.for_each([&] (int, std::atomic<vertex*>& t) {
     t.store(no_response);
   });
-  nb_active_workers.store(1);
   nb_running_workers.store(nb_workers);
   for (int i = 1; i < nb_workers; i++) {
     auto t = std::thread([] {
@@ -253,7 +247,6 @@ void launch(int nb_workers, vertex* v) {
   worker_loop(v);
   while (nb_running_workers.load() > 0);
   logging::push_event(logging::exit_algo);
-  assert(nb_active_workers == 0);
 }
   
 } // end namespace
@@ -362,8 +355,6 @@ public:
   
 };
   
-std::atomic<int> nb_active_workers; // later: use SNZI instead
-  
 std::atomic<int> nb_running_workers;
   
 perworker_array<std::atomic<bool>> status;
@@ -393,12 +384,10 @@ void worker_loop(vertex* v) {
     // this worker is the leader
     release(v);
     v = nullptr;
-  } else {
-    nb_active_workers++;
   }
   
   auto is_finished = [&] {
-    return nb_active_workers.load() == 0;
+    return should_exit && my_ready.empty();
   };
   
   auto random_other_worker = [&] {
@@ -429,7 +418,6 @@ void worker_loop(vertex* v) {
     }
     int sz = my_ready.nb_strands();
     if (sz > sharing_threshold || (nb > sharing_threshold && sz > 1)) {
-      nb_active_workers++;
       nb = 0;
       // transfer half of the local frontier to worker with id j
       frontier* f = new frontier;
@@ -447,7 +435,6 @@ void worker_loop(vertex* v) {
       return;
     }
     assert(my_ready.empty() && my_suspended.empty());
-    nb_active_workers--;
     logging::push_event(logging::enter_wait);
     while (! is_finished()) {
       transfer[my_id].store(no_response);
@@ -503,7 +490,6 @@ void worker_loop(vertex* v) {
       communicate();
       promote();
     } else if (data::perworker::get_nb_workers() == 1) {
-      nb_active_workers--;
       break;
     } else {
       auto s = stats::on_enter_acquire();
@@ -528,7 +514,6 @@ void launch(int nb_workers, vertex* v) {
   transfer.for_each([&] (int, std::atomic<frontier*>& t) {
     t.store(no_response);
   });
-  nb_active_workers.store(1);
   nb_running_workers.store(nb_workers);
   for (int i = 1; i < nb_workers; i++) {
     auto t = std::thread([] {
@@ -540,7 +525,6 @@ void launch(int nb_workers, vertex* v) {
   worker_loop(v);
   while (nb_running_workers.load() > 0);
   logging::push_event(logging::exit_algo);
-  assert(nb_active_workers == 0);
 }
 
 } // end namespace
