@@ -27,6 +27,7 @@ let arg_proc =
   in
   XCmd.parse_or_default_list_int "proc" default
 let arg_print_err = XCmd.parse_or_default_bool "print_error" false
+let arg_scheduler = XCmd.parse_or_default_string "scheduler" "steal_one_work_stealing"
     
 let run_modes =
   Mk_runs.([
@@ -132,7 +133,7 @@ let mk_encore_setting threshold block_size promotion_threshold =
     mk int "threshold" threshold
   & mk int "block_size" block_size
   & mk int "promotion_threshold" promotion_threshold
-
+       
 let mk_encore_settings = (
     mk_encore_setting 512  1024 1024
  ++ mk_encore_setting 1024 2048 1024
@@ -237,10 +238,14 @@ let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
                                  
 let mk_encore_prog n =
-  (mk string "prog" (encore_prog_of n)) & (mk string "algorithm" "encore")
-
+    (mk string "prog" (encore_prog_of n))
+  & (mk string "algorithm" "encore")
+  & (mk string "scheduler" arg_scheduler)        
+  & (mk int "sharing_threshold" 0)
+       
 let mk_pbbs_prog n =
-  (mk string "prog" (cilk_prog_of n)) & (mk string "algorithm" "pbbs")
+    (mk string "prog" (cilk_prog_of n))
+  & (mk string "algorithm" "pbbs")
     
 type input_descriptor =
     string * Env.value * string (* file name, type, pretty name *)
@@ -374,7 +379,10 @@ let run() =
     let encore_prog = mk_encore_prog benchmark.bd_name in
     let pbbs_prog = mk_pbbs_prog benchmark.bd_name in
     (r ((encore_prog ++ pbbs_prog) & mk_proc) (file_results benchmark.bd_name);
-     r ((encore_prog & mk_never_promote) & mk int "proc" 1) (file_results_never_promote benchmark.bd_name))
+     if List.exists (fun p -> p = 1) arg_proc then
+       r ((encore_prog & mk_never_promote) & mk int "proc" 1) (file_results_never_promote benchmark.bd_name)
+     else
+       ())
   ) benchmarks
 
 let check = nothing  (* do something here *)
