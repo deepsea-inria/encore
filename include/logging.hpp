@@ -173,7 +173,7 @@ public:
       return;
     }
     std::chrono::duration<double> elapsed = std::chrono::system_clock::now() - basetime;
-    e.timestamp = elapsed.count();
+    e.timestamp = elapsed.count() * 1000000;
     e.worker_id = data::perworker::get_my_id();
     if (real_time) {
       atomic::acquire_print_lock();
