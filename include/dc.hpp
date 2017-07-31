@@ -45,9 +45,6 @@ public:
   double undefined = -1.0;
   
   static constexpr
-  double min_report_factor = 2.0;
-  
-  static constexpr
   double weighted_average_factor = 8.0;
   
   static constexpr
@@ -76,9 +73,8 @@ public:
     double new_cpie =
       ((weighted_average_factor * cpie) + measured_avg_cycles_per_iter)
         / (weighted_average_factor + 1.0);
-    double diff = std::abs(new_cpie - cpie);
-    double change = min_report_factor * diff;
-    if (change > cpie) {
+    double change = std::abs(new_cpie / cpie - 1.0) * 100.0;
+    if (change > 5.0) {
       if (cycles_per_iter_estim.compare_exchange_strong(cpie, new_cpie)) {
         auto nb_iters_new = predict_nb_iterations();
         logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
