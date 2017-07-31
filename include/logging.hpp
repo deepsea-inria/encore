@@ -22,6 +22,7 @@ using event_kind_type = enum {
   threads,
   migration,
   communicate,
+  leaf_loop,
   nb_kinds
 };
 
@@ -32,6 +33,7 @@ using event_tag_type = enum {
   worker_communicate, interrupt,
   algo_phase,
   frontier_acquire,   frontier_split,
+  leaf_loop_update,
   nb_events
 };
 
@@ -48,6 +50,7 @@ std::string name_of(event_tag_type e) {
     case algo_phase: return "algo_phase ";
     case frontier_acquire: return "frontier_acquire ";
     case frontier_split: return "frontier_split ";
+    case leaf_loop_update: return "leaf_loop_update ";
     default: return "unknown_event ";
   }
 }
@@ -65,6 +68,7 @@ event_kind_type kind_of(event_tag_type e) {
     case interrupt:                 return communicate;
     case frontier_acquire:
     case frontier_split:            return migration;
+    case leaf_loop_update:          return leaf_loop;
     default: return nb_kinds;
   }
 }
@@ -96,6 +100,12 @@ public:
   union {
     int n1;
     int n2;
+    struct {
+      int nb_iters;
+      int nb_iters_new;
+      double elapsed;
+      void* estimator;
+    } leaf_loop;
   } extra;
       
   void print_byte(FILE* f) {
@@ -114,6 +124,17 @@ public:
       case frontier_split: {
         fprintf(f, "%d\t%d", extra.n1, extra.n2);
         break;
+      }
+      case leaf_loop_update: {
+        fprintf(f, "%d \t %d \t %lf \t %p",
+                extra.leaf_loop.nb_iters,
+                extra.leaf_loop.nb_iters_new,
+                extra.leaf_loop.elapsed,
+                extra.leaf_loop.estimator);
+        break;
+      }
+      default: {
+        // nothing to do
       }
     }
     fprintf (f, "\n");
@@ -154,6 +175,7 @@ public:
     tracking_kind[phases] = deepsea::cmdline::parse_or_default_bool("log_phases", false);
     tracking_kind[threads] = deepsea::cmdline::parse_or_default_bool("log_threads", false);
     tracking_kind[migration] = deepsea::cmdline::parse_or_default_bool("log_migration", false);
+    tracking_kind[leaf_loop] = deepsea::cmdline::parse_or_default_bool("log_leaf_loop", false);
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
     if (pview) {
       tracking_kind[phases] = true;
@@ -270,6 +292,19 @@ void push_frontier_split(int n1, int n2) {
   event_type e(frontier_split);
   e.extra.n1 = n1;
   e.extra.n2 = n2;
+  log_buffer::push(e);
+}
+  
+static inline
+void push_leaf_loop_update(int nb_iters,
+                           int nb_iters_new,
+                           double elapsed,
+                           void* estimator) {
+  event_type e(leaf_loop_update);
+  e.extra.leaf_loop.nb_iters = nb_iters;
+  e.extra.leaf_loop.nb_iters_new = nb_iters_new;
+  e.extra.leaf_loop.elapsed = elapsed;
+  e.extra.leaf_loop.estimator = estimator;
   log_buffer::push(e);
 }
   

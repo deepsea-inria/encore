@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <memory>
 #include <array>
+#include <atomic>
 
 #include "vertex.hpp"
 #include "cactus-plus.hpp"
@@ -12,6 +13,7 @@
 #include "scheduler.hpp"
 #include "interpreter.hpp"
 #include "pcfg.hpp"
+#include "cycles.hpp"
 
 #ifndef _ENCORE_DC_H_
 #define _ENCORE_DC_H_
@@ -30,6 +32,74 @@ static inline
 int get_loop_threshold() {
   return loop_threshold;
 }
+  
+double kappa = 50.0;
+  
+double cpu_frequency_ghz = 1.2;
+  
+template <class Id>
+class leaf_loop_controller {
+public:
+  
+  static constexpr
+  double undefined = -1.0;
+  
+  static constexpr
+  double min_report_factor = 2.0;
+  
+  static constexpr
+  double weighted_average_factor = 8.0;
+  
+  static constexpr
+  int initial_nb_iterations = 256;
+  
+  static
+  std::atomic<double> cycles_per_iter_estim;
+  
+  template <class Body>
+  static
+  void measured_run(int nb_iters, const Body& body) {
+    auto st = now();
+    body();
+    double elapsed_ticks = since(st);
+    double ticks_per_microsecond = cpu_frequency_ghz * 1000.0;
+    double elapsed = elapsed_ticks / ticks_per_microsecond;
+    double measured_avg_cycles_per_iter = elapsed / nb_iters;
+    double cpie = cycles_per_iter_estim.load();
+    if (cpie == undefined) {
+      if (atomic::compare_exchange(cycles_per_iter_estim, cpie, measured_avg_cycles_per_iter)) {
+        auto nb_iters_new = predict_nb_iterations();
+        logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
+      }
+      return;
+    }
+    double new_cpie =
+      ((weighted_average_factor * cpie) + measured_avg_cycles_per_iter)
+        / (weighted_average_factor + 1.0);
+    double diff = std::abs(new_cpie - cpie);
+    double change = min_report_factor * diff;
+    if (change > cpie) {
+      if (atomic::compare_exchange(cycles_per_iter_estim, cpie, new_cpie)) {
+        auto nb_iters_new = predict_nb_iterations();
+        logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
+      }
+    }
+  }
+  
+  static
+  int predict_nb_iterations() {
+    double cpie = cycles_per_iter_estim.load();
+    if (cpie == undefined) {
+      return initial_nb_iterations;
+    }
+    int p = (int) (kappa / cpie);
+    return std::max(1, p);
+  }
+  
+};
+  
+template <class Id>
+std::atomic<double> leaf_loop_controller<Id>::cycles_per_iter_estim(leaf_loop_controller<Id>::undefined);
   
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit_function, tag_exit_loop,
@@ -605,19 +675,23 @@ public:
     }, getter, body);
   }
   
+  template <class Leaf_loop_body_type>
   static
   stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
                               parallel_loop_range_getter_type getter,
-                              leaf_loop_body_type body) {
+                              Leaf_loop_body_type body) {
     return stmts({
       stmt(initializer),
       parallel_for_loop(getter, stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto lt = get_loop_threshold();
+        auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
+//        auto lt = get_loop_threshold();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        body(s, p, lo, mid);
+        leaf_loop_controller<Leaf_loop_body_type>::measured_run(mid - lo, [&] {
+          body(s, p, lo, mid);
+        });
       }))
     });
   }
