@@ -3,6 +3,7 @@
 #define _ENCORE_CYCLES_H_
 
 namespace encore {
+namespace cycles {
 
 namespace {
   
@@ -43,6 +44,7 @@ void spin_for(uint64_t nb_cycles) {
   rdtsc_wait(nb_cycles);
 }
   
+} // end namespace
 } // end namespace
 
 #endif /*! _ENCORE_CYCLES_H_ */

@@ -305,7 +305,7 @@ private:
         return false;
       }
       if ( (s == nullptr) || (tagged::tag_of(s) == creating_shortcuts_tag) ) {
-        spin_for(128);
+        cycles::spin_for(128);
         continue;
       }
       assert(s != nullptr);
@@ -359,7 +359,7 @@ public:
       shortcuts_type* s = shortcuts.load();
       assert(tagged::tag_of(s) != finished_tag);
       if (tagged::tag_of(s) == creating_shortcuts_tag) {
-        spin_for(128);
+        cycles::spin_for(128);
         continue;
       }
       shortcuts_type* orig = s;

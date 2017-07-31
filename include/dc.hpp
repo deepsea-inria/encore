@@ -59,9 +59,9 @@ public:
   template <class Body>
   static
   void measured_run(int nb_iters, const Body& body) {
-    auto st = now();
+    auto st = cycles::now();
     body();
-    double elapsed_ticks = since(st);
+    double elapsed_ticks = cycles::since(st);
     double ticks_per_microsecond = cpu_frequency_ghz * 1000.0;
     double elapsed = elapsed_ticks / ticks_per_microsecond;
     double measured_avg_cycles_per_iter = elapsed / nb_iters;
