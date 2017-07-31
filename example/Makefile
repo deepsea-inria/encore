@@ -14,7 +14,7 @@ INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 INCS := $(shell find $(SRC_DIRS) -name '*.hpp' -or -name '*.h')
 
-CPPFLAGS_SHARED=$(INC_FLAGS) -MMD -MP -pthread -std=gnu++11 -fpermissive -DENCORE_ENABLE_STATS
+CPPFLAGS_SHARED=$(INC_FLAGS) -MMD -MP -pthread -std=gnu++11 -fpermissive -DENCORE_ENABLE_STATS -DTARGET_LINUX
 
 CPPFLAGS_DBG ?= $(CPPFLAGS_SHARED) -O0 -g -DENCORE_RANDOMIZE_SCHEDULE -DENCORE_USE_SIMPLE_SYNCHRONIZATION
 

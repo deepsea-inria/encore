@@ -8,6 +8,11 @@
 #include <hwloc.h>
 #endif
 
+#ifdef TARGET_MAC_OS
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#endif
+
 #include "scheduler.hpp"
 #include "edsl.hpp"
 #include "cmdline.hpp"
@@ -92,6 +97,37 @@ void initialize_hwloc(int nb_workers) {
 void initialize_hwloc() {
   initialize_hwloc(cmdline::parse_or_default("proc", 1));
 }
+  
+void initialize_cpuinfo() {
+  float cpu_frequency_mhz = 0.0;
+#ifdef TARGET_LINUX
+  /* Get information from /proc/cpuinfo.     *
+   * cpu MHz         : <float>             # cpu frequency in MHz
+   */
+  FILE *cpuinfo_file = fopen("/proc/cpuinfo", "r");
+  char buf[1024];
+  int cache_line_szb;
+  if (cpuinfo_file != NULL) {
+    while (fgets(buf, sizeof(buf), cpuinfo_file) != 0) {
+      sscanf(buf, "cpu MHz : %f", &(cpu_frequency_mhz));
+    }
+    fclose (cpuinfo_file);
+  }
+#endif
+#ifdef TARGET_MAC_OS
+  uint64_t freq = 0;
+  size_t size;
+  size = sizeof(freq);
+  if (sysctlbyname("hw.cpufrequency", &freq, &size, NULL, 0) < 0) {
+    perror("sysctl");
+  }
+  cpu_frequency_mhz = (float)freq / 1000000.;
+#endif
+  if (cpu_frequency_mhz == 0.) {
+    atomic::die("Failed to read CPU frequency\n");
+  }
+  edsl::dc::cpu_frequency_ghz = (double) (cpu_frequency_mhz / 1000.0);
+}
 
 } // end namespace
   
@@ -99,6 +135,7 @@ void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   atomic::init_print_lock();
   initialize_hwloc();
+  initialize_cpuinfo();
   auto scheduler = cmdline::parse_or_default_string("scheduler", "steal_half_work_stealing");
   if (scheduler == "steal_half_work_stealing") {
     sched::scheduler = sched::steal_half_work_stealing_tag;
