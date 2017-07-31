@@ -67,7 +67,7 @@ public:
     double measured_avg_cycles_per_iter = elapsed / nb_iters;
     double cpie = cycles_per_iter_estim.load();
     if (cpie == undefined) {
-      if (atomic::compare_exchange(cycles_per_iter_estim, cpie, measured_avg_cycles_per_iter)) {
+      if (cycles_per_iter_estim.compare_exchange_strong(cpie, measured_avg_cycles_per_iter)) {
         auto nb_iters_new = predict_nb_iterations();
         logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
       }
@@ -79,7 +79,7 @@ public:
     double diff = std::abs(new_cpie - cpie);
     double change = min_report_factor * diff;
     if (change > cpie) {
-      if (atomic::compare_exchange(cycles_per_iter_estim, cpie, new_cpie)) {
+      if (cycles_per_iter_estim.compare_exchange_strong(cpie, new_cpie)) {
         auto nb_iters_new = predict_nb_iterations();
         logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
       }
