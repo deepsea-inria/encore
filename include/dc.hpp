@@ -34,7 +34,7 @@ double leaf_loop_min_change_pct = 0.4;
 
 double leaf_loop_max_change_pct = 1.0;
   
-template <class Id>
+template <int threshold, class Id>
 class leaf_loop_controller {
 public:
   
@@ -91,8 +91,8 @@ public:
   
 };
   
-template <class Id>
-std::atomic<double> leaf_loop_controller<Id>::cycles_per_iter_estim(leaf_loop_controller<Id>::undefined);
+template <int threshold, class Id>
+std::atomic<double> leaf_loop_controller<threshold, Id>::cycles_per_iter_estim(leaf_loop_controller<threshold, Id>::undefined);
   
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit_function, tag_exit_loop,
@@ -611,12 +611,12 @@ public:
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
 
-  template <class Unconditional_jump_code_type>
+  template <int threshold=-1, class Unconditional_jump_code_type>
   static
   stmt_type sequential_loop(predicate_code_type predicate, Unconditional_jump_code_type body) {
     return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
-      auto lt = leaf_loop_controller<Unconditional_jump_code_type>::predict_nb_iterations();
-      leaf_loop_controller<Unconditional_jump_code_type>::measured_run(lt, [&] {
+      auto lt = leaf_loop_controller<threshold, Unconditional_jump_code_type>::predict_nb_iterations();
+      leaf_loop_controller<threshold, Unconditional_jump_code_type>::measured_run(lt, [&] {
         for (int i = 0; i < lt; i++) {
           if (predicate(s, p)) {
             body(s, p);
@@ -630,7 +630,7 @@ public:
 
   using loop_direction_type = enum { forward_loop, backward_loop };
 
-  template <class Leaf_loop_body_type>
+  template <int threshold=-1, class Leaf_loop_body_type>
   static
   stmt_type sequential_loop(unconditional_jump_code_type initializer,
                             loop_range_getter_type getter,
@@ -647,7 +647,7 @@ public:
         auto hi = *rng.second;
         auto lo2 = 0;
         auto hi2 = 0;
-        auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
+        auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
         if (direction == forward_loop) {
           auto mid = std::min(lo + lt, hi);
           *rng.first = mid;
@@ -659,7 +659,7 @@ public:
           lo2 = mid;
           hi2 = hi;
         }
-        leaf_loop_controller<Leaf_loop_body_type>::measured_run(hi2 - lo2, [&] {
+        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run(hi2 - lo2, [&] {
           body(s, p, lo2, hi2);
         });
       }))
@@ -674,7 +674,7 @@ public:
     }, getter, body);
   }
   
-  template <class Leaf_loop_body_type>
+  template <int threshold=-1, class Leaf_loop_body_type>
   static
   stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
                               parallel_loop_range_getter_type getter,
@@ -684,10 +684,10 @@ public:
       parallel_for_loop(getter, stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
+        auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        leaf_loop_controller<Leaf_loop_body_type>::measured_run(mid - lo, [&] {
+        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run(mid - lo, [&] {
           body(s, p, lo, mid);
         });
       }))
@@ -705,7 +705,7 @@ public:
     }, getter, initialize, combine, body);
   }
 
-  template <class Leaf_loop_body_type>
+  template <int threshold=-1, class Leaf_loop_body_type>
   static
   stmt_type parallel_combine_loop(unconditional_jump_code_type initializer,
                                   parallel_loop_range_getter_type getter,
@@ -718,10 +718,10 @@ public:
                             stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
+        auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        leaf_loop_controller<Leaf_loop_body_type>::measured_run(mid - lo, [&] {
+        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run(mid - lo, [&] {
           body(s, p, lo, mid);
         });
       }))
