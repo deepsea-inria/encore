@@ -27,7 +27,7 @@ let arg_proc =
   in
   XCmd.parse_or_default_list_int "proc" default
 let arg_print_err = XCmd.parse_or_default_bool "print_error" false
-let arg_scheduler = XCmd.parse_or_default_string "scheduler" "steal_one_work_stealing"
+let arg_scheduler = XCmd.parse_or_default_string "scheduler" "steal_half_work_stealing"
     
 let run_modes =
   Mk_runs.([
