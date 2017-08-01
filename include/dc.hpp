@@ -37,7 +37,7 @@ double kappa = 50.0;
   
 double cpu_frequency_ghz = 1.2;
   
-double leaf_loop_min_change_pct = 0.1;
+double leaf_loop_min_change_pct = 0.4;
   
 template <class Id>
 class leaf_loop_controller {
@@ -75,7 +75,7 @@ public:
     double new_cpie =
       ((weighted_average_factor * cpie) + measured_avg_cycles_per_iter)
         / (weighted_average_factor + 1.0);
-    double change = std::abs(new_cpie / cpie - 1.0);
+    double change = std::abs(elapsed / kappa - 1.0);
     if (change > leaf_loop_min_change_pct) {
       if (cycles_per_iter_estim.compare_exchange_strong(cpie, new_cpie)) {
         auto nb_iters_new = predict_nb_iterations();
