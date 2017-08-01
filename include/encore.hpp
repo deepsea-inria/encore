@@ -149,7 +149,8 @@ void initialize(int argc, char** argv) {
     sched::promotion_threshold = 1 << 20;
   }
   sched::promotion_threshold = cmdline::parse_or_default("promotion_threshold", sched::promotion_threshold);
-  sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 2 * sched::promotion_threshold);
+  // sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 2 * sched::promotion_threshold);
+  sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 0);
   edsl::dc::kappa = cmdline::parse_or_default_double("kappa", edsl::dc::kappa);
   edsl::dc::leaf_loop_min_change_pct =
     cmdline::parse_or_default_double("leaf_loop_min_change_pct", edsl::dc::leaf_loop_min_change_pct);
