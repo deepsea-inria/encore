@@ -207,16 +207,14 @@ public:
   
   static
   void output_bytes(buffer_type& b) {
-    std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", "");
+    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
+    auto dflt = pview ? "LOG_BIN" : "";
+    std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", dflt);
     if (fname == "") {
       return;
     }
-    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
     FILE* f = fopen(fname.c_str(), "w");
     for (auto e : b) {
-      if (pview && (kind_of(e.tag) != phases)) {
-        continue;
-      }
       e.print_byte(f);
     }
     fclose(f);
