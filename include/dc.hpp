@@ -53,6 +53,10 @@ public:
   template <class Body>
   static
   void measured_run(int nb_iters, const Body& body) {
+    if (threshold > 0) {
+      body();
+      return;
+    }
     auto st = cycles::now();
     body();
     double elapsed_ticks = cycles::since(st);
@@ -81,6 +85,9 @@ public:
   
   static
   int predict_nb_iterations() {
+    if (threshold > 0) {
+      return threshold;
+    }
     double cpie = cycles_per_iter_estim.load();
     if (cpie == undefined) {
       return initial_nb_iterations;
