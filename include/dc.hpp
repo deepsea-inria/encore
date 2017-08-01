@@ -25,13 +25,6 @@ namespace edsl {
 /* Dag Calculus */
 
 namespace dc {
-
-int loop_threshold = 128;
-  
-static inline
-int get_loop_threshold() {
-  return loop_threshold;
-}
   
 double kappa = 50.0;
   
@@ -618,26 +611,30 @@ public:
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
 
+  template <class Unconditional_jump_code_type>
   static
-  stmt_type sequential_loop(predicate_code_type predicate, unconditional_jump_code_type body) {
+  stmt_type sequential_loop(predicate_code_type predicate, Unconditional_jump_code_type body) {
     return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
-      auto lt = get_loop_threshold();
-      for (int i = 0; i < lt; i++) {
-        if (predicate(s, p)) {
-          body(s, p);
-        } else {
-          break;
+      auto lt = leaf_loop_controller<Unconditional_jump_code_type>::predict_nb_iterations();
+      leaf_loop_controller<Unconditional_jump_code_type>::measured_run(lt, [&] {
+        for (int i = 0; i < lt; i++) {
+          if (predicate(s, p)) {
+            body(s, p);
+          } else {
+            break;
+          }
         }
-      }
+      });
     }));
   }
 
   using loop_direction_type = enum { forward_loop, backward_loop };
 
+  template <class Leaf_loop_body_type>
   static
   stmt_type sequential_loop(unconditional_jump_code_type initializer,
                             loop_range_getter_type getter,
-                            leaf_loop_body_type body,
+                            Leaf_loop_body_type body,
                             loop_direction_type direction = forward_loop) {
     return stmts({
       stmt(initializer),
@@ -650,7 +647,7 @@ public:
         auto hi = *rng.second;
         auto lo2 = 0;
         auto hi2 = 0;
-        auto lt = get_loop_threshold();
+        auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
         if (direction == forward_loop) {
           auto mid = std::min(lo + lt, hi);
           *rng.first = mid;
@@ -662,7 +659,9 @@ public:
           lo2 = mid;
           hi2 = hi;
         }
-        body(s, p, lo2, hi2);
+        leaf_loop_controller<Leaf_loop_body_type>::measured_run(hi2 - lo2, [&] {
+          body(s, p, lo2, hi2);
+        });
       }))
     });
   }
@@ -686,7 +685,6 @@ public:
         auto rng = getter(p);
         auto lo = *rng.first;
         auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
-//        auto lt = get_loop_threshold();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         leaf_loop_controller<Leaf_loop_body_type>::measured_run(mid - lo, [&] {
@@ -707,22 +705,25 @@ public:
     }, getter, initialize, combine, body);
   }
 
+  template <class Leaf_loop_body_type>
   static
   stmt_type parallel_combine_loop(unconditional_jump_code_type initializer,
                                   parallel_loop_range_getter_type getter,
                                   parallel_loop_combine_initializer_type combine_initializer,
                                   parallel_combining_operator_type combine,
-                                  leaf_loop_body_type body) {
+                                  Leaf_loop_body_type body) {
     return stmts({
       stmt(initializer),
       parallel_combine_loop(getter, combine_initializer, combine,
                             stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto lt = get_loop_threshold();
+        auto lt = leaf_loop_controller<Leaf_loop_body_type>::predict_nb_iterations();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        body(s, p, lo, mid);
+        leaf_loop_controller<Leaf_loop_body_type>::measured_run(mid - lo, [&] {
+          body(s, p, lo, mid);
+        });
       }))
     });    
   }
