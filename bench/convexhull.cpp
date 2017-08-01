@@ -230,8 +230,8 @@ public:
         s.Itmp = malloc_array<intT>(s.n);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
-                      [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                      [] (sar& s, par& p, int lo, int hi) {
+                            [] (par& p) { return std::make_pair(&p.s, &p.e); },
+                            [] (sar& s, par& p, int lo, int hi) {
         auto Itmp = s.Itmp;
         auto P = s.P;
         auto fTop = s.fTop;
