@@ -24,6 +24,8 @@ let arg_proc =
       [ 64; ]
     else if hostname = "aware.aladdin.cs.cmu.edu" then
       [ 72; ]
+    else if hostname = "beast" then
+      [ 8; ]
     else
       [ 1; ]
   in
