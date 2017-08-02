@@ -244,8 +244,8 @@ let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
 let mk_encore_prog n =
     (mk string "prog" (encore_prog_of n))
   & (mk string "algorithm" "encore")
-  & (mk string "scheduler" arg_scheduler)        
-  & (mk int "sharing_threshold" 0)
+(*  & (mk string "scheduler" arg_scheduler)        *)
+(*  & (mk int "sharing_threshold" 0)*)
        
 let mk_pbbs_prog n =
     (mk string "prog" (cilk_prog_of n))
