@@ -33,6 +33,9 @@ double cpu_frequency_ghz = 1.2;
 double leaf_loop_min_change_pct = 0.4;
 
 double leaf_loop_max_change_pct = 1.0;
+
+static constexpr
+int leaf_loop_automatic = -1;
   
 template <int threshold, class Id>
 class leaf_loop_controller {
@@ -52,14 +55,17 @@ public:
   
   template <class Body>
   static
-  void measured_run(int nb_iters, const Body& body) {
-    if (threshold > 0) {
+  void measured_run(const Body& body) {
+    if (threshold > 0) { // ==> threshold != leaf_loop_automatic
       body();
       return;
     }
     auto st = cycles::now();
-    body();
+    auto nb_iters = body();
     double elapsed_ticks = cycles::since(st);
+    if (nb_iters == 0) {
+      return;
+    }
     double ticks_per_microsecond = cpu_frequency_ghz * 1000.0;
     double elapsed = elapsed_ticks / ticks_per_microsecond;
     double measured_avg_cycles_per_iter = elapsed / nb_iters;
@@ -82,7 +88,7 @@ public:
       }
     }
   }
-  
+
   static
   int predict_nb_iterations() {
     if (threshold > 0) {
@@ -93,7 +99,7 @@ public:
       return initial_nb_iterations;
     }
     int p = (int) (kappa / cpie);
-    return std::min(std::max(1, p), 10000);
+    return std::max(1, p);
   }
   
 };
@@ -618,26 +624,28 @@ public:
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
 
-  template <int threshold=-1, class Unconditional_jump_code_type>
+  template <int threshold=leaf_loop_automatic, class Unconditional_jump_code_type>
   static
   stmt_type sequential_loop(predicate_code_type predicate, Unconditional_jump_code_type body) {
     return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
       auto lt = leaf_loop_controller<threshold, Unconditional_jump_code_type>::predict_nb_iterations();
       leaf_loop_controller<threshold, Unconditional_jump_code_type>::measured_run(lt, [&] {
-        for (int i = 0; i < lt; i++) {
+        int i = 0;
+        for (; i < lt; i++) {
           if (predicate(s, p)) {
             body(s, p);
           } else {
             break;
           }
         }
+        return i;
       });
     }));
   }
 
   using loop_direction_type = enum { forward_loop, backward_loop };
 
-  template <int threshold=-1, class Leaf_loop_body_type>
+  template <int threshold=leaf_loop_automatic, class Leaf_loop_body_type>
   static
   stmt_type sequential_loop(unconditional_jump_code_type initializer,
                             loop_range_getter_type getter,
@@ -666,8 +674,9 @@ public:
           lo2 = mid;
           hi2 = hi;
         }
-        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run(hi2 - lo2, [&] {
+        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run([&] {
           body(s, p, lo2, hi2);
+          return hi2 - lo2;
         });
       }))
     });
@@ -681,7 +690,7 @@ public:
     }, getter, body);
   }
   
-  template <int threshold=-1, class Leaf_loop_body_type>
+  template <int threshold=leaf_loop_automatic, class Leaf_loop_body_type>
   static
   stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
                               parallel_loop_range_getter_type getter,
@@ -694,8 +703,9 @@ public:
         auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run(mid - lo, [&] {
+        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run([&] {
           body(s, p, lo, mid);
+          return mid - lo;
         });
       }))
     });
@@ -712,7 +722,7 @@ public:
     }, getter, initialize, combine, body);
   }
 
-  template <int threshold=-1, class Leaf_loop_body_type>
+  template <int threshold=leaf_loop_automatic, class Leaf_loop_body_type>
   static
   stmt_type parallel_combine_loop(unconditional_jump_code_type initializer,
                                   parallel_loop_range_getter_type getter,
@@ -728,8 +738,9 @@ public:
         auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run(mid - lo, [&] {
+        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run([&] {
           body(s, p, lo, mid);
+          return mid - lo;
         });
       }))
     });    

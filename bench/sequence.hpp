@@ -755,41 +755,46 @@ public:
           s.t = loop0;
         }),
         dc::sequential_loop([] (sar& s, par&) { return s.k < (s.n >> 9); }, dc::stmt([] (sar& s, par&) {
-          int rr = s.rr;
-          auto IFl = s.IFl;
-          int fuel = 64;
-          intT k = s.k;
-          intT n = s.n;
-          intT r = s.r;
-          intT j = s.j;
-          trampoline t = s.t;
-          while (k < (n >> 9)) {
-            switch (t) {
-              case loop0: {
-                while (j < 128) {
-                  rr += IFl[j];
-                  j++;
+          using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, sumFlagsSerial>;
+          int fuel0 = loop_controller_type::predict_nb_iterations();
+          loop_controller_type::measured_run([&] {
+            int fuel = fuel0;
+            int rr = s.rr;
+            auto IFl = s.IFl;
+            intT k = s.k;
+            intT n = s.n;
+            intT r = s.r;
+            intT j = s.j;
+            trampoline t = s.t;
+            while (k < (n >> 9)) {
+              switch (t) {
+                case loop0: {
+                  while (j < 128) {
+                    rr += IFl[j];
+                    j++;
+                    if (--fuel == 0) {
+                      goto exit;
+                    }
+                  }
+                  t = loop1;
+                }
+                case loop1: {
+                  r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
+                  IFl += 128;
+                  k++;
                   if (--fuel == 0) {
                     goto exit;
                   }
+                  j = 0;
+                  rr = 0;
+                  t = loop0;
                 }
-                t = loop1;
-              }
-              case loop1: {
-                r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
-                IFl += 128;
-                k++;
-                if (--fuel == 0) {
-                  goto exit;
-                }
-                j = 0;
-                rr = 0;
-                t = loop0;
               }
             }
-          }
-        exit:
-          s.j = j; s.k = k; s.r = r; s.rr = rr; s.t = t; s.IFl = IFl;
+          exit:
+            s.j = j; s.k = k; s.r = r; s.rr = rr; s.t = t; s.IFl = IFl;
+            return fuel0 - fuel;
+          });
         }))
       }), // else
       dc::sequential_loop([] (sar& s, par&) { return s.j < s.n;  },

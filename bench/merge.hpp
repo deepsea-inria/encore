@@ -93,60 +93,65 @@ public:
           s.pS2 = s.S2;
         }),
         dc::sequential_loop([] (sar& s, par& p) { return s.not_done; }, dc::stmt([] (sar& s, par& p) {
-          ET* pR = s.pR; 
-          ET* pS1 = s.pS1; 
-          ET* pS2 = s.pS2;
-          ET* eS1 = s.S1 + s.l1; 
-          ET* eS2 = s.S2 + s.l2;
-          auto f = s.f;
-          int fuel = 64;
-          trampoline t = s.t;
-          while (true) {
-            switch (t) {
-              case copy1: {
-                if (pS1==eS1) {
-                  auto m = eS2-pS2;
-                  auto n = std::min((int)m, fuel);
-                  std::copy(pS2,pS2+n,pR);
-                  pS2 += n; pR += n; fuel = n;
-                  if (m == n) {
-                    s.not_done = false;
-                    return;
-                  } else {
+          using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, merge>;
+          int fuel0 = loop_controller_type::predict_nb_iterations();
+          loop_controller_type::measured_run([&] {
+            int fuel = fuel0;
+            ET* pR = s.pR; 
+            ET* pS1 = s.pS1; 
+            ET* pS2 = s.pS2;
+            ET* eS1 = s.S1 + s.l1; 
+            ET* eS2 = s.S2 + s.l2;
+            auto f = s.f;
+            trampoline t = s.t;
+            while (true) {
+              switch (t) {
+                case copy1: {
+                  if (pS1==eS1) {
+                    auto m = eS2-pS2;
+                    auto n = std::min((int)m, fuel);
+                    std::copy(pS2,pS2+n,pR);
+                    pS2 += n; pR += n; fuel = n;
+                    if (m == n) {
+                      s.not_done = false;
+                      return fuel0 - fuel;
+                    } else {
+                      goto exit;
+                    }
+                  }
+                  t = copy2;
+                }
+                case copy2: {
+                  if (pS2==eS2) {
+                    auto m = eS1-pS1;
+                    auto n = std::min((int)m, fuel);
+                    std::copy(pS1,pS1+n,pR);
+                    pS1 += n; pR += n; fuel = n;
+                    if (m == n) {
+                      s.not_done = false;
+                      return fuel0 - fuel;
+                    } else {
+                      goto exit;
+                    }
+                  }
+                  t = loop;
+                }
+                case loop: {
+                  *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
+                  t = copy1;
+                  if (--fuel <= 0) {
                     goto exit;
                   }
-                }
-                t = copy2;
-              }
-              case copy2: {
-                if (pS2==eS2) {
-                  auto m = eS1-pS1;
-                  auto n = std::min((int)m, fuel);
-                  std::copy(pS1,pS1+n,pR);
-                  pS1 += n; pR += n; fuel = n;
-                  if (m == n) {
-                    s.not_done = false;
-                    return;
-                  } else {
-                    goto exit;
-                  }
-                }
-                t = loop;
-              }
-              case loop: {
-                *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
-                t = copy1;
-                if (--fuel <= 0) {
-                  goto exit;
                 }
               }
             }
-          }
-        exit:
-          s.pR = pR;
-          s.pS1 = pS1;
-          s.pS2 = pS2;
-          s.t = t;
+          exit:
+            s.pR = pR;
+            s.pS1 = pS1;
+            s.pS2 = pS2;
+            s.t = t;
+            return fuel0 - fuel;
+          });
         }))
       }));
   }

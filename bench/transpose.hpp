@@ -58,37 +58,42 @@ public:
           s.t = loop0;
         }),
         dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
-          auto rStart = s.rStart; auto rCount = s.rCount;
-          auto cStart = s.cStart; auto cCount = s.cCount;
-          auto B = s.B; auto A = s.A;
-          auto rLength = s.rLength; auto cLength = s.cLength;
-          auto t = s.t; intT i = s.i; intT j = s.j;
-          int fuel = 64;
-          while (i < rStart + rCount) {
-            switch (t) {
-              case loop0: {
-                j = cStart;
-                t = loop1;
-              }
-              case loop1: {
-                while (j < cStart + cCount) {
-                  B[j*cLength + i] = A[i*rLength + j];
-                  j++;
+          using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, transpose>;
+          int fuel0 = loop_controller_type::predict_nb_iterations();
+          loop_controller_type::measured_run([&] {
+            int fuel = fuel0;
+            auto rStart = s.rStart; auto rCount = s.rCount;
+            auto cStart = s.cStart; auto cCount = s.cCount;
+            auto B = s.B; auto A = s.A;
+            auto rLength = s.rLength; auto cLength = s.cLength;
+            auto t = s.t; intT i = s.i; intT j = s.j;
+            while (i < rStart + rCount) {
+              switch (t) {
+                case loop0: {
+                  j = cStart;
+                  t = loop1;
+                }
+                case loop1: {
+                  while (j < cStart + cCount) {
+                    B[j*cLength + i] = A[i*rLength + j];
+                    j++;
+                    if (--fuel == 0) {
+                      goto exit;
+                    }
+                  }
+                  i++;
+                  t = loop0;
                   if (--fuel == 0) {
                     goto exit;
                   }
                 }
-                i++;
-                t = loop0;
-                if (--fuel == 0) {
-                  goto exit;
-                }
               }
             }
-          }
-          t = loop_exit;
-        exit:
-          s.i = i; s.j = j; s.t = t;
+            t = loop_exit;
+          exit:
+            s.i = i; s.j = j; s.t = t;
+            return fuel0 - fuel;
+          });
         }))
       })),
       std::make_pair([] (sar& s, par& p) {
@@ -167,55 +172,60 @@ public:
           s.t = loop0;
         }),
         dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
-          auto rStart = s.rStart; auto rCount = s.rCount;
-          auto cStart = s.cStart; auto cCount = s.cCount;
-          auto A = s.A; auto B = s.B;
-          auto OA = s.OA; auto OB = s.OB; auto L = s.L;
-          auto rLength = s.rLength; auto cLength = s.cLength;
-          auto i = s.i; auto j = s.j; auto k = s.k; auto l = s.l; auto t = s.t;
-          auto pa = s.pa; auto pb = s.pb;
-          int fuel = 64;
-          while (i < rStart + rCount) {
-            switch (t) {
-              case loop0: {
-                j = cStart;
-                t = loop1;
-              }
-              case loop1: {
-                if (j >= cStart + cCount) {
-                  break;
+          using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, blockTrans>;
+          int fuel0 = loop_controller_type::predict_nb_iterations();
+          loop_controller_type::measured_run([&] {
+            int fuel = fuel0;
+            auto rStart = s.rStart; auto rCount = s.rCount;
+            auto cStart = s.cStart; auto cCount = s.cCount;
+            auto A = s.A; auto B = s.B;
+            auto OA = s.OA; auto OB = s.OB; auto L = s.L;
+            auto rLength = s.rLength; auto cLength = s.cLength;
+            auto i = s.i; auto j = s.j; auto k = s.k; auto l = s.l; auto t = s.t;
+            auto pa = s.pa; auto pb = s.pb;
+            while (i < rStart + rCount) {
+              switch (t) {
+                case loop0: {
+                  j = cStart;
+                  t = loop1;
                 }
-                pa = A+OA[i*rLength + j];
-                pb = B+OB[j*cLength + i];
-                l = L[i*rLength + j];
-                k = 0;
-                t = loop2;
-              }
-              case loop2: {
-                while (k < l) {
-                  *(pb++) = *(pa++);
-                  k++;
+                case loop1: {
+                  if (j >= cStart + cCount) {
+                    break;
+                  }
+                  pa = A+OA[i*rLength + j];
+                  pb = B+OB[j*cLength + i];
+                  l = L[i*rLength + j];
+                  k = 0;
+                  t = loop2;
+                }
+                case loop2: {
+                  while (k < l) {
+                    *(pb++) = *(pa++);
+                    k++;
+                    if (--fuel == 0) {
+                      goto exit;
+                    }
+                  }
+                  j++;
+                  t = loop1;
                   if (--fuel == 0) {
                     goto exit;
                   }
+                  continue;
                 }
-                j++;
-                t = loop1;
-                if (--fuel == 0) {
-                  goto exit;
-                }
-                continue;
+              }
+              i++;
+              t = loop0;
+              if (--fuel == 0) {
+                goto exit;
               }
             }
-            i++;
-            t = loop0;
-            if (--fuel == 0) {
-              goto exit;
-            }
-          }
-          t = loop_exit;
-        exit:
-          s.i = i; s.j = j; s.t = t; s.k = k; s.l = l; s.pa = pa; s.pb = pb;
+            t = loop_exit;
+          exit:
+            s.i = i; s.j = j; s.t = t; s.k = k; s.l = l; s.pa = pa; s.pb = pb;
+            return fuel0 - fuel;
+          });
         }))
       })),
       std::make_pair([] (sar& s, par& p) {

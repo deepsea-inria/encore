@@ -93,69 +93,73 @@ namespace intSort {
     static
     dc get_dc() {
       auto radixBlock = [] (sar& , par& p) {
-        auto i = p.rb.i; auto j = p.rb.j; auto s = p.rb.s; auto t = p.rb.t;
-        auto A = p.rb.A; auto B = p.rb.B; bIndexT *Tmp = p.rb.Tmp; intT* counts = p.rb.counts;
-        intT* offsets = p.rb.offsets;
-        intT Boffset = p.rb.Boffset; intT n = p.rb.n; intT m = p.rb.m; F extract = p.rb.extract;
-        int fuel = 256;
-        switch (t) {
-          case entry: {
-            i = 0;
-            t = loop1;
-          }
-          case loop1: {
-            while (i < m) {
-              counts[i] = 0;
-              i++;
-              if (--fuel == 0) {
-                goto exit;
+        using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, rbty>;
+        int fuel0 = loop_controller_type::predict_nb_iterations();
+        loop_controller_type::measured_run([&] {
+          int fuel = fuel0;
+          auto i = p.rb.i; auto j = p.rb.j; auto s = p.rb.s; auto t = p.rb.t;
+          auto A = p.rb.A; auto B = p.rb.B; bIndexT *Tmp = p.rb.Tmp; intT* counts = p.rb.counts;
+          intT* offsets = p.rb.offsets;
+          intT Boffset = p.rb.Boffset; intT n = p.rb.n; intT m = p.rb.m; F extract = p.rb.extract;
+          switch (t) {
+            case entry: {
+              i = 0;
+              t = loop1;
+            }
+            case loop1: {
+              while (i < m) {
+                counts[i] = 0;
+                i++;
+                if (--fuel == 0) {
+                  goto exit;
+                }
+              }
+              j = 0;
+              t = loop2;
+            }
+            case loop2: {
+              while (j < n) {
+                intT k = Tmp[j] = extract(A[j]);
+                counts[k]++;
+                j++;
+                if (--fuel == 0) {
+                  goto exit;
+                }
+              }
+              s = Boffset;
+              i = 0;
+              t = loop3;
+            }
+            case loop3: {
+              while (i < m) {
+                s += counts[i];
+                offsets[i] = s;
+                i++;
+                if (--fuel == 0) {
+                  goto exit;
+                }
+              }
+              j = n-1;
+              t = loop4;
+            }
+            case loop4: {
+              while (j >= 0) {
+                intT x =  --offsets[Tmp[j]];
+                B[x] = A[j];
+                j--;
+                if (--fuel == 0) {
+                  goto exit;        
+                }
               }
             }
-            j = 0;
-            t = loop2;
           }
-          case loop2: {
-            while (j < n) {
-              intT k = Tmp[j] = extract(A[j]);
-              counts[k]++;
-              j++;
-              if (--fuel == 0) {
-                goto exit;
-              }
-            }
-            s = Boffset;
-            i = 0;
-            t = loop3;
-          }
-          case loop3: {
-            while (i < m) {
-              s += counts[i];
-              offsets[i] = s;
-              i++;
-              if (--fuel == 0) {
-                goto exit;
-              }
-            }
-            j = n-1;
-            t = loop4;
-          }
-          case loop4: {
-            while (j >= 0) {
-              intT x =  --offsets[Tmp[j]];
-              B[x] = A[j];
-              j--;
-              if (--fuel == 0) {
-                goto exit;        
-              }
-            }
-          }
-        }
-        p.not_done = false;
-        return;
-      exit:
-        p.rb.t = t; p.rb.i = i; p.rb.j = j; p.rb.s = s;
-        p.not_done = true;
-        return;
+          p.not_done = false;
+          return fuel0 - fuel;
+        exit:
+          p.rb.t = t; p.rb.i = i; p.rb.j = j; p.rb.s = s;
+          p.not_done = true;
+          return fuel0 - fuel;
+        });
       };
       return dc::stmts({
         dc::stmt([] (sar& s, par& p) {
@@ -223,20 +227,25 @@ namespace intSort {
           p.not_done = true; p.rb.j = 0;
         }),
         dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt([] (sar& s, par& p) {
-          int fuel = 512;
-          auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
-          // put the offsets for each bucket in the first bucket set of BK
-          while (j < m) {
-            BK[0][j] = oA[j*blocks];
-            j++;
-            if (--fuel == 0) {
-              goto exit;
+          using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, radixStep>;
+          int fuel0 = loop_controller_type::predict_nb_iterations();
+          loop_controller_type::measured_run([&] {
+            int fuel = fuel0;
+            auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
+            // put the offsets for each bucket in the first bucket set of BK
+            while (j < m) {
+              BK[0][j] = oA[j*blocks];
+              j++;
+              if (--fuel == 0) {
+                goto exit;
+              }
             }
-          }
-          p.not_done = false;
-          return;
-        exit:
-          p.rb.j = j; p.not_done = true;
+            p.not_done = false;
+            return fuel0 - fuel;
+          exit:
+            p.rb.j = j; p.not_done = true;
+            return fuel0 - fuel;
+          });
         }))
       });
     }
