@@ -154,6 +154,8 @@ void initialize(int argc, char** argv) {
   edsl::dc::kappa = cmdline::parse_or_default_double("kappa", edsl::dc::kappa);
   edsl::dc::leaf_loop_min_change_pct =
     cmdline::parse_or_default_double("leaf_loop_min_change_pct", edsl::dc::leaf_loop_min_change_pct);
+  edsl::dc::leaf_loop_alpha =
+    cmdline::parse_or_default_double("leaf_loop_alpha", edsl::dc::leaf_loop_alpha);
   cilk_set_nb_cores();
 }
   
