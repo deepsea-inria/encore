@@ -100,15 +100,15 @@ public:
         return;
       }
     }
-    int new_nb_updates = old_estim.nb_updates + 1;
-    double new_cpie =
-      leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * old_estim.cpie;
-    estimator_type new_estim = { .nb_updates = new_nb_updates, .cpie = (float)new_cpie };
     double diff = std::abs(elapsed / kappa - 1.0);
     if (diff < leaf_loop_min_change_pct) {
       return;
     }
     if (old_estim.nb_updates < max_nb_global_updates) {
+      int new_nb_updates = old_estim.nb_updates + 1;
+      double new_cpie =
+        leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * old_estim.cpie;
+      estimator_type new_estim = { .nb_updates = new_nb_updates, .cpie = (float)new_cpie };
       try_global_update(old_estim, new_estim);
       return;
     }
