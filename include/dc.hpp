@@ -37,18 +37,29 @@ double leaf_loop_min_change_pct = 0.1;
 static constexpr
 int leaf_loop_automatic = -1;
   
+using estimator_type = struct {
+  int nb_updates;
+  float cpie; // nb cycles per iteration
+};
+
+static constexpr
+estimator_type initial_estimator = { .nb_updates = 0, .cpie = 0.0 };
+  
 template <int threshold, class Id>
 class leaf_loop_controller {
 public:
   
   static constexpr
-  double undefined = -1.0;
-  
-  static constexpr
   int initial_nb_iterations = 256;
   
+  static constexpr
+  int max_nb_global_updates = 32;
+  
   static
-  std::atomic<double> cycles_per_iter_estim;
+  data::perworker::array<estimator_type> estimators;
+  
+  static
+  std::atomic<estimator_type> estimator;
   
   template <class Body>
   static
@@ -66,33 +77,50 @@ public:
     double ticks_per_microsecond = cpu_frequency_ghz * 1000.0;
     double elapsed = elapsed_ticks / ticks_per_microsecond;
     double measured_avg_cycles_per_iter = elapsed / nb_iters;
-    double cpie;
-    auto try_update = [&] (double old_cpie, double new_cpie) {
-      double old = old_cpie;
-      if (! cycles_per_iter_estim.compare_exchange_strong(old, new_cpie)) {
+    auto try_global_update = [&] (estimator_type old_estim, estimator_type new_estim) {
+      auto old = old_estim;
+      if (! estimator.compare_exchange_strong(old, new_estim)) {
         return false;
       }
       auto nb_iters_new = predict_nb_iterations();
-      logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
+      logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &estimator);
       return true;
     };
+    estimator_type old_estim;
     while (true) {
-      cpie = cycles_per_iter_estim.load();
-      if (cpie != undefined) {
+      old_estim = estimator.load();
+      if (old_estim.nb_updates > 0) {
         break;
-      } else if (try_update(undefined, measured_avg_cycles_per_iter)) {
+      }
+      estimator_type new_estim = {
+        .nb_updates = old_estim.nb_updates + 1,
+        .cpie = (float)measured_avg_cycles_per_iter
+      };
+      if (try_global_update(old_estim, new_estim)) {
         return;
       }
     }
+    int new_nb_updates = old_estim.nb_updates + 1;
     double new_cpie =
-      leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * cpie;
+      leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * old_estim.cpie;
+    estimator_type new_estim = { .nb_updates = new_nb_updates, .cpie = (float)new_cpie };
     double diff = std::abs(elapsed / kappa - 1.0);
-    if (diff > leaf_loop_min_change_pct) {
-      if (cycles_per_iter_estim.compare_exchange_strong(cpie, new_cpie)) {
-        auto nb_iters_new = predict_nb_iterations();
-        logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
-      }
+    if (diff < leaf_loop_min_change_pct) {
+      return;
     }
+    if (old_estim.nb_updates < max_nb_global_updates) {
+      try_global_update(old_estim, new_estim);
+      return;
+    }
+    auto& my_estim = estimators.mine();
+    if (my_estim.nb_updates == 0) {
+      my_estim.cpie = old_estim.cpie;
+    }
+    my_estim.nb_updates++;
+    my_estim.cpie =
+      leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * my_estim.cpie;
+    auto nb_iters_new = predict_nb_iterations();
+    logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &estimator);
   }
 
   static
@@ -100,10 +128,12 @@ public:
     if (threshold > 0) {
       return threshold;
     }
-    double cpie = cycles_per_iter_estim.load();
-    if (cpie == undefined) {
+    estimator_type estim = estimator.load();
+    if (estim.nb_updates == 0) {
       return initial_nb_iterations;
     }
+    auto& my_estim = estimators.mine();
+    auto cpie = (my_estim.nb_updates > 0) ? my_estim.cpie : estim.cpie;
     int p = (int) (kappa / cpie);
     return std::max(1, p);
   }
@@ -111,7 +141,10 @@ public:
 };
   
 template <int threshold, class Id>
-std::atomic<double> leaf_loop_controller<threshold, Id>::cycles_per_iter_estim(leaf_loop_controller<threshold, Id>::undefined);
+std::atomic<estimator_type> leaf_loop_controller<threshold, Id>::estimator(initial_estimator);
+  
+template <int threshold, class Id>
+data::perworker::array<estimator_type> leaf_loop_controller<threshold, Id>::estimators(initial_estimator);
   
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit_function, tag_exit_loop,
