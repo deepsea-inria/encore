@@ -269,7 +269,7 @@ public:
         for (auto i = lo; i != hi; i++) {
           a[i] = 0xdeadbeef;
         }
-      }),                       
+      }, __LINE__, __FILE__),                       
       dc::stmt([] (sar& s, par&) {
         for (int i = 0; i < s.n; i++) {
           assert(s.a[i] == 0xdeadbeef);
