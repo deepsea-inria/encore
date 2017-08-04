@@ -92,8 +92,9 @@ namespace intSort {
     
     static
     dc get_dc() {
+      using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, rbty>;
+      loop_controller_type::set_ppt(__LINE__, __FILE__);
       auto radixBlock = [] (sar& , par& p) {
-        using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, rbty>;
         int fuel0 = loop_controller_type::predict_nb_iterations();
         loop_controller_type::measured_run([&] {
           int fuel = fuel0;
