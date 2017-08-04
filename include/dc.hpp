@@ -30,9 +30,9 @@ double kappa = 50.0;
   
 double cpu_frequency_ghz = 1.2;
   
-double leaf_loop_min_change_pct = 0.4;
-
-double leaf_loop_max_change_pct = 1.0;
+double leaf_loop_alpha = 0.5;
+  
+double leaf_loop_min_change_pct = 0.1;
 
 static constexpr
 int leaf_loop_automatic = -1;
@@ -43,9 +43,6 @@ public:
   
   static constexpr
   double undefined = -1.0;
-  
-  static constexpr
-  double weighted_average_factor = 8.0;
   
   static constexpr
   int initial_nb_iterations = 256;
@@ -69,19 +66,28 @@ public:
     double ticks_per_microsecond = cpu_frequency_ghz * 1000.0;
     double elapsed = elapsed_ticks / ticks_per_microsecond;
     double measured_avg_cycles_per_iter = elapsed / nb_iters;
-    double cpie = cycles_per_iter_estim.load();
-    if (cpie == undefined) {
-      if (cycles_per_iter_estim.compare_exchange_strong(cpie, measured_avg_cycles_per_iter)) {
-        auto nb_iters_new = predict_nb_iterations();
-        logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
+    double cpie;
+    auto try_update = [&] (double old_cpie, double new_cpie) {
+      double old = old_cpie;
+      if (! cycles_per_iter_estim.compare_exchange_strong(old, new_cpie)) {
+        return false;
       }
-      return;
+      auto nb_iters_new = predict_nb_iterations();
+      logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
+      return true;
+    };
+    while (true) {
+      cpie = cycles_per_iter_estim.load();
+      if (cpie != undefined) {
+        break;
+      } else if (try_update(undefined, measured_avg_cycles_per_iter)) {
+        return;
+      }
     }
     double new_cpie =
-      ((weighted_average_factor * cpie) + measured_avg_cycles_per_iter)
-        / (weighted_average_factor + 1.0);
-    double change = std::abs(elapsed / kappa - 1.0);
-    if ((change > leaf_loop_min_change_pct) && (change < leaf_loop_max_change_pct)) {
+      leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * cpie;
+    double diff = std::abs(elapsed / kappa - 1.0);
+    if (diff > leaf_loop_min_change_pct) {
       if (cycles_per_iter_estim.compare_exchange_strong(cpie, new_cpie)) {
         auto nb_iters_new = predict_nb_iterations();
         logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &cycles_per_iter_estim);
