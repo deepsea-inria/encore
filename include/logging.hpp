@@ -23,6 +23,7 @@ using event_kind_type = enum {
   migration,
   communicate,
   leaf_loop,
+  program,
   nb_kinds
 };
 
@@ -34,6 +35,7 @@ using event_tag_type = enum {
   algo_phase,
   frontier_acquire,   frontier_split,
   leaf_loop_update,
+  program_point,
   nb_events
 };
 
@@ -51,6 +53,7 @@ std::string name_of(event_tag_type e) {
     case frontier_acquire: return "frontier_acquire ";
     case frontier_split: return "frontier_split ";
     case leaf_loop_update: return "leaf_loop_update ";
+    case program_point: return "program_point";
     default: return "unknown_event ";
   }
 }
@@ -69,6 +72,7 @@ event_kind_type kind_of(event_tag_type e) {
     case frontier_acquire:
     case frontier_split:            return migration;
     case leaf_loop_update:          return leaf_loop;
+    case program_point:             return program;
     default: return nb_kinds;
   }
 }
@@ -82,6 +86,19 @@ static inline
 void fwrite_int64 (FILE* f, int64_t v) {
   fwrite(&v, sizeof(v), 1, f);
 }
+
+using program_point_type = struct {
+  
+  int line_nb;
+  
+  const char* source_fname;
+
+  void* ptr;
+      
+};
+
+static constexpr
+program_point_type dflt_ppt = { .line_nb = -1, .source_fname = nullptr, .ptr = nullptr };
   
 class event_type {
 public:
@@ -106,6 +123,7 @@ public:
       double elapsed;
       void* estimator;
     } leaf_loop;
+    program_point_type ppt;
   } extra;
       
   void print_byte(FILE* f) {
@@ -133,6 +151,13 @@ public:
                 extra.leaf_loop.estimator);
         break;
       }
+      case program_point: {
+        fprintf(f, "%s \t %d \t %p",
+                extra.ppt.source_fname,
+                extra.ppt.line_nb,
+                extra.ppt.ptr);
+        break;
+      }
       default: {
         // nothing to do
       }
@@ -150,6 +175,9 @@ using buffer_type = std::vector<event_type>;
   
 using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
 
+static constexpr
+int max_nb_ppts = 10000;
+
 template <bool enabled>
 class logging_base {
 public:
@@ -165,6 +193,12 @@ public:
   
   static
   time_point_type basetime;
+
+  static
+  program_point_type ppts[max_nb_ppts];
+
+  static
+  int nb_ppts;
   
   static
   void initialize() {
@@ -176,6 +210,7 @@ public:
     tracking_kind[threads] = deepsea::cmdline::parse_or_default_bool("log_threads", false);
     tracking_kind[migration] = deepsea::cmdline::parse_or_default_bool("log_migration", false);
     tracking_kind[leaf_loop] = deepsea::cmdline::parse_or_default_bool("log_leaf_loop", false);
+    tracking_kind[program] = tracking_kind[leaf_loop];
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
     if (pview) {
       tracking_kind[phases] = true;
@@ -236,6 +271,11 @@ public:
   static
   void output() {
     push(event_type(exit_launch));
+    for (auto i = 0; i < nb_ppts; i++) {
+      event_type e(program_point);
+      e.extra.ppt = ppts[i];
+      push(e);
+    }
     buffer_type b;
     for (auto id = 0; id != data::perworker::get_nb_workers(); id++) {
       buffer_type& b_id = buffers[id];
@@ -260,6 +300,12 @@ bool logging_base<enabled>::tracking_kind[nb_kinds];
 
 template <bool enabled>
 bool logging_base<enabled>::real_time;
+
+template <bool enabled>
+int logging_base<enabled>::nb_ppts = 0;
+
+template <bool enabled>
+program_point_type logging_base<enabled>::ppts[max_nb_ppts];
 
 template <bool enabled>
 time_point_type logging_base<enabled>::basetime;
@@ -304,6 +350,19 @@ void push_leaf_loop_update(int nb_iters,
   e.extra.leaf_loop.elapsed = elapsed;
   e.extra.leaf_loop.estimator = estimator;
   log_buffer::push(e);
+}
+
+void push_program_point(int line_nb,
+                        const char* source_fname,
+                        void* ptr) {
+  if ((line_nb == -1) || (log_buffer::nb_ppts >= max_nb_ppts)) {
+    return;
+  }
+  program_point_type ppt;
+  ppt.line_nb = line_nb;
+  ppt.source_fname = source_fname;
+  ppt.ptr = ptr;
+  log_buffer::ppts[log_buffer::nb_ppts++] = ppt;
 }
   
 } // end namespace

@@ -24,8 +24,11 @@ namespace edsl {
   
 /*---------------------------------------------------------------------*/
 /* Dag Calculus */
-
+  
 namespace dc {
+
+static constexpr
+logging::program_point_type dflt_ppt = logging::dflt_ppt;
   
 double kappa = 50.0;
   
@@ -45,27 +48,7 @@ using estimator_type = struct {
 
 static constexpr
 estimator_type initial_estimator = { .nb_updates = 0, .cpie = 0.0 };
-  
-class program_point_type {
-public:
-  int line_nb;
-  std::string source_fname;
-  void* ptr;
-  program_point_type() {
-    line_nb = -1;
-    source_fname = "";
-    ptr = nullptr;
-  }
-  ~program_point_type() {
-    if (line_nb == -1 || line_nb == 0) {
-      return;
-    }
-    std::cout << "ppt\t" << source_fname << "\t" << line_nb << "\t" << ptr << std::endl;
-  }
-};
-  
-program_point_type dflt_ppt;
-  
+    
 template <int threshold, class Id>
 class leaf_loop_controller {
 public:
@@ -81,10 +64,7 @@ public:
   
   static
   std::atomic<estimator_type> estimator;
-  
-  static
-  program_point_type ppt;
-  
+    
   template <class Body>
   static
   void measured_run(const Body& body) {
@@ -106,8 +86,10 @@ public:
       if (! estimator.compare_exchange_strong(old, new_estim)) {
         return false;
       }
+#ifdef ENCORE_ENABLE_LOGGING
       auto nb_iters_new = predict_nb_iterations();
       logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &estimator);
+#endif
       return true;
     };
     estimator_type old_estim;
@@ -143,8 +125,10 @@ public:
     my_estim.nb_updates++;
     my_estim.cpie =
       leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * my_estim.cpie;
+#ifdef ENCORE_ENABLE_LOGGING
     auto nb_iters_new = predict_nb_iterations();
     logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &estimator);
+#endif
   }
 
   static
@@ -163,13 +147,8 @@ public:
   }
   
   static
-  void set_ppt(int line_nb, std::string source_fname) {
-    if (line_nb == -1) {
-      return;
-    }
-    ppt.line_nb = line_nb;
-    ppt.source_fname = source_fname;
-    ppt.ptr = (void*)&estimator;
+  void set_ppt(int line_nb, const char* source_fname) {
+    logging::push_program_point(line_nb, source_fname, &estimator);
   }
   
 };
@@ -179,10 +158,7 @@ std::atomic<estimator_type> leaf_loop_controller<threshold, Id>::estimator(initi
   
 template <int threshold, class Id>
 data::perworker::array<estimator_type> leaf_loop_controller<threshold, Id>::estimators(initial_estimator);
-  
-template <int threshold, class Id>
-program_point_type leaf_loop_controller<threshold, Id>::ppt;
-  
+    
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit_function, tag_exit_loop,
   tag_sequential_loop, tag_parallel_for_loop, tag_parallel_combine_loop,
@@ -703,7 +679,7 @@ public:
   template <int threshold=leaf_loop_automatic, class Unconditional_jump_code_type>
   static
   stmt_type sequential_loop(predicate_code_type predicate, Unconditional_jump_code_type body,
-                            int line_nb=dflt_ppt.line_nb, std::string source_fname=dflt_ppt.source_fname) {
+                            int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
     leaf_loop_controller<threshold, Unconditional_jump_code_type>::set_ppt(line_nb, source_fname);
     return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
       auto lt = leaf_loop_controller<threshold, Unconditional_jump_code_type>::predict_nb_iterations();
@@ -729,7 +705,7 @@ public:
                             loop_range_getter_type getter,
                             Leaf_loop_body_type body,
                             loop_direction_type direction = forward_loop,
-                            int line_nb=dflt_ppt.line_nb, std::string source_fname=dflt_ppt.source_fname) {
+                            int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
     leaf_loop_controller<threshold, Leaf_loop_body_type>::set_ppt(line_nb, source_fname);
     return stmts({
       stmt(initializer),
@@ -775,7 +751,7 @@ public:
   stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
                               parallel_loop_range_getter_type getter,
                               Leaf_loop_body_type body,
-                              int line_nb=dflt_ppt.line_nb, std::string source_fname=dflt_ppt.source_fname) {
+                              int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
     leaf_loop_controller<threshold, Leaf_loop_body_type>::set_ppt(line_nb, source_fname);
     return stmts({
       stmt(initializer),
@@ -811,7 +787,7 @@ public:
                                   parallel_loop_combine_initializer_type combine_initializer,
                                   parallel_combining_operator_type combine,
                                   Leaf_loop_body_type body,
-                                  int line_nb=dflt_ppt.line_nb, std::string source_fname=dflt_ppt.source_fname) {
+                                  int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
     leaf_loop_controller<threshold, Leaf_loop_body_type>::set_ppt(line_nb, source_fname);
     return stmts({
       stmt(initializer),
