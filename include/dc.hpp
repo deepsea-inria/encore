@@ -30,7 +30,7 @@ namespace dc {
 static constexpr
 logging::program_point_type dflt_ppt = logging::dflt_ppt;
   
-double kappa = 50.0;
+double kappa = 10.0;
   
 double cpu_frequency_ghz = 1.2;
   
@@ -54,7 +54,7 @@ class leaf_loop_controller {
 public:
   
   static constexpr
-  int initial_nb_iterations = 256;
+  int initial_nb_iterations = 8;
   
   static constexpr
   int max_nb_global_updates = 32;
