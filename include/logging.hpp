@@ -176,7 +176,7 @@ using buffer_type = std::vector<event_type>;
 using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
 
 static constexpr
-int max_nb_ppts = 10000;
+int max_nb_ppts = 50000;
 
 template <bool enabled>
 class logging_base {
@@ -352,6 +352,7 @@ void push_leaf_loop_update(int nb_iters,
   log_buffer::push(e);
 }
 
+static inline
 void push_program_point(int line_nb,
                         const char* source_fname,
                         void* ptr) {
