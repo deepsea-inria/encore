@@ -7,6 +7,7 @@
 
 #include "perworker.hpp"
 #include "cmdline.hpp"
+#include "atomic.hpp"
 
 #ifndef _ENCORE_LOGGING_H_
 #define _ENCORE_LOGGING_H_
@@ -365,6 +366,60 @@ void push_program_point(int line_nb,
   ppt.ptr = ptr;
   log_buffer::ppts[log_buffer::nb_ppts++] = ppt;
 }
+
+/*---------------------------------------------------------------------*/
+/* Profiling */
+
+class profiling_channel {
+public:
+  
+  std::atomic<uint64_t> work_cell;
+  std::atomic<uint64_t> span_cell;
+
+  profiling_channel* join = nullptr;
+
+  std::function<void(uint64_t, uint64_t)> post_action = [] (uint64_t, uint64_t) { };
+
+  profiling_channel() {
+    work_cell.store(0);
+    span_cell.store(0);
+  }
+
+  void update(uint64_t work, uint64_t span) {
+    while (true) {
+      auto prev = work_cell.load();
+      auto next = prev + work;
+      if (atomic::compare_exchange(work_cell, prev, next)) {
+        break;
+      }
+    }
+    while (true) {
+      auto prev = span_cell.load();
+      auto next = std::max(prev, span);
+      if (atomic::compare_exchange(span_cell, prev, next)) {
+        break;
+      }
+    }
+  }
+
+  void set_join(profiling_channel* join) {
+    this->join = join;
+  }
+
+  void set_post_action(std::function<void(uint64_t, uint64_t)> post_action) {
+    this->post_action = post_action;
+  }
+
+  void emit() {
+    auto work = work_cell.load();
+    auto span = span_cell.load();
+    if (join != nullptr) {
+      join->update(work, span);
+    }
+    post_action(work, span);
+  }
+  
+};
   
 } // end namespace
 } // end namespace

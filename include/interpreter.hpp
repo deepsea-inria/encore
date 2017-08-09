@@ -9,6 +9,7 @@
 #include "vertex.hpp"
 #include "cactus-plus.hpp"
 #include "stats.hpp"
+#include "logging.hpp"
 #include "scheduler.hpp"
 #include "pcfg.hpp"
 
@@ -30,6 +31,10 @@ public:
   virtual void promote_mark(interpreter*, private_activation_record*) = 0;
   
   virtual sched::outset* get_dependency_of_join_minus(stack_type stack) = 0;
+
+#ifdef ENCORE_ENABLE_LOGGING
+  logging::profiling_channel pc;
+#endif
   
 };
   
@@ -99,35 +104,6 @@ bool empty_stack(stack_type s) {
 
 bool empty_mark_stack(stack_type s) {
   return cactus::empty_mark(s);
-}
-
-template <class Shared_activation_record, class ...Args>
-stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
-  // The line below is commented out to avoid a GCC bug whereby GCC segfaults.
-  // using private_activation_record = private_activation_record_of<Shared_activation_record>;
-  using private_activation_record = typename Shared_activation_record::private_activation_record;
-  static constexpr size_t shared_szb = sizeof(Shared_activation_record);
-  static constexpr size_t frame_szb = sizeof(size_t) + shared_szb + sizeof(private_activation_record);
-  return cactus::push_back<frame_szb>(s, plt, [&] (char* _ar)  {
-    new ((size_t*)_ar) size_t(shared_szb);
-    new (get_shared_frame_pointer<Shared_activation_record>(_ar)) Shared_activation_record(args...);
-    new (get_private_frame_pointer<private_activation_record>(_ar)) private_activation_record;
-  }, [&] (char* _ar) {
-    return is_splittable(_ar);
-  });
-}
-  
-template <class Shared_activation_record>
-stack_type pop_call(stack_type s) {
-  using private_activation_record = typename Shared_activation_record::private_activation_record;
-  return cactus::pop_back(s, [&] (char* _ar, cactus::shared_frame_type sft) {
-    if (sft == cactus::Shared_frame_direct) {
-      get_shared_frame_pointer<Shared_activation_record>(_ar)->~Shared_activation_record();
-    } else {
-      *get_shared_frame_pointer<Shared_activation_record*>(_ar) = nullptr;
-    }
-    get_private_frame_pointer<private_activation_record>(_ar)->~private_activation_record();
-  });
 }
   
 template <class Shared_activation_record>
@@ -221,6 +197,45 @@ Private_activation_record& peek_marked_private_frame(stack_type s) {
     par = get_private_frame_pointer<Private_activation_record>(_ar);
   });
   return *par;
+}
+
+template <class Shared_activation_record, class ...Args>
+stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
+  // The line below is commented out to avoid a GCC bug whereby GCC segfaults.
+  // using private_activation_record = private_activation_record_of<Shared_activation_record>;
+  using private_activation_record = typename Shared_activation_record::private_activation_record;
+  static constexpr size_t shared_szb = sizeof(Shared_activation_record);
+  static constexpr size_t frame_szb = sizeof(size_t) + shared_szb + sizeof(private_activation_record);
+#ifdef ENCORE_ENABLE_LOGGING
+  logging::profiling_channel* pc = nullptr;
+  if (! empty_stack(s)) {
+    pc = &peek_newest_shared_frame<shared_activation_record>(s).pc;
+  }
+#endif  
+  stack_type t = cactus::push_back<frame_szb>(s, plt, [&] (char* _ar)  {
+    new ((size_t*)_ar) size_t(shared_szb);
+    new (get_shared_frame_pointer<Shared_activation_record>(_ar)) Shared_activation_record(args...);
+    new (get_private_frame_pointer<private_activation_record>(_ar)) private_activation_record;
+  }, [&] (char* _ar) {
+    return is_splittable(_ar);
+  });
+#ifdef ENCORE_ENABLE_LOGGING
+  peek_newest_shared_frame<shared_activation_record>(t).pc.set_join(pc);
+#endif  
+  return t;
+}
+  
+template <class Shared_activation_record>
+stack_type pop_call(stack_type s) {
+  using private_activation_record = typename Shared_activation_record::private_activation_record;
+  return cactus::pop_back(s, [&] (char* _ar, cactus::shared_frame_type sft) {
+    if (sft == cactus::Shared_frame_direct) {
+      get_shared_frame_pointer<Shared_activation_record>(_ar)->~Shared_activation_record();
+    } else {
+      *get_shared_frame_pointer<Shared_activation_record*>(_ar) = nullptr;
+    }
+    get_private_frame_pointer<private_activation_record>(_ar)->~private_activation_record();
+  });
 }
   
 std::pair<stack_type, stack_type> split_stack(stack_type s) {
@@ -333,6 +348,9 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   basic_block_label_type pred = par.trampoline.succ;
   basic_block_label_type succ;
   if (pred == exit_block_label) {
+#ifdef ENCORE_ENABLE_LOGGING
+    sar.pc.emit();
+#endif
     stack = pop_call<Shared_activation_record>(stack);
     return std::make_pair(stack, fuel);
   }
@@ -420,6 +438,10 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       par->trampoline.pred = pred;
       par->trampoline.succ = spawn_join_block.variant_spawn_join.next;
       branch2->stack = spawn_join_block.variant_spawn_join.code(*sar, *par, cactus::Parent_link_sync, branch2->stack);
+#ifdef ENCORE_ENABLE_LOGGING
+      auto& branch2_sar = peek_newest_shared_frame<shared_activation_record>(branch2->stack);
+      branch2_sar.pc.set_join(&(sar->pc));
+#endif
       sched::new_edge(branch2, join);
       sched::new_edge(branch1, join);
       release(branch2);
