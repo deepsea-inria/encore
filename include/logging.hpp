@@ -378,8 +378,6 @@ public:
 
   profiling_channel* join = nullptr;
 
-  std::function<void(uint64_t, uint64_t)> post_action = [] (uint64_t, uint64_t) { };
-
   profiling_channel() {
     work_cell.store(0);
     span_cell.store(0);
@@ -423,17 +421,12 @@ public:
     this->join = join;
   }
 
-  void set_post_action(std::function<void(uint64_t, uint64_t)> post_action) {
-    this->post_action = post_action;
-  }
-
   void emit() {
     auto work = work_cell.load();
     auto span = span_cell.load();
     if (join != nullptr) {
       join->update(work, span);
     }
-    post_action(work, span);
   }
   
 };
