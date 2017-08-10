@@ -385,6 +385,23 @@ public:
     span_cell.store(0);
   }
 
+  void update(uint64_t work) {
+    while (true) {
+      auto prev = work_cell.load();
+      auto next = prev + work;
+      if (atomic::compare_exchange(work_cell, prev, next)) {
+        break;
+      }
+    }
+    while (true) {
+      auto prev = span_cell.load();
+      auto next = prev + work;
+      if (atomic::compare_exchange(span_cell, prev, next)) {
+        break;
+      }
+    }
+  }
+
   void update(uint64_t work, uint64_t span) {
     while (true) {
       auto prev = work_cell.load();

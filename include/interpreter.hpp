@@ -354,6 +354,9 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
     stack = pop_call<Shared_activation_record>(stack);
     return std::make_pair(stack, fuel);
   }
+#ifdef ENCORE_ENABLE_LOGGING
+  auto start_time = cycles::now();
+#endif
   assert(pred >= 0 && pred < cfg.nb_basic_blocks());
   auto& block = cfg.basic_blocks[pred];
   switch (block.tag) {
@@ -413,6 +416,10 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   }
   par.trampoline.pred = pred;
   par.trampoline.succ = succ;
+#ifdef ENCORE_ENABLE_LOGGING
+  auto elapsed = cycles::since(start_time);
+  sar.pc.update(elapsed);
+#endif
   return std::make_pair(stack, fuel);
 }
 
