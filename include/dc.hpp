@@ -165,6 +165,7 @@ using stmt_tag_type = enum {
   tag_spawn_join, tag_spawn2_join,
   tag_join_plus, tag_spawn_minus,
   tag_spawn_plus, tag_join_minus,
+  tag_profile_statement,
   tag_none
 };
   
@@ -186,6 +187,8 @@ public:
   using parallel_combining_operator_type = std::function<void(sar_type&, par_type&, par_type&)>;
   using loop_range_getter_type = std::function<std::pair<int*, int*>(sar_type&, par_type&)>;
   using leaf_loop_body_type = std::function<void(sar_type&, par_type&, int, int)>;
+  using profile_prefix_getter_type = std::function<std::pair<uint64_t*, uint64_t*>(sar_type&, par_type&)>;
+  using profile_report_code_type = std::function<void(sar_type&, par_type&, uint64_t, uint64_t)>;
   
   stmt_tag_type tag;
   
@@ -244,6 +247,11 @@ public:
     struct {
       outset_getter_code_type getter;
     } variant_join_minus;
+    struct {
+      profile_prefix_getter_type getter;
+      std::unique_ptr<stmt_type> body;
+      profile_report_code_type reporter;
+    } variant_profile_statement;
   };
   
   stmt_type() : tag(tag_none) { }
@@ -327,6 +335,14 @@ private:
       }
       case tag_join_minus: {
         new (&variant_join_minus.getter) outset_getter_code_type(other.variant_join_minus.getter);
+        break;
+      }
+      case tag_profile_statement: {
+        new (&variant_profile_statement.getter) profile_prefix_getter_type(other.variant_profile_statement.getter);
+        auto p = new stmt_type;
+        p->copy_constructor(*other.variant_profile_statement.body);
+        new (&variant_profile_statement.body) std::unique_ptr<stmt_type>(p);
+        new (&variant_profile_statement.reporter) profile_report_code_type(other.variant_profile_statement.reporter);
         break;
       }
       default: {
@@ -437,6 +453,15 @@ private:
         variant_join_minus.getter = std::move(other.variant_join_minus.getter);
         break;
       }
+      case tag_profile_statement: { 
+        new (&variant_profile_statement.getter) profile_prefix_getter_type;
+        variant_profile_statement.getter = std::move(other.variant_profile_statement.getter);
+        new (&variant_profile_statement.body) std::unique_ptr<stmt_type>;
+        variant_profile_statement.body = std::move(other.variant_profile_statement.body);
+        new (&variant_profile_statement.reporter) profile_report_code_type;
+        variant_profile_statement.reporter = std::move(other.variant_profile_statement.reporter);
+        break;
+      }
       default: {
         break;
       }
@@ -522,6 +547,13 @@ public:
       }
       case tag_join_minus: {
         variant_join_minus.getter.~outset_getter_code_type();
+        break;
+      }
+      case tag_profile_statement: { 
+        variant_profile_statement.getter.~profile_prefix_getter_type();
+        using st = std::unique_ptr<stmt_type>;
+        variant_profile_statement.body.~st();
+        variant_profile_statement.reporter.~profile_report_code_type();
         break;
       }
       default: {
@@ -663,6 +695,18 @@ public:
     stmt_type s;
     s.tag = tag_join_minus;
     new (&s.variant_join_minus.getter) outset_getter_code_type(getter);
+    return s;
+  }
+
+  static
+  stmt_type profile_statement(profile_prefix_getter_type getter,
+                              stmt_type body,
+                              profile_report_code_type reporter) {
+    stmt_type s;
+    s.tag = tag_profile_statement;
+    new (&s.variant_profile_statement.getter) profile_prefix_getter_type(getter);
+    new (&s.variant_profile_statement.body) std::unique_ptr<stmt_type>(new stmt_type(body));
+    new (&s.variant_profile_statement.reporter) profile_report_code_type(reporter);
     return s;
   }
   
@@ -1076,6 +1120,32 @@ private:
       }
       case tag_join_minus: {
         add_block(entry, bbt::join_minus(stmt.variant_join_minus.getter, exit));
+        break;
+      }
+      case tag_profile_statement: {
+#if defined(ENCORE_ENABLE_LOGGING)
+        auto start_profiling_label = entry;
+        auto body_label = new_label();
+        auto end_profiling_label = new_label();
+        auto getter = stmt.variant_profile_statement.getter;
+        auto start_profiling = [getter] (sar& s, par& p) {
+          auto ws = getter(s, p);
+          *(ws.first) = s.pc.work_cell.load();
+          *(ws.second) = s.pc.span_cell.load();
+        };
+        add_block(start_profiling_label, bbt::unconditional_jump(start_profiling, body_label));
+        result = transform(*stmt.variant_profile_statement.body, body_label, end_profiling_label, loop_exit_block, loop_scope, result);
+        auto reporter = stmt.variant_profile_statement.reporter;
+        auto end_profiling = [getter, reporter] (sar& s, par& p) {
+          auto ws = getter(s, p);
+          auto work = s.pc.work_cell.load() - *(ws.first);
+          auto span = s.pc.span_cell.load() - *(ws.second);
+          reporter(s, p, work, span);
+        };
+        add_block(end_profiling_label, bbt::unconditional_jump(end_profiling, exit));
+#else
+        result = transform(stmt.variant_profile_statement.body, entry, exit, loop_exit_block, loop_scope, result);
+#endif
         break;
       }
       default: {
