@@ -32,6 +32,10 @@ public:
   
   Function f;
   std::chrono::time_point<std::chrono::system_clock> start;
+#ifdef ENCORE_ENABLE_LOGGING
+  uint64_t work;
+  uint64_t span;
+#endif
   
   call_and_report_elapsed() { }
   
@@ -46,8 +50,26 @@ public:
       dc::stmt([] (sar& s, par&) {
         s.start = std::chrono::system_clock::now();
       }),
-      dc::spawn_join([] (sar& s, par&, plt, stt st) {
-        return s.f(st);
+      dc::profile_statement([] (sar& s, par& p) {
+#if defined(ENCORE_ENABLE_LOGGING)
+          auto work = &s.work;
+          auto span = &s.span;
+#else
+          auto work = nullptr;
+          auto span = nullptr;
+#endif
+          return std::make_pair(work, span);
+          
+        },
+        dc::spawn_join([] (sar& s, par&, plt, stt st) {
+          return s.f(st);
+        }),
+        [] (sar& s, par& p, uint64_t work, uint64_t span) {
+          double ticks_per_second = edsl::dc::cpu_frequency_ghz * 1000000000.0;
+          double work_sec = ((double)work) / ticks_per_second;
+          double span_sec = ((double)span) / ticks_per_second;
+          printf("work %.3lf\n", work_sec);
+          printf("span %.3lf\n", span_sec);
       }),
       dc::stmt([] (sar& s, par&) {
         auto end = std::chrono::system_clock::now();

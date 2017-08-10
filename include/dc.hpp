@@ -1144,7 +1144,7 @@ private:
         };
         add_block(end_profiling_label, bbt::unconditional_jump(end_profiling, exit));
 #else
-        result = transform(stmt.variant_profile_statement.body, entry, exit, loop_exit_block, loop_scope, result);
+        result = transform(*stmt.variant_profile_statement.body, entry, exit, loop_exit_block, loop_scope, result);
 #endif
         break;
       }
