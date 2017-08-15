@@ -1130,16 +1130,16 @@ private:
         auto getter = stmt.variant_profile_statement.getter;
         auto start_profiling = [getter] (sar& s, par& p) {
           auto ws = getter(s, p);
-          *(ws.first) = s.pc.work_cell.load();
-          *(ws.second) = s.pc.span_cell.load();
+          *(ws.first) = s.pc.profile.work.load();
+          *(ws.second) = s.pc.profile.span.load();
         };
         add_block(start_profiling_label, bbt::unconditional_jump(start_profiling, body_label));
         result = transform(*stmt.variant_profile_statement.body, body_label, end_profiling_label, loop_exit_block, loop_scope, result);
         auto reporter = stmt.variant_profile_statement.reporter;
         auto end_profiling = [getter, reporter] (sar& s, par& p) {
           auto ws = getter(s, p);
-          auto work = s.pc.work_cell.load() - *(ws.first);
-          auto span = s.pc.span_cell.load() - *(ws.second);
+          auto work = s.pc.profile.work.load() - *(ws.first);
+          auto span = s.pc.profile.span.load() - *(ws.second);
           reporter(s, p, work, span);
         };
         add_block(end_profiling_label, bbt::unconditional_jump(end_profiling, exit));

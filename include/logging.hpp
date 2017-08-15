@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <algorithm>
+#include <memory>
 
 #include "perworker.hpp"
 #include "cmdline.hpp"
@@ -370,62 +371,130 @@ void push_program_point(int line_nb,
 /*---------------------------------------------------------------------*/
 /* Profiling */
 
+template <class F>
+void update_profile_cell(std::atomic<uint64_t>& cell, uint64_t v, const F& f) {
+  while (true) {
+    auto prev = cell.load();
+    auto next = f(prev, v);
+    if (atomic::compare_exchange(cell, prev, next)) {
+      break;
+    }
+  }
+}
+
+class profile_wrapper {
+public:
+
+  std::atomic<uint64_t> c;
+
+  profile_wrapper() {
+    c.store(0);
+  }
+
+  profile_wrapper(const profile_wrapper& other) {
+    c.store(other.c.load());
+  }
+
+  uint64_t load() {
+    return c.load();
+  }
+
+};
+
+template <class F>
+void update_profile_cell(profile_wrapper& pw, uint64_t v, const F& f) {
+  update_profile_cell(pw.c, v, f);
+}
+
+class profile_type {
+public:
+
+  std::atomic<uint64_t> work;
+  
+  std::atomic<uint64_t> span;
+
+  profile_type() {
+    work.store(0);
+    span.store(0);
+  }
+
+  void update_serial_run(uint64_t w, uint64_t s) {
+    update_profile_cell(work, w, [] (uint64_t x, uint64_t y) {
+      return x + y;
+    });
+    update_profile_cell(span, s, [] (uint64_t x, uint64_t y) {
+      return x + y;
+    });
+  }
+
+  void update_serial_run(uint64_t w) {
+    update_serial_run(w, w);
+  }
+
+  void update_parallel_run(uint64_t w, uint64_t s) {
+    update_profile_cell(work, w, [] (uint64_t x, uint64_t y) {
+      return x + y;
+    });
+    update_profile_cell(span, s, [] (uint64_t x, uint64_t y) {
+      return std::max(x, y);
+    });
+  }
+
+};
+
 class profiling_channel {
 public:
   
-  std::atomic<uint64_t> work_cell;
-  std::atomic<uint64_t> span_cell;
+  profile_type profile;
+  
+  std::unique_ptr<profile_type> join_profile;
+  
+  profiling_channel* parent = nullptr;
 
-  profiling_channel* join = nullptr;
-
-  profiling_channel() {
-    work_cell.store(0);
-    span_cell.store(0);
+  void unload_join_profile_if_needed() {
+    if (! join_profile) {
+      return;
+    }
+    auto& p = *join_profile;
+    profile.update_serial_run(p.work.load(), p.span.load());
+    join_profile.reset(nullptr);
   }
 
-  void update(uint64_t work) {
-    while (true) {
-      auto prev = work_cell.load();
-      auto next = prev + work;
-      if (atomic::compare_exchange(work_cell, prev, next)) {
-        break;
-      }
-    }
-    while (true) {
-      auto prev = span_cell.load();
-      auto next = prev + work;
-      if (atomic::compare_exchange(span_cell, prev, next)) {
-        break;
-      }
-    }
+  void update(uint64_t w, uint64_t s) {
+    unload_join_profile_if_needed();
+    profile.update_serial_run(w, s);
   }
 
-  void update(uint64_t work, uint64_t span) {
-    while (true) {
-      auto prev = work_cell.load();
-      auto next = prev + work;
-      if (atomic::compare_exchange(work_cell, prev, next)) {
-        break;
-      }
-    }
-    while (true) {
-      auto prev = span_cell.load();
-      auto next = std::max(prev, span);
-      if (atomic::compare_exchange(span_cell, prev, next)) {
-        break;
-      }
-    }
+  void update(uint64_t w) {
+    unload_join_profile_if_needed();
+    profile.update_serial_run(w);
   }
 
-  void set_join(profiling_channel* join) {
-    this->join = join;
+  void update_join(uint64_t w, uint64_t s) {
+    auto& profile_type = *join_profile;
+    profile_type.update_parallel_run(w, s);
   }
 
-  void emit() {
-    auto work = work_cell.load();
-    auto span = span_cell.load();
-    if (join != nullptr) {
-      join->update(work, span);
+  void set_parent(profiling_channel* parent) {
+    this->parent = parent;
+  }
+
+  void set_join() {
+    unload_join_profile_if_needed();
+    join_profile.reset(new profile_type);
+  }
+
+  void emit(uint64_t w_p) {
+    update(w_p);
+    if (parent != nullptr) {
+      auto w = profile.work.load();
+      auto s = profile.span.load();
+      if (parent->join_profile) {
+        parent->update_join(w, s);
+      } else {
+        parent->update(w, s);
+        parent = nullptr;
+      }
     }
   }
   

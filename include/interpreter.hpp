@@ -67,7 +67,11 @@ public:
     assert(false); // impossible
     return nullptr;
   }
-  
+
+#ifdef ENCORE_ENABLE_LOGGING
+  logging::profile_wrapper work;
+#endif
+
 };
   
 template <class Shared_activation_record>
@@ -220,7 +224,7 @@ stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
     return is_splittable(_ar);
   });
 #ifdef ENCORE_ENABLE_LOGGING
-  peek_newest_shared_frame<shared_activation_record>(t).pc.set_join(pc);
+  peek_newest_shared_frame<shared_activation_record>(t).pc.set_parent(pc);
 #endif  
   return t;
 }
@@ -349,7 +353,7 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   basic_block_label_type succ;
   if (pred == exit_block_label) {
 #ifdef ENCORE_ENABLE_LOGGING
-    sar.pc.emit();
+    sar.pc.emit(par.work.load());
 #endif
     stack = pop_call<Shared_activation_record>(stack);
     return std::make_pair(stack, fuel);
@@ -418,7 +422,9 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   par.trampoline.succ = succ;
 #ifdef ENCORE_ENABLE_LOGGING
   auto elapsed = cycles::since(start_time);
-  sar.pc.update(elapsed);
+  logging::update_profile_cell(par.work, elapsed, [] (uint64_t x, uint64_t y) {
+    return x + y;
+  });
 #endif
   return std::make_pair(stack, fuel);
 }
@@ -446,8 +452,9 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       par->trampoline.succ = spawn_join_block.variant_spawn_join.next;
       branch2->stack = spawn_join_block.variant_spawn_join.code(*sar, *par, cactus::Parent_link_sync, branch2->stack);
 #ifdef ENCORE_ENABLE_LOGGING
+      sar->pc.set_join();
       auto& branch2_sar = peek_newest_shared_frame<shared_activation_record>(branch2->stack);
-      branch2_sar.pc.set_join(&(sar->pc));
+      branch2_sar.pc.set_parent(&(sar->pc));
 #endif
       sched::new_edge(branch2, join);
       sched::new_edge(branch1, join);

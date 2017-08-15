@@ -68,8 +68,8 @@ public:
           double ticks_per_second = edsl::dc::cpu_frequency_ghz * 1000000000.0;
           double work_sec = ((double)work) / ticks_per_second;
           double span_sec = ((double)span) / ticks_per_second;
-          printf("work %.3lf\n", work_sec);
-          printf("span %.3lf\n", span_sec);
+          printf("work %.5lf\n", work_sec);
+          printf("span %.5lf\n", span_sec);
       }),
       dc::stmt([] (sar& s, par&) {
         auto end = std::chrono::system_clock::now();
