@@ -27,7 +27,7 @@
 // It includes code for finding the LCP
 //   Written by Guy Blelloch and Julian Shun
 
-#include <iostream>
+//#include <iostream>
 #include "sequence.hpp"
 #include "blockradixsort.hpp"
 #include "utils.h"
