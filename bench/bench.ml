@@ -29,6 +29,12 @@ let arg_proc =
     else
       [ 1; ]
   in
+  let default =
+    if List.exists (fun p -> p = 1) default then
+      default
+    else
+      1 :: default
+  in
   XCmd.parse_or_default_list_int "proc" default
 let arg_print_err = XCmd.parse_or_default_bool "print_error" false
 let arg_scheduler = XCmd.parse_or_default_string "scheduler" "steal_half_work_stealing"
