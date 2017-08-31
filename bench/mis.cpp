@@ -105,7 +105,7 @@ encore_pcfg_allocate(maximalIndependentSet, get_cfg)
 
 #include "sequence.h"
 #include "parallel.h"
-#include "speculative_for.h"
+#include "speculativefor.h"
 #include "gettime.h"
 //#include "loaders.hpp"
 #include "graphio.hpp"
