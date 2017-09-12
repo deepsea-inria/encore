@@ -420,7 +420,7 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   par.trampoline.pred = pred;
   par.trampoline.succ = succ;
   auto end_time = cycles::now();
-  f = check(end_time);
+  f = fuel::check(end_time);
 #ifdef ENCORE_ENABLE_LOGGING
   auto elapsed = cycles::diff(start_time, end_time);
   logging::update_profile_cell(par.work, elapsed, [] (uint64_t x, uint64_t y) {
