@@ -26,11 +26,8 @@ using scheduler_tag = enum {
   
 scheduler_tag scheduler = steal_half_work_stealing_tag;
   
-// to control the rate of DAG construction
-int promotion_threshold = 32;
-
 // to control the eagerness of work distribution
-int sharing_threshold = 2 * promotion_threshold;
+int sharing_threshold = 2;
 
 template <class Item>
 using perworker_array = data::perworker::array<Item>;
@@ -39,12 +36,14 @@ perworker_array<vertex*> vertices;
   
 perworker_array<std::deque<vertex*>> suspended;
   
-int run_vertex(vertex* v, int fuel) {
+fuel::check_type run_vertex(vertex* v) {
   vertices.mine() = v;
-  return v->run(fuel);
+  return v->run();
 }
   
 bool should_exit = false;
+
+int notify_threshold = 128;
   
 /*---------------------------------------------------------------------*/
 /* Steal-one, work-stealing scheduler */
@@ -73,8 +72,8 @@ void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   std::deque<vertex*>& my_ready = deques[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
-  int fuel = promotion_threshold;
   int nb = 0;
+  fuel::initialize_worker();
   
   if (v != nullptr) {
     // this worker is the leader
@@ -179,33 +178,28 @@ void worker_loop(vertex* v) {
     }
     vertex* v = my_suspended.front();
     my_suspended.pop_front();
-    run_vertex(v, 0);
+    run_vertex(v);
   };
   
-  auto run = [&] (int fuel) {
-    while (fuel > 0 && ! my_ready.empty()) {
+  auto run = [&] () {
+    fuel::check_type f = fuel::check_no_promote;
+    while ((f == fuel::check_no_promote) && (! my_ready.empty())) {
       vertex* v = my_ready.back();
       my_ready.pop_back();
-      fuel = run_vertex(v, fuel);
+      f = run_vertex(v);
       if (v->nb_strands() == 0) {
         parallel_notify(v->is_future(), v->get_outset());
         delete v;
       }
     }
-    return fuel;
+    return f;
   };
   
   while (! is_finished()) {
     if (! my_ready.empty()) {
       communicate();
-      int remaining_fuel = run(fuel);
-      assert(fuel - remaining_fuel >= 0);
-      nb += fuel - remaining_fuel;
-      if (remaining_fuel == 0) {
+      if (run() == fuel::check_yes_promote) {
         promote();
-        fuel = promotion_threshold;
-      } else {
-        fuel = remaining_fuel;
       }
       update_status();
     } else if (my_suspended.size() >= 1) {
@@ -309,16 +303,17 @@ public:
     vs.push_back(v);
   }
   
-  int run(int fuel) {
-    while (fuel > 0 && ! empty()) {
+  fuel::check_type run() {
+    fuel::check_type f = fuel_no_promote;
+    while ((f == fuel_no_promote) && (! empty())) {
       vertex* v = pop();
-      fuel = run_vertex(v, fuel);
+      f = run_vertex(v);
       if (v->nb_strands() == 0) {
         parallel_notify(v->is_future(), v->get_outset());
         delete v;
       }
     }
-    return fuel;
+    return f;
   }
   
   void split(int nb, frontier& other) {
@@ -377,8 +372,8 @@ void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   frontier& my_ready = frontiers[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
-  int fuel = promotion_threshold;
   int nb = 0;
+  fuel::initialize_worker();
   
   if (v != nullptr) {
     // this worker is the leader
@@ -470,20 +465,14 @@ void worker_loop(vertex* v) {
     }
     vertex* v = my_suspended.front();
     my_suspended.pop_front();
-    run_vertex(v, 0);
+    run_vertex(v);
   };
   
   while (! is_finished()) {
     if (my_ready.nb_strands() >= 1) {
       communicate();
-      int remaining_fuel = my_ready.run(fuel);
-      assert(fuel - remaining_fuel >= 0);
-      nb += fuel - remaining_fuel;
-      if (remaining_fuel == 0) {
+      if (my_ready.run() == fuel::check_yes_promote) {
         promote();
-        fuel = promotion_threshold;
-      } else {
-        fuel = remaining_fuel;
       }
       update_status();
     } else if (my_suspended.size() >= 1) {
@@ -629,11 +618,11 @@ public:
     }
   }
   
-  int run(int fuel) {
+  fuel::check_type run() {
     switch (trampoline) {
       case entry: {
         continue_with(header);
-        out->notify_nb(fuel, lo, hi, todo, [&] (incounter_handle* h) {
+        out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle* h) {
           incounter::decrement(h);
         });
         break;
@@ -642,13 +631,12 @@ public:
         if (! todo.empty() || (hi - lo) > 0) {
           continue_with(entry);
         }
-        fuel--;
         break;
       }
       default:
         assert(false);
     }
-    return fuel;
+    return fuel::check_no_promote;
   }
   
   std::pair<vertex*, vertex*> split(int nb) {
@@ -692,7 +680,7 @@ void parallel_notify(bool is_future, outset* out) {
   todo.push_back(root);
   item_iterator lo = nullptr;
   item_iterator hi = nullptr;
-  out->notify_nb(promotion_threshold, lo, hi, todo, [&] (incounter_handle* h) {
+  out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle* h) {
     incounter::decrement(h);
   });
   auto is_finished = [&] {
@@ -703,7 +691,7 @@ void parallel_notify(bool is_future, outset* out) {
   }
   if (is_future) {
     while (! is_finished()) {
-      out->notify_nb(promotion_threshold, lo, hi, todo, [&] (incounter_handle* h) {
+      out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle* h) {
         incounter::decrement(h);
       });
     }
@@ -734,28 +722,26 @@ public:
     return std::max((int)todo.size(), 2);
   }
   
-  int run(int fuel) {
+  fuel::check_type run() {
     switch (trampoline) {
       case entry: {
         // continue_with() first so that the outset deallocator
         // gets lower priority than any vertices that are
         // unblocked by the call to deallocate_nb()
         continue_with(header);
-        outset::deallocate_nb(fuel, todo);
-        fuel -= std::min(fuel, promotion_threshold);
+        outset::deallocate_nb(notify_threshold, todo);
         break;
       }
       case header: {
         if (! todo.empty()) {
           continue_with(entry);
         }
-        fuel--;
         break;
       }
       default:
         assert(false);
     }
-    return fuel;
+    return fuel::check_no_promote;
   }
   
   std::pair<vertex*, vertex*> split(int nb) {

@@ -166,14 +166,15 @@ void initialize(int argc, char** argv) {
   } else {
     atomic::die("bogus scheduler\n");
   }
-  edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
-  if (edsl::pcfg::never_promote) {
-    sched::promotion_threshold = 1 << 20;
-  }
-  sched::promotion_threshold = cmdline::parse_or_default("promotion_threshold", sched::promotion_threshold);
-  // sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 2 * sched::promotion_threshold);
   sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", 0);
   edsl::dc::kappa = cmdline::parse_or_default_double("kappa", edsl::dc::kappa);
+  edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
+  double promotion_threshold_usec = 20.0;
+  if (edsl::pcfg::never_promote) {
+    promotion_threshold_usec = 1000000000.0;
+  }
+  promotion_threshold_usec = cmdline::parse_or_default_double("promotion_threshold", promotion_threshold_usec);
+  fuel::initialize(edsl::dc::cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
   edsl::dc::leaf_loop_min_change_pct =
     cmdline::parse_or_default_double("leaf_loop_min_change_pct", edsl::dc::leaf_loop_min_change_pct);
   edsl::dc::leaf_loop_alpha =

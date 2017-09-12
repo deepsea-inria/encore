@@ -26,7 +26,7 @@ namespace pcfg {
 class shared_activation_record {
 public:
   
-  virtual std::pair<stack_type, int> run(stack_type, int) const = 0;
+  virtual std::pair<stack_type, fuel::check_type> run(stack_type) const = 0;
   
   virtual void promote_mark(interpreter*, private_activation_record*) = 0;
   
@@ -278,32 +278,31 @@ public:
     }
   }
   
-  int run(int fuel) {
+  fuel::check_type run() {
     stack_type s = stack;
-    while (! empty_stack(s) && (fuel >= 1)) {
-      auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s, fuel);
+    fuel::check_type f = fuel::check_no_promote;
+    while ((! empty_stack(s)) && (f == fuel::check_no_promote)) {
+      auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s);
       s = r.first;
-      fuel = r.second;
+      f = r.second;
     }
     stack = cactus::update_mark_stack(s, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
-    if (fuel == suspend_tag) {
-      fuel = 0;
+    if (f == fuel::check_suspend) {
       is_suspended = true;
     }
     if (nb_strands() == 0) {
       assert(! is_suspended);
-      return fuel;
+      return f;
     }
-    if (fuel > 0) {
-      return fuel;
+    if (f == fuel::check_yes_promote) {
+      return f;
     }
     if (never_promote) {
       schedule(this);
-      return sched::promotion_threshold;
+      return fuel::check_no_promote;
     }
-    assert(fuel == 0);
     auto r = peek_mark(stack);
     switch (r.tag) {
       case Peek_mark_none: {
@@ -333,7 +332,7 @@ public:
         break;
       }
     }
-    return fuel;
+    return f;
   }
   
   std::pair<vertex*, vertex*> split(int nb) {
@@ -343,10 +342,10 @@ public:
 };
 
 template <class Shared_activation_record>
-std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_type stack, int fuel) {
+std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>& cfg, stack_type stack) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   assert(! empty_stack(stack));
-  fuel--;
+  fuel::check_type f = fuel::check_no_promote;
   auto& sar = peek_newest_shared_frame<Shared_activation_record>(stack);
   auto& par = peek_newest_private_frame<private_activation_record>(stack);
   basic_block_label_type pred = par.trampoline.succ;
@@ -356,7 +355,7 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
     sar.pc.emit(par.work.load());
 #endif
     stack = pop_call<Shared_activation_record>(stack);
-    return std::make_pair(stack, fuel);
+    return std::make_pair(stack, f);
   }
 #ifdef ENCORE_ENABLE_LOGGING
   auto start_time = cycles::now();
@@ -409,7 +408,7 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
     case tag_join_minus: {
       sched::outset* outset = *block.variant_join_minus.getter(sar, par);
       if (outset != nullptr) {
-        fuel = suspend_tag;
+        f = fuel::check_suspend;
       }
       succ = block.variant_join_minus.next;
       break;
@@ -420,13 +419,15 @@ std::pair<stack_type, int> step(cfg_type<Shared_activation_record>& cfg, stack_t
   }
   par.trampoline.pred = pred;
   par.trampoline.succ = succ;
+  auto end_time = cycles::now();
+  f = check(end_time);
 #ifdef ENCORE_ENABLE_LOGGING
-  auto elapsed = cycles::since(start_time);
+  auto elapsed = cycles::diff(start_time, end_time);
   logging::update_profile_cell(par.work, elapsed, [] (uint64_t x, uint64_t y) {
     return x + y;
   });
 #endif
-  return std::make_pair(stack, fuel);
+  return std::make_pair(stack, f);
 }
 
 template <class Shared_activation_record, class Private_activation_record>

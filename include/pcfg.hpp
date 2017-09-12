@@ -31,10 +31,7 @@ class shared_activation_record;
 class private_activation_record;
   
 class interpreter;
-  
-static constexpr
-int suspend_tag = -1;
-  
+    
 using basic_block_label_type = int;
 
 static constexpr

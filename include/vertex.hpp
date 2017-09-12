@@ -4,6 +4,7 @@
 #include "forward.hpp"
 #include "incounter.hpp"
 #include "outset.hpp"
+#include "fuel.hpp"
 
 #ifndef _ENCORE_SCHED_VERTEX_H_
 #define _ENCORE_SCHED_VERTEX_H_
@@ -74,7 +75,7 @@ public:
   
   virtual int nb_strands() = 0;
   
-  virtual int run(int fuel) = 0;
+  virtual fuel::check_type run() = 0;
   
   virtual std::pair<vertex*, vertex*> split(int nb) = 0;
   
