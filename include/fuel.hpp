@@ -19,7 +19,8 @@ data::perworker::array<uint64_t> time_last_promote;
 uint64_t promotion_threshold = 0;
 
 check_type check(uint64_t current) {
-  if (current < time_last_promote.mine()) {
+  uint64_t previous = time_last_promote.mine();
+  if (current < previous) {
     return check_no_promote;
   }
   time_last_promote.mine() = current + promotion_threshold;
