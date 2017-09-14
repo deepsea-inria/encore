@@ -50,7 +50,7 @@ public:
     return 1;
   }
   
-  int run(int fuel) {
+  encore::fuel::check_type run() {
     switch (trampoline) {
       case entry: {
         if (n <= cutoff) {
@@ -75,7 +75,7 @@ public:
       default:
         assert(false);
     }
-    return fuel - 1;
+    return encore::fuel::check_no_promote;
   }
   
   std::pair<vertex*, vertex*> split(int nb) {

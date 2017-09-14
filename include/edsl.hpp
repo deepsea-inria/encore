@@ -13,7 +13,7 @@
 class private_activation_record : public edsl::private_activation_record { };
 
 #define encore_pcfg_declare(edsl, name, sar, par, bb) \
-std::pair<edsl::pcfg::stack_type, fuel::check_type> run(edsl::pcfg::stack_type stack) const { \
+std::pair<edsl::pcfg::stack_type, encore::fuel::check_type> run(edsl::pcfg::stack_type stack) const { \
   return edsl::pcfg::step(cfg, stack); \
 } \
 \

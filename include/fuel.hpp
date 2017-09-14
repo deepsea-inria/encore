@@ -1,26 +1,26 @@
 
 #include "cycles.hpp"
-#incluce "perworker.hpp"
+#include "perworker.hpp"
 
-/*---------------------------------------------------------------------*/
-/* Fuel */
+#ifndef _ENCORE_FUEL_H_
+#define _ENCORE_FUEL_H_
 
 namespace encore {
 namespace fuel {
 
-using check_type = struct {
+using check_type = enum {
   check_yes_promote,
   check_no_promote,
   check_suspend
 };
 
-perworker_array<uint64_t> time_last_promote;
+data::perworker::array<uint64_t> time_last_promote;
 
 uint64_t promotion_threshold = 0;
 
 check_type check(uint64_t current) {
   if (current < time_last_promote.mine()) {
-    retun check_no_promote;
+    return check_no_promote;
   }
   time_last_promote.mine() = current + promotion_threshold;
   return check_yes_promote;
@@ -37,3 +37,5 @@ void initialize_worker() {
 
 } // end namespace
 } // end namespace
+
+#endif /*! _ENCORE_FUEL_H_ */

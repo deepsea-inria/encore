@@ -304,8 +304,8 @@ public:
   }
   
   fuel::check_type run() {
-    fuel::check_type f = fuel_no_promote;
-    while ((f == fuel_no_promote) && (! empty())) {
+    fuel::check_type f = fuel::check_no_promote;
+    while ((f == fuel::check_no_promote) && (! empty())) {
       vertex* v = pop();
       f = run_vertex(v);
       if (v->nb_strands() == 0) {
@@ -766,7 +766,7 @@ void parallel_deallocate(outset* out) {
   }
   std::deque<outset_tree_node_type*> todo;
   todo.push_back(root);
-  outset::deallocate_nb(promotion_threshold, todo);
+  outset::deallocate_nb(notify_threshold, todo);
   if (! todo.empty()) {
     auto v = new parallel_deallocate_heavy;
     todo.swap(v->todo);
