@@ -296,7 +296,7 @@ public:
       assert(! is_suspended);
       return f;
     }
-    if (f == fuel::check_yes_promote) {
+    if (f == fuel::check_no_promote) {
       return f;
     }
     if (never_promote) {
