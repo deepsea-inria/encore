@@ -289,12 +289,13 @@ public:
     stack = cactus::update_mark_stack(s, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
-    if (f == fuel::check_suspend) {
-      is_suspended = true;
-    }
     if (nb_strands() == 0) {
       assert(! is_suspended);
       return f;
+    }
+    if (f == fuel::check_suspend) {
+      is_suspended = true;
+      f = fuel::check_yes_promote;
     }
     if (f == fuel::check_no_promote) {
       return f;
@@ -303,6 +304,7 @@ public:
       schedule(this);
       return fuel::check_no_promote;
     }
+    assert(f == fuel::check_yes_promote);
     auto r = peek_mark(stack);
     switch (r.tag) {
       case Peek_mark_none: {
