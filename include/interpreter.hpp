@@ -291,7 +291,8 @@ public:
     });
     if (nb_strands() == 0) {
       assert(! is_suspended);
-      return f;
+      assert(f != fuel::check_suspend);
+      return fuel::check_no_promote;
     }
     if (f == fuel::check_suspend) {
       is_suspended = true;
@@ -422,7 +423,7 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   par.trampoline.pred = pred;
   par.trampoline.succ = succ;
   auto end_time = cycles::now();
-  f = fuel::check(end_time);
+  f = (f == fuel::check_suspend) ? f : fuel::check(end_time);
 #ifdef ENCORE_ENABLE_LOGGING
   auto elapsed = cycles::diff(start_time, end_time);
   logging::update_profile_cell(par.work, elapsed, [] (uint64_t x, uint64_t y) {
