@@ -27,7 +27,7 @@ using scheduler_tag = enum {
 scheduler_tag scheduler = steal_half_work_stealing_tag;
   
 // to control the eagerness of work distribution
-int sharing_threshold = 2;
+int sharing_threshold = 64;
 
 template <class Item>
 using perworker_array = data::perworker::array<Item>;
