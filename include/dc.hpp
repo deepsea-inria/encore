@@ -30,135 +30,6 @@ namespace dc {
 
 static constexpr
 logging::program_point_type dflt_ppt = logging::dflt_ppt;
-  
-double kappa = 10.0;
-  
-double cpu_frequency_ghz = 1.2;
-  
-double leaf_loop_alpha = 0.5;
-  
-double leaf_loop_min_change_pct = 0.1;
-
-static constexpr
-int leaf_loop_automatic = -1;
-  
-using estimator_type = struct {
-  int nb_updates;
-  float cpie; // nb cycles per iteration
-};
-
-static constexpr
-estimator_type initial_estimator = { .nb_updates = 0, .cpie = 0.0 };
-    
-template <int threshold, class Id>
-class leaf_loop_controller {
-public:
-  
-  static constexpr
-  int initial_nb_iterations = 8;
-  
-  static constexpr
-  int max_nb_global_updates = 32;
-  
-  static
-  data::perworker::array<estimator_type> estimators;
-  
-  static
-  std::atomic<estimator_type> estimator;
-    
-  template <class Body>
-  static
-  void measured_run(const Body& body) {
-    if (threshold > 0) { // ==> threshold != leaf_loop_automatic
-      body();
-      return;
-    }
-    auto st = cycles::now();
-    auto nb_iters = body();
-    double elapsed_ticks = cycles::since(st);
-    if (nb_iters == 0) {
-      return;
-    }
-    double ticks_per_microsecond = cpu_frequency_ghz * 1000.0;
-    double elapsed = elapsed_ticks / ticks_per_microsecond;
-    double measured_avg_cycles_per_iter = elapsed / nb_iters;
-    auto try_global_update = [&] (estimator_type old_estim, estimator_type new_estim) {
-      auto old = old_estim;
-      if (! estimator.compare_exchange_strong(old, new_estim)) {
-        return false;
-      }
-#ifdef ENCORE_ENABLE_LOGGING
-      auto nb_iters_new = predict_nb_iterations();
-      logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &estimator);
-#endif
-      return true;
-    };
-    estimator_type old_estim;
-    while (true) {
-      old_estim = estimator.load();
-      if (old_estim.nb_updates > 0) {
-        break;
-      }
-      estimator_type new_estim = {
-        .nb_updates = old_estim.nb_updates + 1,
-        .cpie = (float)measured_avg_cycles_per_iter
-      };
-      if (try_global_update(old_estim, new_estim)) {
-        return;
-      }
-    }
-    double diff = std::abs(elapsed / kappa - 1.0);
-    if (diff < leaf_loop_min_change_pct) {
-      return;
-    }
-    if (old_estim.nb_updates < max_nb_global_updates) {
-      int new_nb_updates = old_estim.nb_updates + 1;
-      double new_cpie =
-        leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * old_estim.cpie;
-      estimator_type new_estim = { .nb_updates = new_nb_updates, .cpie = (float)new_cpie };
-      try_global_update(old_estim, new_estim);
-      return;
-    }
-    auto& my_estim = estimators.mine();
-    if (my_estim.nb_updates == 0) {
-      my_estim.cpie = old_estim.cpie;
-    }
-    my_estim.nb_updates++;
-    my_estim.cpie =
-      leaf_loop_alpha * measured_avg_cycles_per_iter + (1 - leaf_loop_alpha) * my_estim.cpie;
-#ifdef ENCORE_ENABLE_LOGGING
-    auto nb_iters_new = predict_nb_iterations();
-    logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &estimator);
-#endif
-  }
-
-  static
-  int predict_nb_iterations() {
-    if (threshold > 0) {
-      return threshold;
-    }
-    estimator_type estim = estimator.load();
-    if (estim.nb_updates == 0) {
-      return initial_nb_iterations;
-    }
-    auto& my_estim = estimators.mine();
-    auto cpie = (my_estim.nb_updates > 0) ? my_estim.cpie : estim.cpie;
-    int p = (int) (kappa / cpie);
-    return std::max(1, p);
-  }
-  
-  static
-  void set_ppt(int line_nb, const char* source_fname) {
-    logging::push_program_point(line_nb, source_fname, &estimator);
-  }
-  
-};
-  
-template <int threshold, class Id>
-std::atomic<estimator_type> leaf_loop_controller<threshold, Id>::estimator(initial_estimator);
-  
-template <int threshold, class Id>
-data::perworker::array<estimator_type> leaf_loop_controller<threshold, Id>::estimators(initial_estimator);
     
 using stmt_tag_type = enum {
   tag_stmt, tag_stmts, tag_cond, tag_exit_function, tag_exit_loop,
@@ -721,7 +592,7 @@ public:
     return mk_if(pred, branch1, stmt([] (sar_type&, par_type&) { }));
   }
 
-  template <int threshold=leaf_loop_automatic, class Unconditional_jump_code_type>
+  template <int threshold=grain::automatic, class Unconditional_jump_code_type>
   static
   stmt_type sequential_loop(predicate_code_type predicate, Unconditional_jump_code_type body,
                             int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
@@ -743,7 +614,7 @@ public:
 
   using loop_direction_type = enum { forward_loop, backward_loop };
 
-  template <int threshold=leaf_loop_automatic, class Leaf_loop_body_type>
+  template <int threshold=grain::automatic, class Leaf_loop_body_type>
   static
   stmt_type sequential_loop(unconditional_jump_code_type initializer,
                             loop_range_getter_type getter,
@@ -790,7 +661,7 @@ public:
     }, getter, body);
   }
   
-  template <int threshold=leaf_loop_automatic, class Leaf_loop_body_type>
+  template <int threshold=grain::automatic, class Leaf_loop_body_type>
   static
   stmt_type parallel_for_loop(unconditional_jump_code_type initializer,
                               parallel_loop_range_getter_type getter,
@@ -824,7 +695,7 @@ public:
     }, getter, initialize, combine, body);
   }
 
-  template <int threshold=leaf_loop_automatic, class Leaf_loop_body_type>
+  template <int threshold=grain::automatic, class Leaf_loop_body_type>
   static
   stmt_type parallel_combine_loop(unconditional_jump_code_type initializer,
                                   parallel_loop_range_getter_type getter,

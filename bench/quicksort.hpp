@@ -75,55 +75,56 @@ public:
       s.b = true;
     }),
     dc::sequential_loop([] (sar& s, par&) { return s.b; }, dc::stmt([] (sar& s, par&) {
-      using loop_controller_type = encore::edsl::dc::leaf_loop_controller<encore::edsl::dc::leaf_loop_automatic, quicksort>;
-      int fuel0 = loop_controller_type::predict_nb_iterations();
-      loop_controller_type::measured_run([&] {
-        int fuel = fuel0;
-        E p = s.p;
-        E* L = s.L;
-        E* M = s.M;
-        E* R = s.R;
-        auto f = s.f;
-        trampoline t = s.t;
-        while (true) {
-          switch (t) {
-            case loop1: {
-              while (!f(p,*M)) {
-                if (f(*M,p)) std::swap(*M,*(L++));
-                if (M >= R) break; 
-                M++;
-                if (--fuel == 0) {
-                  goto exit;
-                }
-              }
-              t = loop2;
-            }
-            case loop2: {
-              while (f(p,*R)) {
-                R--;
-                if (--fuel == 0) {
-                  goto exit;
-                }
-              }
-              t = loop1;
-              if (M >= R) {
-                s.b = false;
+      using controller_type = encore::grain::controller<encore::grain::automatic, quicksort>;
+      auto lg_lt = controller_type::predict_lg_nb_iterations();
+      controller_type::register_callback(lg_lt);
+      auto lt = controller_type::predict_nb_iterations(lg_lt);
+      int fuel0 = lt;
+      int fuel = fuel0;
+      E p = s.p;
+      E* L = s.L;
+      E* M = s.M;
+      E* R = s.R;
+      auto f = s.f;
+      trampoline t = s.t;
+      while (true) {
+        switch (t) {
+          case loop1: {
+            while (!f(p,*M)) {
+              if (f(*M,p)) std::swap(*M,*(L++));
+              if (M >= R) break; 
+              M++;
+              if (--fuel == 0) {
                 goto exit;
               }
-              std::swap(*M,*R--); 
-              if (f(*M,p)) std::swap(*M,*(L++));
-              M++;
-              --fuel;
             }
+            t = loop2;
+          }
+          case loop2: {
+            while (f(p,*R)) {
+              R--;
+              if (--fuel == 0) {
+                goto exit;
+              }
+            }
+            t = loop1;
+            if (M >= R) {
+              s.b = false;
+              goto exit;
+            }
+            std::swap(*M,*R--); 
+            if (f(*M,p)) std::swap(*M,*(L++));
+            M++;
+            --fuel;
           }
         }
-      exit:
-        s.t = t;
-        s.M = M;
-        s.L = L;
-        s.R = R;
-        return fuel0 - fuel;
-      });
+      }
+    exit:
+      s.t = t;
+      s.M = M;
+      s.L = L;
+      s.R = R;
+      return;
     })),
     dc::spawn2_join(
        [] (sar& s, par&, plt pt, stt st) {

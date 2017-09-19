@@ -25,6 +25,8 @@
 namespace cmdline = deepsea::cmdline;
 
 namespace encore {
+
+double cpu_frequency_ghz = 1.2;
   
 namespace {
   
@@ -67,7 +69,7 @@ public:
           return s.f(st);
         }),
         [] (sar& s, par& p, uint64_t work, uint64_t span) {
-          double ticks_per_second = edsl::dc::cpu_frequency_ghz * 1000000000.0;
+          double ticks_per_second = cpu_frequency_ghz * 1000000000.0;
           double work_sec = ((double)work) / ticks_per_second;
           double span_sec = ((double)span) / ticks_per_second;
           printf("work %.5lf\n", work_sec);
@@ -150,7 +152,7 @@ void initialize_cpuinfo() {
   if (cpu_frequency_mhz == 0.) {
     atomic::die("Failed to read CPU frequency\n");
   }
-  edsl::dc::cpu_frequency_ghz = (double) (cpu_frequency_mhz / 1000.0);
+  cpu_frequency_ghz = (double) (cpu_frequency_mhz / 1000.0);
 }
 
 } // end namespace
@@ -169,21 +171,16 @@ void initialize(int argc, char** argv) {
     atomic::die("bogus scheduler\n");
   }
   sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", sched::sharing_threshold);
-  edsl::dc::kappa = cmdline::parse_or_default_double("kappa", edsl::dc::kappa);
   edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
   double promotion_threshold_usec = 100.0;
   if (edsl::pcfg::never_promote) {
     promotion_threshold_usec = 1000000000.0;
   }
   promotion_threshold_usec = cmdline::parse_or_default_double("promotion_threshold", promotion_threshold_usec);
-  fuel::initialize(edsl::dc::cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
-  edsl::dc::leaf_loop_min_change_pct =
-    cmdline::parse_or_default_double("leaf_loop_min_change_pct", edsl::dc::leaf_loop_min_change_pct);
-  edsl::dc::leaf_loop_alpha =
-    cmdline::parse_or_default_double("leaf_loop_alpha", edsl::dc::leaf_loop_alpha);
-  double grain_usec = 10.0;
+  fuel::initialize(cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
+  double grain_usec = promotion_threshold_usec / 10.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
-  grain::initialize(edsl::dc::cpu_frequency_ghz, grain_usec * 1000.0);
+  grain::initialize(cpu_frequency_ghz, grain_usec * 1000.0);
   cilk_set_nb_cores();
 }
   
@@ -222,7 +219,6 @@ void launch_interpreter(Args... args) {
   });
   */
   int nb_workers = cmdline::parse_or_default("proc", 1);
-  //  edsl::dc::loop_threshold = cmdline::parse_or_default("loop_threshold", edsl::dc::loop_threshold);
   logging::log_buffer::initialize();
   stats::initialize();
   auto interp = new edsl::pcfg::interpreter;
