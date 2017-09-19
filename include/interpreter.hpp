@@ -12,6 +12,7 @@
 #include "logging.hpp"
 #include "scheduler.hpp"
 #include "pcfg.hpp"
+#include "grain.hpp"
 
 #ifndef _ENCORE_INTERPRETER_H_
 #define _ENCORE_INTERPRETER_H_
@@ -360,9 +361,7 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
     stack = pop_call<Shared_activation_record>(stack);
     return std::make_pair(stack, f);
   }
-#ifdef ENCORE_ENABLE_LOGGING
   auto start_time = cycles::now();
-#endif
   assert(pred >= 0 && pred < cfg.nb_basic_blocks());
   auto& block = cfg.basic_blocks[pred];
   switch (block.tag) {
@@ -424,8 +423,9 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   par.trampoline.succ = succ;
   auto end_time = cycles::now();
   f = (f == fuel::check_suspend) ? f : fuel::check(end_time);
-#ifdef ENCORE_ENABLE_LOGGING
   auto elapsed = cycles::diff(start_time, end_time);
+  grain::callback(elapsed);
+#ifdef ENCORE_ENABLE_LOGGING
   logging::update_profile_cell(par.work, elapsed, [] (uint64_t x, uint64_t y) {
     return x + y;
   });

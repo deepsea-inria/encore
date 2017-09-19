@@ -16,6 +16,8 @@
 #include "scheduler.hpp"
 #include "edsl.hpp"
 #include "cmdline.hpp"
+#include "grain.hpp"
+#include "fuel.hpp"
 
 #ifndef _ENCORE_H_
 #define _ENCORE_H_
@@ -179,6 +181,9 @@ void initialize(int argc, char** argv) {
     cmdline::parse_or_default_double("leaf_loop_min_change_pct", edsl::dc::leaf_loop_min_change_pct);
   edsl::dc::leaf_loop_alpha =
     cmdline::parse_or_default_double("leaf_loop_alpha", edsl::dc::leaf_loop_alpha);
+  double grain_usec = 10.0;
+  grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
+  grain::initialize(edsl::dc::cpu_frequency_ghz, grain_usec * 1000.0);
   cilk_set_nb_cores();
 }
   

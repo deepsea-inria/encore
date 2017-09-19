@@ -15,6 +15,7 @@
 #include "interpreter.hpp"
 #include "pcfg.hpp"
 #include "cycles.hpp"
+#include "grain.hpp"
 
 #ifndef _ENCORE_DC_H_
 #define _ENCORE_DC_H_
@@ -724,20 +725,19 @@ public:
   static
   stmt_type sequential_loop(predicate_code_type predicate, Unconditional_jump_code_type body,
                             int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
-    leaf_loop_controller<threshold, Unconditional_jump_code_type>::set_ppt(line_nb, source_fname);
+    using controller_type = grain::controller<threshold, Unconditional_jump_code_type>;
+    controller_type::set_ppt(line_nb, source_fname);
     return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
-      auto lt = leaf_loop_controller<threshold, Unconditional_jump_code_type>::predict_nb_iterations();
-      leaf_loop_controller<threshold, Unconditional_jump_code_type>::measured_run(lt, [&] {
-        int i = 0;
-        for (; i < lt; i++) {
-          if (predicate(s, p)) {
-            body(s, p);
-          } else {
-            break;
-          }
+      auto lg_lt = controller_type::predict_lg_nb_iterations();
+      controller_type::register_callback(lg_lt);
+      auto lt = controller_type::predict_nb_iterations(lg_lt);
+      for (int i = 0; i < lt; i++) {
+        if (predicate(s, p)) {
+          body(s, p);
+        } else {
+          break;
         }
-        return i;
-      });
+      }
     }));
   }
 
@@ -750,7 +750,8 @@ public:
                             Leaf_loop_body_type body,
                             loop_direction_type direction = forward_loop,
                             int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
-    leaf_loop_controller<threshold, Leaf_loop_body_type>::set_ppt(line_nb, source_fname);
+    using controller_type = grain::controller<threshold, Leaf_loop_body_type>;
+    controller_type::set_ppt(line_nb, source_fname);
     return stmts({
       stmt(initializer),
       sequential_loop([=] (sar_type& s, par_type& p) {
@@ -762,7 +763,9 @@ public:
         auto hi = *rng.second;
         auto lo2 = 0;
         auto hi2 = 0;
-        auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
+        auto lg_lt = controller_type::predict_lg_nb_iterations();
+        controller_type::register_callback(lg_lt);
+        auto lt = controller_type::predict_nb_iterations(lg_lt);
         if (direction == forward_loop) {
           auto mid = std::min(lo + lt, hi);
           *rng.first = mid;
@@ -774,10 +777,7 @@ public:
           lo2 = mid;
           hi2 = hi;
         }
-        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run([&] {
-          body(s, p, lo2, hi2);
-          return hi2 - lo2;
-        });
+        body(s, p, lo2, hi2);
       }))
     });
   }
@@ -796,19 +796,19 @@ public:
                               parallel_loop_range_getter_type getter,
                               Leaf_loop_body_type body,
                               int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
-    leaf_loop_controller<threshold, Leaf_loop_body_type>::set_ppt(line_nb, source_fname);
+    using controller_type = grain::controller<threshold, Leaf_loop_body_type>;
+    controller_type::set_ppt(line_nb, source_fname);
     return stmts({
       stmt(initializer),
       parallel_for_loop(getter, stmt([=] (sar_type& s, par_type& p) {
+        auto lg_lt = controller_type::predict_lg_nb_iterations();
+        controller_type::register_callback(lg_lt);
+        auto lt = controller_type::predict_nb_iterations(lg_lt);
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run([&] {
-          body(s, p, lo, mid);
-          return mid - lo;
-        });
+        body(s, p, lo, mid);
       }))
     });
   }
@@ -832,20 +832,20 @@ public:
                                   parallel_combining_operator_type combine,
                                   Leaf_loop_body_type body,
                                   int line_nb=dflt_ppt.line_nb, const char* source_fname=dflt_ppt.source_fname) {
-    leaf_loop_controller<threshold, Leaf_loop_body_type>::set_ppt(line_nb, source_fname);
+    using controller_type = grain::controller<threshold, Leaf_loop_body_type>;
+    controller_type::set_ppt(line_nb, source_fname);
     return stmts({
       stmt(initializer),
       parallel_combine_loop(getter, combine_initializer, combine,
                             stmt([=] (sar_type& s, par_type& p) {
         auto rng = getter(p);
         auto lo = *rng.first;
-        auto lt = leaf_loop_controller<threshold, Leaf_loop_body_type>::predict_nb_iterations();
+        auto lg_lt = controller_type::predict_lg_nb_iterations();
+        controller_type::register_callback(lg_lt);
+        auto lt = controller_type::predict_nb_iterations(lg_lt);
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
-        leaf_loop_controller<threshold, Leaf_loop_body_type>::measured_run([&] {
-          body(s, p, lo, mid);
-          return mid - lo;
-        });
+        body(s, p, lo, mid);
       }))
     });    
   }
