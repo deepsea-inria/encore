@@ -600,15 +600,16 @@ public:
     controller_type::set_ppt(line_nb, source_fname);
     return sequential_loop(predicate, stmt([=] (sar_type& s, par_type& p) {
       auto lg_lt = controller_type::predict_lg_nb_iterations();
-      controller_type::register_callback(lg_lt);
       auto lt = controller_type::predict_nb_iterations(lg_lt);
-      for (int i = 0; i < lt; i++) {
+      int i = 0;
+      for (; i < lt; i++) {
         if (predicate(s, p)) {
           body(s, p);
         } else {
           break;
         }
       }
+      controller_type::register_callback(lg_lt, i);
     }));
   }
 
@@ -635,7 +636,6 @@ public:
         auto lo2 = 0;
         auto hi2 = 0;
         auto lg_lt = controller_type::predict_lg_nb_iterations();
-        controller_type::register_callback(lg_lt);
         auto lt = controller_type::predict_nb_iterations(lg_lt);
         if (direction == forward_loop) {
           auto mid = std::min(lo + lt, hi);
@@ -649,6 +649,7 @@ public:
           hi2 = hi;
         }
         body(s, p, lo2, hi2);
+        controller_type::register_callback(lg_lt, hi2 - lo2);
       }))
     });
   }
@@ -673,13 +674,13 @@ public:
       stmt(initializer),
       parallel_for_loop(getter, stmt([=] (sar_type& s, par_type& p) {
         auto lg_lt = controller_type::predict_lg_nb_iterations();
-        controller_type::register_callback(lg_lt);
         auto lt = controller_type::predict_nb_iterations(lg_lt);
         auto rng = getter(p);
         auto lo = *rng.first;
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         body(s, p, lo, mid);
+        controller_type::register_callback(lg_lt, mid - lo);
       }))
     });
   }
@@ -712,11 +713,11 @@ public:
         auto rng = getter(p);
         auto lo = *rng.first;
         auto lg_lt = controller_type::predict_lg_nb_iterations();
-        controller_type::register_callback(lg_lt);
         auto lt = controller_type::predict_nb_iterations(lg_lt);
         auto mid = std::min(lo + lt, *rng.second);
         *rng.first = mid;
         body(s, p, lo, mid);
+        controller_type::register_callback(lg_lt, mid - lo);
       }))
     });    
   }

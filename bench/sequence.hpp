@@ -749,7 +749,6 @@ public:
           using controller_type = encore::grain::controller<encore::grain::automatic, sumFlagsSerial>;
           // later: set_ppt()
           auto lg_lt = controller_type::predict_lg_nb_iterations();
-          controller_type::register_callback(lg_lt);
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
           int fuel = fuel0;
@@ -787,6 +786,7 @@ public:
           }
         exit:
           s.j = j; s.k = k; s.r = r; s.rr = rr; s.t = t; s.IFl = IFl;
+          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         }))
       }), // else

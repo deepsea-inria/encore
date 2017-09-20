@@ -96,7 +96,6 @@ namespace intSort {
       controller_type::set_ppt(__LINE__, __FILE__);
       auto radixBlock = [] (sar& , par& p) {
         auto lg_lt = controller_type::predict_lg_nb_iterations();
-        controller_type::register_callback(lg_lt);
         auto lt = controller_type::predict_nb_iterations(lg_lt);
         int fuel0 = lt;
         int fuel = fuel0;
@@ -157,10 +156,12 @@ namespace intSort {
           }
         }
         p.not_done = false;
+        controller_type::register_callback(lg_lt, fuel0 - fuel);
         return;
       exit:
         p.rb.t = t; p.rb.i = i; p.rb.j = j; p.rb.s = s;
         p.not_done = true;
+        controller_type::register_callback(lg_lt, fuel0 - fuel);
         return;
 
       };
@@ -233,7 +234,6 @@ namespace intSort {
           using controller_type = encore::grain::controller<encore::grain::automatic, radixStep>;
           // later: set_ppt()
           auto lg_lt = controller_type::predict_lg_nb_iterations();
-          controller_type::register_callback(lg_lt);
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
           int fuel = fuel0;
@@ -247,9 +247,11 @@ namespace intSort {
             }
           }
           p.not_done = false;
+          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         exit:
           p.rb.j = j; p.not_done = true;
+          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         }))
       });

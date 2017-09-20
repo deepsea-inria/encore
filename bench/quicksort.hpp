@@ -77,7 +77,6 @@ public:
     dc::sequential_loop([] (sar& s, par&) { return s.b; }, dc::stmt([] (sar& s, par&) {
       using controller_type = encore::grain::controller<encore::grain::automatic, quicksort>;
       auto lg_lt = controller_type::predict_lg_nb_iterations();
-      controller_type::register_callback(lg_lt);
       auto lt = controller_type::predict_nb_iterations(lg_lt);
       int fuel0 = lt;
       int fuel = fuel0;
@@ -124,6 +123,7 @@ public:
       s.M = M;
       s.L = L;
       s.R = R;
+      controller_type::register_callback(lg_lt, fuel0 - fuel);
       return;
     })),
     dc::spawn2_join(

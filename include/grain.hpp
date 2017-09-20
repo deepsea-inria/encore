@@ -12,14 +12,15 @@
 namespace encore {
 namespace grain {
   
-typedef void (*callback_function_type)(uint64_t, int);
+typedef void (*callback_function_type)(uint64_t, int, int);
 
 using callback_environment_type = struct {
   callback_function_type callback;
-  int lg_nb_iters;
+  int lg_nb_iters_predicted;
+  int nb_iters_performed;
 };
   
-void noop_callback(uint64_t, int) {
+void noop_callback(uint64_t, int, int) {
   // nothing to do
 }
 
@@ -27,7 +28,11 @@ uint64_t threshold_upper = 0;
   
 uint64_t threshold_lower = 0;
   
-callback_environment_type initial_env = { .callback = noop_callback, .lg_nb_iters = 0 };
+callback_environment_type initial_env = {
+  .callback = noop_callback,
+  .lg_nb_iters_predicted = 0,
+  .nb_iters_performed = 0
+};
 
 data::perworker::array<callback_environment_type> envs(initial_env);
 
@@ -43,7 +48,7 @@ void callback(uint64_t elapsed) {
   if (cb == noop_callback) {
     return;
   }
-  cb(elapsed, env.lg_nb_iters);
+  cb(elapsed, env.lg_nb_iters_predicted, env.nb_iters_performed);
   env = initial_env;
 }
   
@@ -65,34 +70,38 @@ public:
   }
 
   static
-  void callback(uint64_t elapsed, int lg_nb_iters) {
-    int lg_nb_iters_new = lg_nb_iters;
+  void callback(uint64_t elapsed, int lg_nb_iters_predicted, int nb_iters_performed) {
+    int lg_nb_iters_new = lg_nb_iters_predicted;
+    auto nb_iters_predicted = 1 << lg_nb_iters_predicted;
     if (elapsed < threshold_lower) {
       lg_nb_iters_new = std::min(max_lg_nb_iters, lg_nb_iters_new + 1);
-    } else if (elapsed > threshold_upper) {
+    } else if ((elapsed > threshold_upper) && (nb_iters_performed >= (nb_iters_predicted))) {
       lg_nb_iters_new = std::max(0, lg_nb_iters_new - 1);
-    } else if (lg_nb_iters != predict_lg_nb_iterations()) {
+    } else if (lg_nb_iters_predicted != predict_lg_nb_iterations()) {
       return;
     } else {
       return;
     }
-    if (lg_nb_iters_new == lg_nb_iters) {
+    if (lg_nb_iters_new == lg_nb_iters_predicted) {
       return;
     }
 #if defined(ENCORE_ENABLE_LOGGING)
-    if (grain.compare_exchange_strong(lg_nb_iters, lg_nb_iters_new)) {
-      auto nb_iters = 1 << lg_nb_iters;
+    if (grain.compare_exchange_strong(lg_nb_iters_predicted, lg_nb_iters_new)) {
       auto nb_iters_new = 1 << lg_nb_iters_new;
-      logging::push_leaf_loop_update(nb_iters, nb_iters_new, elapsed, &grain);
+      logging::push_leaf_loop_update(nb_iters_predicted, nb_iters_new, elapsed, &grain);
     }
 #else
-    grain.compare_exchange_strong(lg_nb_iters, lg_nb_iters_new);
+    grain.compare_exchange_strong(lg_nb_iters_predicted, lg_nb_iters_new);
 #endif
   }
   
   static
-  void register_callback(int lg_nb_iters) {
-    envs.mine() = { .callback = callback, .lg_nb_iters = lg_nb_iters };
+  void register_callback(int lg_nb_iters_predicted, int nb_iters_performed) {
+    envs.mine() = {
+      .callback = callback,
+      .lg_nb_iters_predicted = lg_nb_iters_predicted,
+      .nb_iters_performed = nb_iters_performed
+    };
   }
   
   static
@@ -101,11 +110,11 @@ public:
   }
   
   static
-  int predict_nb_iterations(int lg_nb_iters) {
+  int predict_nb_iterations(int lg_nb_iters_predicted) {
     if (threshold != automatic) {
       return threshold;
     } else {
-      return 1 << lg_nb_iters;
+      return 1 << lg_nb_iters_predicted;
     }
   }
   

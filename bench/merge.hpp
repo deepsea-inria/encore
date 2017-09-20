@@ -96,7 +96,6 @@ public:
           using controller_type = encore::grain::controller<encore::grain::automatic, merge>;
           // later: set_ppt()
           auto lg_lt = controller_type::predict_lg_nb_iterations();
-          controller_type::register_callback(lg_lt);
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
           int fuel = fuel0;
@@ -117,6 +116,7 @@ public:
                   pS2 += n; pR += n; fuel = n;
                   if (m == n) {
                     s.not_done = false;
+                    controller_type::register_callback(lg_lt, fuel0 - fuel);
                     return;
                   } else {
                     goto exit;
@@ -132,6 +132,7 @@ public:
                   pS1 += n; pR += n; fuel = n;
                   if (m == n) {
                     s.not_done = false;
+                    controller_type::register_callback(lg_lt, fuel0 - fuel);
                     return;
                   } else {
                     goto exit;
@@ -153,6 +154,7 @@ public:
           s.pS1 = pS1;
           s.pS2 = pS2;
           s.t = t;
+          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         }))
       }));

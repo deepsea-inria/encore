@@ -60,7 +60,6 @@ public:
         dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
           using controller_type = encore::grain::controller<encore::grain::automatic, transpose>;
           auto lg_lt = controller_type::predict_lg_nb_iterations();
-          controller_type::register_callback(lg_lt);
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
           int fuel = fuel0;
@@ -94,6 +93,7 @@ public:
           t = loop_exit;
         exit:
           s.i = i; s.j = j; s.t = t;
+          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         }))
       })),
@@ -176,7 +176,6 @@ public:
           using controller_type = encore::grain::controller<encore::grain::automatic, blockTrans>;
           // later: set_ppt()
           auto lg_lt = controller_type::predict_lg_nb_iterations();
-          controller_type::register_callback(lg_lt);
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
           int fuel = fuel0;
@@ -228,6 +227,7 @@ public:
           t = loop_exit;
         exit:
           s.i = i; s.j = j; s.t = t; s.k = k; s.l = l; s.pa = pa; s.pb = pb;
+          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         }))
       })),
