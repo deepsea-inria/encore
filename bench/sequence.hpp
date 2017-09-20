@@ -134,7 +134,6 @@ namespace orig {
 
 namespace sequence {
  
-int threshold = 1024;
 int block_size = 2048;
   
 template <class intT>
@@ -196,18 +195,14 @@ public:
 
   static
   dc get_dc() {
-    return dc::stmts({
-      dc::stmt([] (sar& s, par&) {
+    return dc::sequential_loop([] (sar& s, par&) {
         *s.dest = s.g(s.s);
         s.s++;
-      }),
-      dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
-        intT ss = s.s;
-        intT ee = std::min(s.e, ss + threshold);
-        *s.dest = s.f(*s.dest, orig::sequence::reduceSerial<OT>(ss, ee, s.f, s.g));
-        s.s = ee;
-      }))
-    });
+      }, [] (sar& s, par&) {
+        return std::make_pair(&s.s, &s.e);
+      }, [] (sar& s, par&, int lo, int hi) {
+        *s.dest = s.f(*s.dest, orig::sequence::reduceSerial<OT>(lo, hi, s.f, s.g));
+      });
   }
   
 };
@@ -366,20 +361,16 @@ public:
   
   static
   dc get_dc() {
-    return dc::stmts({
-      dc::stmt([] (sar& s, par&) {
+    return dc::sequential_loop([] (sar& s, par&) {
         *s.dest = 0;
-      }),
-      dc::sequential_loop([] (sar& s, par&) { return s.s < s.e; }, dc::stmt([] (sar& s, par&) {
-        intT ss = s.s;
-        intT ee = std::min(s.e, ss + threshold);
-        intT m = orig::sequence::maxIndexSerial<ET>(ss, ee, s.f, s.g);
+      }, [] (sar& s, par&) {
+        return std::make_pair(&s.s, &s.e);
+      }, [] (sar& s, par&, int lo, int hi) {
+        intT m = orig::sequence::maxIndexSerial<ET>(lo, hi, s.f, s.g);
         if (s.f(s.g(m), s.g(*s.dest))) {
           *s.dest = m;
         }
-        s.s = ee;
-      }))
-    });
+      });
   }
   
 };
@@ -1119,7 +1110,6 @@ template <class Iter, class Item>
 typename fill<Iter,Item>::cfg_type fill<Iter,Item>::cfg = fill<Iter,Item>::get_cfg();
 
 void initialize() {
-  threshold = deepsea::cmdline::parse_or_default("threshold", sequence::threshold);
   block_size = deepsea::cmdline::parse_or_default("block_size", sequence::block_size);
 }
   
