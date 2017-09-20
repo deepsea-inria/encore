@@ -172,15 +172,15 @@ void initialize(int argc, char** argv) {
   }
   sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", sched::sharing_threshold);
   edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
-  double promotion_threshold_usec = 100.0;
+  double promotion_threshold_usec = 10.0; //1.11;
   if (edsl::pcfg::never_promote) {
-    promotion_threshold_usec = 1000000000.0;
+    promotion_threshold_usec = 10000000.0;
   }
   promotion_threshold_usec = cmdline::parse_or_default_double("promotion_threshold", promotion_threshold_usec);
   fuel::initialize(cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
   double grain_usec = promotion_threshold_usec / 10.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
-  grain::initialize(cpu_frequency_ghz, grain_usec * 1000.0);
+  grain::initialize(cpu_frequency_ghz, grain_usec * 1000.0, promotion_threshold_usec * 1000.0);
   cilk_set_nb_cores();
 }
   

@@ -31,10 +31,10 @@ callback_environment_type initial_env = { .callback = noop_callback, .lg_nb_iter
 
 data::perworker::array<callback_environment_type> envs(initial_env);
 
-void initialize(double cpu_freq_ghz, double grain_nsec) {
+void initialize(double cpu_freq_ghz, double grain_nsec, double promotion_threshold_nsec) {
   double cycles_per_nsec = cpu_freq_ghz;
   threshold_lower = (uint64_t) (cycles_per_nsec * grain_nsec);
-  threshold_upper = 2 * threshold_lower;
+  threshold_upper = (uint64_t) (cycles_per_nsec * promotion_threshold_nsec);
 }
   
 void callback(uint64_t elapsed) {
