@@ -303,7 +303,7 @@ public:
     vs.push_back(v);
   }
   
-  fuel::check_type run() {
+  void run() {
     fuel::check_type f = fuel::check_no_promote;
     while ((f == fuel::check_no_promote) && (! empty())) {
       vertex* v = pop();
@@ -313,7 +313,6 @@ public:
         delete v;
       }
     }
-    return f;
   }
   
   void split(int nb, frontier& other) {
@@ -471,9 +470,8 @@ void worker_loop(vertex* v) {
   while (! is_finished()) {
     if (my_ready.nb_strands() >= 1) {
       communicate();
-      if (my_ready.run() == fuel::check_yes_promote) {
-        promote();
-      }
+      my_ready.run();
+      promote();
       update_status();
     } else if (my_suspended.size() >= 1) {
       communicate();
