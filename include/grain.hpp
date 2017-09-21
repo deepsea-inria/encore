@@ -77,12 +77,13 @@ public:
       lg_nb_iters_new = std::min(max_lg_nb_iters, lg_nb_iters_new + 1);
     } else if ((elapsed > threshold_upper) && (nb_iters_performed >= (nb_iters_predicted))) {
       lg_nb_iters_new = std::max(0, lg_nb_iters_new - 1);
-    } else if (lg_nb_iters_predicted != predict_lg_nb_iterations()) {
-      return;
     } else {
       return;
     }
     if (lg_nb_iters_new == lg_nb_iters_predicted) {
+      return;
+    }
+    if (lg_nb_iters_predicted != predict_lg_nb_iterations()) {
       return;
     }
 #if defined(ENCORE_ENABLE_LOGGING)
