@@ -170,7 +170,6 @@ void initialize(int argc, char** argv) {
   } else {
     atomic::die("bogus scheduler\n");
   }
-  sched::sharing_threshold = cmdline::parse_or_default("sharing_threshold", sched::sharing_threshold);
   edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
   double promotion_threshold_usec = 10.0; //1.11;
   if (edsl::pcfg::never_promote) {

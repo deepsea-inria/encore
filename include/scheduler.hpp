@@ -26,9 +26,6 @@ using scheduler_tag = enum {
   
 scheduler_tag scheduler = steal_half_work_stealing_tag;
   
-// to control the eagerness of work distribution
-int sharing_threshold = 64;
-
 template <class Item>
 using perworker_array = data::perworker::array<Item>;
   
@@ -118,7 +115,7 @@ void worker_loop(vertex* v) {
       return;
     }
     auto sz = my_ready.size();
-    if (sz > sharing_threshold || (nb > sharing_threshold && sz > 1)) {
+    if (sz > 1) {
       assert(sz >= 1);
       nb = 0;
       vertex* v = my_ready.front();
@@ -411,7 +408,7 @@ void worker_loop(vertex* v) {
       return;
     }
     int sz = my_ready.nb_strands();
-    if (sz > sharing_threshold || (nb > sharing_threshold && sz > 1)) {
+    if (sz > 1) {
       nb = 0;
       // transfer half of the local frontier to worker with id j
       frontier* f = new frontier;
