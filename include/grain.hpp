@@ -73,9 +73,11 @@ public:
   void callback(uint64_t elapsed, int lg_nb_iters_predicted, int nb_iters_performed) {
     int lg_nb_iters_new = lg_nb_iters_predicted;
     auto nb_iters_predicted = 1 << lg_nb_iters_predicted;
-    if (elapsed < threshold_lower) {
+    if (nb_iters_performed < nb_iters_predicted) {
+      return;
+    } else if (elapsed < threshold_lower) {
       lg_nb_iters_new = std::min(max_lg_nb_iters, lg_nb_iters_new + 1);
-    } else if ((elapsed > threshold_upper) && (nb_iters_performed >= (nb_iters_predicted))) {
+    } else if (elapsed > threshold_upper) {
       lg_nb_iters_new = std::max(0, lg_nb_iters_new - 1);
     } else {
       return;
