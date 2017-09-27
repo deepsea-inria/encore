@@ -193,9 +193,8 @@ void worker_loop(vertex* v) {
   while (! is_finished()) {
     if (! my_ready.empty()) {
       communicate();
-      if (run() == fuel::check_yes_promote) {
-        promote();
-      }
+      run();
+      promote();
       update_status();
     } else if (my_suspended.size() >= 1) {
       communicate();
