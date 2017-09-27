@@ -69,7 +69,6 @@ void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   std::deque<vertex*>& my_ready = deques[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
-  int nb = 0;
   fuel::initialize_worker();
   
   if (v != nullptr) {
@@ -117,7 +116,6 @@ void worker_loop(vertex* v) {
     auto sz = my_ready.size();
     if (sz > 1) {
       assert(sz >= 1);
-      nb = 0;
       vertex* v = my_ready.front();
       auto n = v->nb_strands();
       if (n >= 2) {
@@ -368,7 +366,6 @@ void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   frontier& my_ready = frontiers[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
-  int nb = 0;
   fuel::initialize_worker();
   
   if (v != nullptr) {
@@ -409,7 +406,6 @@ void worker_loop(vertex* v) {
     }
     int sz = my_ready.nb_strands();
     if (sz > 1) {
-      nb = 0;
       // transfer half of the local frontier to worker with id j
       frontier* f = new frontier;
       my_ready.split(sz / 2, *f);
