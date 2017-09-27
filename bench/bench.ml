@@ -139,16 +139,6 @@ let prog_encore = name^".encore"
 
 let prog_cilk = name^".cilk"
 
-let mk_encore_setting threshold block_size promotion_threshold =
-    mk int "threshold" threshold
-  & mk int "block_size" block_size
-  & mk int "promotion_threshold" promotion_threshold
-       
-let mk_encore_settings = (
-    mk_encore_setting 512  1024 1024
- ++ mk_encore_setting 1024 2048 1024
- ++ mk_encore_setting 2048 4096 1024)
-
 let mk_pbbs_algorithm = mk_prog prog_cilk & mk string "algorithm" "pbbs"
                            
 let mk_algorithms = (
@@ -156,8 +146,7 @@ let mk_algorithms = (
   ++ *) mk_pbbs_algorithm
 (*  ++ (  (mk_prog prog_encore & mk string "algorithm" "encore_sequential")
       & mk_encore_settings) *)
-  ++ (  (mk_prog prog_encore & mk string "algorithm" "encore")
-      & mk_encore_settings)
+  ++ (  (mk_prog prog_encore & mk string "algorithm" "encore"))
 )
 
 let mk_operations = mk_list string "operation" [ "reduce"; "max_index"; "scan"; "pack"; "filter"; ] 
