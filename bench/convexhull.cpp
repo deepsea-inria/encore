@@ -113,14 +113,13 @@ struct triangArea {
   double operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[I[i]]);}
 };
 
-int quickHull_threshold = 10000;
-
 class quickHull : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   intT* I; intT* Itmp; point2d* P; intT n; intT l; intT r; intT depth;
   intT* dest;
   intT idx; intT maxP; intT n1; intT n2; intT m1; intT m2;
+  int lg_lt;
     
   quickHull(intT* I, intT* Itmp, point2d* P, intT n, intT l, intT r, intT depth, intT* dest)
   : I(I), Itmp(Itmp), P(P), n(n), l(l), r(r), depth(depth), dest(dest) { }
@@ -129,10 +128,17 @@ public:
   
   static
   dc get_dc() {
+    using controller_type = encore::grain::controller<encore::grain::automatic, quickHull>;
+    controller_type::set_ppt(__LINE__, __FILE__);
     return dc::stmts({
-      dc::mk_if([&] (sar& s, par&) { return s.n < quickHull_threshold; }, dc::stmts({
+      dc::mk_if([&] (sar& s, par&) {
+	  s.lg_lt = controller_type::predict_lg_nb_iterations();
+	  auto lt = std::max(2, controller_type::predict_nb_iterations(s.lg_lt));
+	  return s.n < lt;
+	}, dc::stmts({
         dc::stmt([] (sar& s, par&) {
           *s.dest = serialQuickHull(s.I, s.P, s.n, s.l, s.r);
+	  controller_type::register_callback(s.lg_lt, controller_type::predict_nb_iterations(s.lg_lt));
         }),
         dc::exit_function()
       })),
@@ -469,7 +475,6 @@ void benchmark(std::string infile) {
 int main(int argc, char** argv) {
   encore::initialize(argc, argv);
   pasl::pctl::m = deepsea::cmdline::parse_or_default("m", pasl::pctl::m);
-  quickHull_threshold = deepsea::cmdline::parse_or_default("threshold", quickHull_threshold);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile != "") {
     pasl::pctl::benchmark(infile);
