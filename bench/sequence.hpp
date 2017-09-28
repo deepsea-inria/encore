@@ -762,13 +762,15 @@ public:
           while (k < (n >> 9)) {
             switch (t) {
               case loop0: {
-                while (j < 128) {
+		auto lst = std::min(128, fuel);
+                while (j < lst) {
                   rr += IFl[j];
                   j++;
-                  if (--fuel == 0) {
-                    goto exit;
-                  }
                 }
+		fuel = std::max(1, fuel - j);
+		if (--fuel == 0) {
+		  goto exit;
+		}
                 t = loop1;
               }
               case loop1: {
