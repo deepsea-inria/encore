@@ -75,13 +75,15 @@ public:
                 t = loop1;
               }
               case loop1: {
-                while (j < cStart + cCount) {
+		auto lst = std::min(cStart + cCount, fuel);
+                while (j < lst) {
                   B[j*cLength + i] = A[i*rLength + j];
                   j++;
-                  if (--fuel == 0) {
-                    goto exit;
-                  }
                 }
+		fuel = std::max(1, fuel - j);
+		if (--fuel == 0) {
+		  goto exit;
+		}
                 i++;
                 t = loop0;
                 if (--fuel == 0) {
@@ -203,13 +205,15 @@ public:
                 t = loop2;
               }
               case loop2: {
-                while (k < l) {
+		auto lst = std::min(l, fuel);
+                while (k < lst) {
                   *(pb++) = *(pa++);
                   k++;
-                  if (--fuel == 0) {
-                    goto exit;
-                  }
                 }
+		fuel = std::max(1, fuel - k);
+		if (--fuel == 0) {
+		  goto exit;
+		}
                 j++;
                 t = loop1;
                 if (--fuel == 0) {
