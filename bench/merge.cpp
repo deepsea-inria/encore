@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include "merge.hpp"
+#include "merge.h"
 
 namespace cmdline = deepsea::cmdline;
 
@@ -19,7 +20,14 @@ int main(int argc, char** argv) {
   auto f = [] (int x, int y) {
     return x < y;
   };
-  encore::launch_interpreter<encorebench::merge<int,decltype(f),int>>(a1, n, a2, n, a3, f);
+  std::string algorithm = cmdline::parse<std::string>("algorithm");
+  if (algorithm == "encore") {
+    encore::launch_interpreter<encorebench::merge<int,decltype(f),int>>(a1, n, a2, n, a3, f);
+  } else if (algorithm == "pbbs") {
+    encore::run_and_report_elapsed_time([&] {
+      pbbs::merge(a1, n, a2, n, a3, f);
+    });
+  }
   free(a1);
   free(a2);
   return 0;
