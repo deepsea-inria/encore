@@ -113,16 +113,48 @@ struct triangArea {
   double operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[I[i]]);}
 };
 
+template <class ET, class intT, class PRED> 
+intT filterP(ET* In, ET* Out, intT n, PRED p) {
+  ET* Orig = Out;
+  for (intT i=0; i < n; i++) {
+    if (p(In[i])) {
+      *Out++ = In[i];
+    }
+  }
+  return Out - Orig;
+}
+
+intT quickHullP(intT* I, intT* Itmp, point2d* P, intT n, intT l, intT r) {
+  if (n < 2)
+    return serialQuickHull(I, P, n, l, r);
+  else {
+    intT idx = pbbs::maxIndexSerial<double>((intT)0,n,greater<double>(),triangArea(I,P,l,r));
+    intT maxP = I[idx];
+    intT n1 = filterP(I, Itmp,    n, aboveLine(P, l, maxP));
+    intT n2 = filterP(I, Itmp+n1, n, aboveLine(P, maxP, r));
+
+    intT m1, m2;
+    m1 = quickHullP(Itmp, I ,P, n1, l, maxP);
+    m2 = quickHullP(Itmp+n1, I+n1, P, n2, maxP, r);
+
+    for (intT i=0; i < m1; i++) I[i] = Itmp[i];
+    I[m1] = maxP;
+    for (intT i=0; i < m2; i++) I[i+m1+1] = Itmp[i+n1];
+    return m1+1+m2;
+  }
+}
+
+
 class quickHull : public encore::edsl::pcfg::shared_activation_record {
 public:
   
-  intT* I; intT* Itmp; point2d* P; intT n; intT l; intT r; intT depth;
+  intT* I; intT* Itmp; point2d* P; intT n; intT l; intT r;
   intT* dest;
   intT idx; intT maxP; intT n1; intT n2; intT m1; intT m2;
   int lg_lt;
     
-  quickHull(intT* I, intT* Itmp, point2d* P, intT n, intT l, intT r, intT depth, intT* dest)
-  : I(I), Itmp(Itmp), P(P), n(n), l(l), r(r), depth(depth), dest(dest) { }
+  quickHull(intT* I, intT* Itmp, point2d* P, intT n, intT l, intT r, intT* dest)
+  : I(I), Itmp(Itmp), P(P), n(n), l(l), r(r), dest(dest) { }
   
   encore_dc_declare(encore::edsl, quickHull, sar, par, dc, get_dc)
   
@@ -132,13 +164,13 @@ public:
     controller_type::set_ppt(__LINE__, __FILE__);
     return dc::stmts({
       dc::mk_if([&] (sar& s, par&) {
-	  s.lg_lt = controller_type::predict_lg_nb_iterations();
-	  auto lt = std::max(2, controller_type::predict_nb_iterations(s.lg_lt));
-	  return s.n < lt;
+        s.lg_lt = controller_type::predict_lg_nb_iterations();
+        auto lt = std::max(2, controller_type::predict_nb_iterations(s.lg_lt));
+        return s.n < lt;
 	}, dc::stmts({
         dc::stmt([] (sar& s, par&) {
-          *s.dest = serialQuickHull(s.I, s.P, s.n, s.l, s.r);
-	  controller_type::register_callback(s.lg_lt, controller_type::predict_nb_iterations(s.lg_lt));
+          *s.dest = quickHullP(s.I, s.Itmp, s.P, s.n, s.l, s.r);
+          controller_type::register_callback(s.lg_lt, controller_type::predict_nb_iterations(s.lg_lt));
         }),
         dc::exit_function()
       })),
@@ -160,10 +192,10 @@ public:
       }),
       dc::spawn2_join(
         [] (sar& s, par&, plt pt, stt st) {
-          return encore_call<quickHull>(st, pt, s.Itmp, s.I, s.P, s.n1, s.l, s.maxP, s.depth-1, &s.m1);
+          return encore_call<quickHull>(st, pt, s.Itmp, s.I, s.P, s.n1, s.l, s.maxP, &s.m1);
         },
         [] (sar& s, par&, plt pt, stt st) {
-          return encore_call<quickHull>(st, pt, s.Itmp+s.n1, s.I+s.n1, s.P, s.n2, s.maxP, s.r, s.depth-1, &s.m2);
+          return encore_call<quickHull>(st, pt, s.Itmp+s.n1, s.I+s.n1, s.P, s.n2, s.maxP, s.r, &s.m2);
         }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.Itmp, s.Itmp + s.m1, s.I);
@@ -267,10 +299,10 @@ public:
       }),
       dc::spawn2_join(
         [] (sar& s, par&, plt pt, stt st) {
-          return encore_call<quickHull>(st, pt, s.I, s.Itmp, s.P, s.n1, s.l, s.r, 5, &s.m1);
+          return encore_call<quickHull>(st, pt, s.I, s.Itmp, s.P, s.n1, s.l, s.r, &s.m1);
         },
         [] (sar& s, par&, plt pt, stt st) {
-          return encore_call<quickHull>(st, pt, s.I + s.n1, s.Itmp + s.n1, s.P, s.n2, s.r, s.l, 5, &s.m2);
+          return encore_call<quickHull>(st, pt, s.I + s.n1, s.Itmp + s.n1, s.P, s.n2, s.r, s.l, &s.m2);
         }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.I, s.I + s.m1, s.Itmp + 1);
