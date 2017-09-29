@@ -249,8 +249,6 @@ stack_type radixSortPair(stack_type s, plt_type pt, std::pair<intT,intT> *A, int
   return intSort::iSort4(s, pt, A, n, m, pbbs::utils::firstF<intT,intT>());
 }
 
-int zero = 0;
-
 class suffix_array_rec : public encore::edsl::pcfg::shared_activation_record {
 public:
 
