@@ -177,9 +177,9 @@ void initialize(int argc, char** argv) {
   }
   promotion_threshold_usec = cmdline::parse_or_default_double("promotion_threshold", promotion_threshold_usec);
   fuel::initialize(cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
-  double grain_usec = promotion_threshold_usec / 2.0;
+  double grain_usec = promotion_threshold_usec / 4.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
-  grain::initialize(cpu_frequency_ghz, grain_usec * 1000.0, promotion_threshold_usec * 1000.0);
+  grain::initialize(cpu_frequency_ghz, grain_usec * 1000.0, 1.5 * promotion_threshold_usec * 1000.0);
   cilk_set_nb_cores();
 }
   
