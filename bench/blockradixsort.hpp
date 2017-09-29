@@ -70,7 +70,7 @@ namespace intSort {
     : A(A), B(B), Tmp(Tmp), BK(BK), numBK(numBK), n(n),
     m(m), top(top), extract(extract) { }
 
-    using trampoline = enum { entry, loop1, loop2, loop3, loop4, fused };
+    using trampoline = enum { entry, loop1, loop2, loop3, loop4 };
     
     using rbty = struct radixBlock2 {
       E* A; E* B; bIndexT *Tmp; intT* counts; intT* offsets;
@@ -90,70 +90,57 @@ namespace intSort {
     rbty rb;
     encore_private_activation_record_end(encore::edsl, radixStep, sar, par, dc, get_dc)
 
-    static
-    void radixBlockSerial(E* A, E* B, bIndexT *Tmp, intT counts[BUCKETS], intT offsets[BUCKETS],
-			  intT Boffset, intT n, intT m, F extract) {
-      
-      for (intT i = 0; i < m; i++)  counts[i] = 0;
-      for (intT j = 0; j < n; j++) {
-	intT k = Tmp[j] = extract(A[j]);
-	counts[k]++;
-      }
-      intT s = Boffset;
-      for (intT i = 0; i < m; i++) {
-	s += counts[i];
-	offsets[i] = s;
-      }
-      for (intT j = n-1; j >= 0; j--) {
-	intT x =  --offsets[Tmp[j]];
-	B[x] = A[j];
-      }
-    }
-
+    class loop_grain0 { };
+    class loop_grain1 { };
+    class loop_grain2 { };
+    class loop_grain3 { };
+    
     static
     dc get_dc() {
-      using controller_type = encore::grain::controller<encore::grain::automatic, rbty>;
-      controller_type::set_ppt(__LINE__, __FILE__);
+      using controller_type0 = encore::grain::controller<encore::grain::automatic, loop_grain0>;
+      using controller_type1 = encore::grain::controller<encore::grain::automatic, loop_grain1>;
+      using controller_type2 = encore::grain::controller<encore::grain::automatic, loop_grain2>;
+      using controller_type3 = encore::grain::controller<encore::grain::automatic, loop_grain3>;
+      controller_type0::set_ppt(__LINE__, __FILE__);
+      controller_type1::set_ppt(__LINE__, __FILE__);
+      controller_type2::set_ppt(__LINE__, __FILE__);
+      controller_type3::set_ppt(__LINE__, __FILE__);
       auto radixBlock = [] (sar& , par& p) {
-        auto lg_lt = controller_type::predict_lg_nb_iterations();
-        auto lt = controller_type::predict_nb_iterations(lg_lt);
-        int fuel0 = lt;
-        int fuel = fuel0;
         auto i = p.rb.i; auto j = p.rb.j; auto s = p.rb.s; auto t = p.rb.t;
         auto A = p.rb.A; auto B = p.rb.B; bIndexT *Tmp = p.rb.Tmp; intT* counts = p.rb.counts;
         intT* offsets = p.rb.offsets;
         intT Boffset = p.rb.Boffset; intT n = p.rb.n; intT m = p.rb.m; F extract = p.rb.extract;
-	if ((n + m) < 128) {
-	  radixBlockSerial(A, B, Tmp, counts, offsets, Boffset, n, m, extract);
-	  t = fused;
-	}
         switch (t) {
           case entry: {
             i = 0;
             t = loop1;
           }
           case loop1: {
-	    auto lst = std::min(m, i + lt);
+            auto lg_lt = controller_type0::predict_lg_nb_iterations();
+            auto lt = controller_type0::predict_nb_iterations(lg_lt);
+            auto lst = std::min(m, i + lt);
             while (i < lst) {
               counts[i] = 0;
               i++;
             }
-	    fuel -= i;
-	    if (i != m) {
+            if (i != m) {
+              controller_type0::register_callback(lg_lt, i);
               goto exit;
             }
             j = 0;
             t = loop2;
           }
           case loop2: {
-	    auto lst = std::min(n, j + lt);
+            auto lg_lt = controller_type1::predict_lg_nb_iterations();
+            auto lt = controller_type1::predict_nb_iterations(lg_lt);
+            auto lst = std::min(n, j + lt);
             while (j < lst) {
               intT k = Tmp[j] = extract(A[j]);
               counts[k]++;
               j++;
             }
-	    fuel -= j;
-	    if (j != n) {
+            if (j != n) {
+              controller_type1::register_callback(lg_lt, j);
               goto exit;
             }
             s = Boffset;
@@ -161,41 +148,42 @@ namespace intSort {
             t = loop3;
           }
           case loop3: {
-	    auto lst = std::min(m, i + lt);
+            auto lg_lt = controller_type2::predict_lg_nb_iterations();
+            auto lt = controller_type2::predict_nb_iterations(lg_lt);
+            auto lst = std::min(m, i + lt);
             while (i < lst) {
               s += counts[i];
               offsets[i] = s;
               i++;
             }
-	    fuel -= i;
-	    if (i != m) {
+            if (i != m) {
+              controller_type2::register_callback(lg_lt, i);
               goto exit;
             }
             j = n-1;
             t = loop4;
           }
           case loop4: {
-	    int lst = std::max(j - lt, 0);
+            auto lg_lt = controller_type3::predict_lg_nb_iterations();
+            int lt = controller_type3::predict_nb_iterations(lg_lt);
+            int lst = std::max(j - lt, 0);
             while (j >= lst) {
               intT x =  --offsets[Tmp[j]];
               B[x] = A[j];
               j--;
             }
-	    fuel -= j - lst;
-	    if (j + 1 != 0) {
+            if (j + 1 != 0) {
+              controller_type3::register_callback(lg_lt, lst);
               goto exit;
             }
           }
         }
         p.not_done = false;
-        controller_type::register_callback(lg_lt, fuel0 - fuel);
         return;
       exit:
         p.rb.t = t; p.rb.i = i; p.rb.j = j; p.rb.s = s;
         p.not_done = true;
-        controller_type::register_callback(lg_lt, fuel0 - fuel);
         return;
-
       };
       return dc::stmts({
         dc::stmt([] (sar& s, par& p) {
@@ -264,22 +252,19 @@ namespace intSort {
         }),
         dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt([] (sar& s, par& p) {
           using controller_type = encore::grain::controller<encore::grain::automatic, radixStep>;
-          // later: set_ppt()
           auto lg_lt = controller_type::predict_lg_nb_iterations();
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
           int fuel = fuel0;
           auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
           // put the offsets for each bucket in the first bucket set of BK
-	  auto lst = std::min(m, j + lt);
-          while (j < lst) {
+          while (j < m) {
             BK[0][j] = oA[j*blocks];
             j++;
+            if (--fuel == 0) {
+              goto exit;
+            }
           }
-	  fuel -= j;
-	  if (j != m) {
-	    goto exit;
-	  }
           p.not_done = false;
           controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;

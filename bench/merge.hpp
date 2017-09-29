@@ -56,15 +56,21 @@ public:
   ET* pR; ET* pS1; ET* pS2;
 
   using trampoline = enum { copy1, copy2, loop };
-  trampoline t = copy1;
+  trampoline t = loop;
 
   merge(ET* S1, intT l1, ET* S2, intT l2, ET* R, F f)
     : S1(S1), l1(l1), S2(S2), l2(l2), R(R), f(f) { }
   
   encore_dc_declare(encore::edsl, merge, sar, par, dc, get_dc)
 
+  class copy0 { };
+
   static
   dc get_dc() {
+    using controller_type = encore::grain::controller<encore::grain::automatic, merge>;
+    using controller_copy_type = encore::grain::controller<encore::grain::automatic, copy0>;
+    controller_type::set_ppt(__LINE__, __FILE__);
+    controller_copy_type::set_ppt(__LINE__, __FILE__);
     return dc::mk_if([] (sar& s, par& p) {
         return (s.l1 + s.l2) > _MERGE_BSIZEE;
       }, dc::mk_if([] (sar& s, par& p) {
@@ -92,13 +98,8 @@ public:
           s.pS1 = s.S1; 
           s.pS2 = s.S2;
         }),
-        dc::sequential_loop([] (sar& s, par& p) { return s.not_done; }, dc::stmt([] (sar& s, par& p) {
-          using controller_type = encore::grain::controller<encore::grain::automatic, merge>;
-          // later: set_ppt()
-          auto lg_lt = controller_type::predict_lg_nb_iterations();
-          auto lt = controller_type::predict_nb_iterations(lg_lt);
-          int fuel0 = lt;
-          int fuel = fuel0;
+        dc::sequential_loop([] (sar& s, par& p) { return s.not_done; }, dc::stmt([] (sar& s, par& ep) {
+          int nb;
           ET* pR = s.pR; 
           ET* pS1 = s.pS1; 
           ET* pS2 = s.pS2;
@@ -106,55 +107,82 @@ public:
           ET* eS2 = s.S2 + s.l2;
           auto f = s.f;
           trampoline t = s.t;
+          int lg_lt;
           while (true) {
             switch (t) {
               case copy1: {
-                if (pS1==eS1) {
-                  auto m = eS2-pS2;
-                  auto n = std::min((int)m, fuel);
-                  std::copy(pS2,pS2+n,pR);
-                  pS2 += n; pR += n; fuel = n;
-                  if (m == n) {
-                    s.not_done = false;
-                    controller_type::register_callback(lg_lt, fuel0 - fuel);
-                    return;
-                  } else {
-                    goto exit;
-                  }
+                lg_lt = controller_copy_type::predict_lg_nb_iterations();
+                auto lt = controller_copy_type::predict_nb_iterations(lg_lt);
+                int lst2 = std::min((int)(lt + (pS2 - s.S2)), s.l2);
+                ET* eeS2 = s.S2 + lst2;
+                std::copy(pS2, eeS2, pR);
+                auto nnb = eeS2 - pS2;
+                pS2 += nnb;
+                pR += nnb;
+                if (pS2 == eS2) {
+                  s.not_done = false;
+                  return;
+                } else {
+                  nb = nnb;
+                  goto exit_copy;
                 }
-                t = copy2;
+                break;
               }
               case copy2: {
-                if (pS2==eS2) {
-                  auto m = eS1-pS1;
-                  auto n = std::min((int)m, fuel);
-                  std::copy(pS1,pS1+n,pR);
-                  pS1 += n; pR += n; fuel = n;
-                  if (m == n) {
-                    s.not_done = false;
-                    controller_type::register_callback(lg_lt, fuel0 - fuel);
-                    return;
-                  } else {
-                    goto exit;
-                  }
+                lg_lt = controller_copy_type::predict_lg_nb_iterations();
+                auto lt = controller_copy_type::predict_nb_iterations(lg_lt);
+                int lst1 = std::min((int)(lt + (pS1 - s.S1)), s.l1);
+                ET* eeS1 = s.S1 + lst1;
+                std::copy(pS1, eeS1, pR);
+                auto nnb = eeS1 - pS1;
+                pS1 += nnb;
+                pR += nnb;
+                if (pS1 == eS1) {
+                  s.not_done = false;
+                  return;
+                } else {
+                  nb = nnb;
+                  goto exit_copy;
                 }
-                t = loop;
+                break;
               }
               case loop: {
-                *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
-                t = copy1;
-                if (--fuel <= 0) {
+                lg_lt = controller_type::predict_lg_nb_iterations();
+                auto lt = std::max(1, controller_type::predict_nb_iterations(lg_lt));
+                int lst1 = std::min((int)(lt + (pS1 - s.S1)), s.l1);
+                ET* eeS1 = s.S1 + lst1;
+                int lst2 = std::min((int)(lt + (pS2 - s.S2)), s.l2);
+                ET* eeS2 = s.S2 + lst2;
+                while (true) {
+                  if (pS1==eeS1) {break;}
+                  if (pS2==eeS2) {break;}
+                  *pR++ = f(*pS2,*pS1) ? *pS2++ : *pS1++;
+                }
+                if (pS1 == eS1) {
+                  t = copy1;
+                } else if (pS2 == eS2) {
+                  t = copy2; 
+                } else {
+                  nb = (eeS1 - pS1) + (eeS2 - pS2);
                   goto exit;
                 }
+                break;
               }
             }
           }
-        exit:
+         exit:
           s.pR = pR;
           s.pS1 = pS1;
           s.pS2 = pS2;
           s.t = t;
-          controller_type::register_callback(lg_lt, fuel0 - fuel);
+          controller_type::register_callback(lg_lt, nb);
+          return;
+        exit_copy:
+          s.pR = pR;
+          s.pS1 = pS1;
+          s.pS2 = pS2;
+          s.t = t;
+          controller_copy_type::register_callback(lg_lt, nb);
           return;
         }))
       }));
