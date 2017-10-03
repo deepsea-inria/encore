@@ -36,8 +36,7 @@ public:
   intT cStart; intT cCount; intT cLength;
   intT l1; intT l2;
 
-  using trampoline = enum { loop0, loop1, loop_exit };
-  trampoline t; intT i, j;
+  bool done = false; intT i;
   
   transpose(E *AA, E *BB,
             intT rStart, intT rCount, intT rLength,
@@ -50,52 +49,39 @@ public:
 
   static
   dc get_dc() {
+    using controller_type = encore::grain::controller<encore::grain::automatic, transpose>;
+    controller_type::set_ppt(__LINE__, __FILE__);
     return dc::cond({
       std::make_pair([] (sar& s, par& p) {
         return s.cCount < _TRANS_THRESHHOLD_encore && s.rCount < _TRANS_THRESHHOLD_encore;
       }, dc::stmts({dc::stmt([] (sar& s, par& p) {
           s.i = s.rStart;
-          s.t = loop0;
+          s.done = false;          
         }),
-        dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
-          using controller_type = encore::grain::controller<encore::grain::automatic, transpose>;
+        dc::sequential_loop([] (sar& s, par& p) { return ! s.done; }, dc::stmt([] (sar& s, par& p) {
           auto lg_lt = controller_type::predict_lg_nb_iterations();
           auto lt = controller_type::predict_nb_iterations(lg_lt);
-          int fuel0 = lt;
-          int fuel = fuel0;
           auto rStart = s.rStart; auto rCount = s.rCount;
           auto cStart = s.cStart; auto cCount = s.cCount;
           auto B = s.B; auto A = s.A;
           auto rLength = s.rLength; auto cLength = s.cLength;
-          auto t = s.t; intT i = s.i; intT j = s.j;
-          while (i < rStart + rCount) {
-            switch (t) {
-              case loop0: {
-                j = cStart;
-                t = loop1;
-              }
-              case loop1: {
-		auto lst = std::min(cStart + cCount, fuel);
-                while (j < lst) {
-                  B[j*cLength + i] = A[i*rLength + j];
-                  j++;
-                }
-		fuel = std::max(1, fuel - j);
-		if (--fuel == 0) {
-		  goto exit;
-		}
-                i++;
-                t = loop0;
-                if (--fuel == 0) {
-                  goto exit;
-                }
-              }
+          intT i = s.i;
+          auto end = rStart + rCount;
+          auto lst = std::min(end, i + std::max(1, lt));
+          auto nbiters = lst - i;
+          for (; i < lst; i++) {
+            for (intT j=cStart; j < cStart + cCount; j++) {
+              B[j*cLength + i] = A[i*rLength + j];
             }
           }
-          t = loop_exit;
+          if (i != end) {
+            goto exit;
+          }
+          s.done = true;
+          return;
         exit:
-          s.i = i; s.j = j; s.t = t;
-          controller_type::register_callback(lg_lt, fuel0 - fuel);
+          s.i = i;
+          controller_type::register_callback(lg_lt, nbiters);
           return;
         }))
       })),
@@ -167,6 +153,8 @@ public:
   
   static
   dc get_dc() {
+    using controller_type = encore::grain::controller<encore::grain::automatic, blockTrans>;
+    controller_type::set_ppt(__LINE__, __FILE__);
     return dc::cond({
       std::make_pair([] (sar& s, par& p) {
         return s.cCount < _TRANS_THRESHHOLD_encore && s.rCount < _TRANS_THRESHHOLD_encore;
@@ -175,8 +163,6 @@ public:
           s.t = loop0;
         }),
         dc::sequential_loop([] (sar& s, par& p) { return s.t != loop_exit; }, dc::stmt([] (sar& s, par& p) {
-          using controller_type = encore::grain::controller<encore::grain::automatic, blockTrans>;
-          // later: set_ppt()
           auto lg_lt = controller_type::predict_lg_nb_iterations();
           auto lt = controller_type::predict_nb_iterations(lg_lt);
           int fuel0 = lt;
@@ -205,33 +191,28 @@ public:
                 t = loop2;
               }
               case loop2: {
-		auto lst = std::min(l, fuel);
+		auto lst = std::min(l, k + fuel);
+                auto nb = lst - k;
                 while (k < lst) {
                   *(pb++) = *(pa++);
                   k++;
                 }
-		fuel = std::max(1, fuel - k);
+		fuel = std::max(1, fuel - nb);
 		if (--fuel == 0) {
+		  controller_type::register_callback(lg_lt, fuel0);
 		  goto exit;
 		}
                 j++;
                 t = loop1;
-                if (--fuel == 0) {
-                  goto exit;
-                }
                 continue;
               }
             }
             i++;
             t = loop0;
-            if (--fuel == 0) {
-              goto exit;
-            }
           }
           t = loop_exit;
         exit:
           s.i = i; s.j = j; s.t = t; s.k = k; s.l = l; s.pa = pa; s.pb = pb;
-          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         }))
       })),
