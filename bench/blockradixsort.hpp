@@ -27,6 +27,7 @@
 #include "transpose.hpp"
 #include "utils.h"
 #include "logging.hpp"
+#include "gettime.h"
 
 #ifndef _ENCORE_A_RADIX_INCLUDED
 #define _ENCORE_A_RADIX_INCLUDED
@@ -45,6 +46,8 @@ namespace intSort {
   
   // a type that must hold MAX_RADIX bits
   typedef unsigned char bIndexT;
+
+    pbbs::timer isortt8;
     
   // A is the input and sorted output (length = n)
   // B is temporary space for copying data (length = n)
@@ -110,6 +113,7 @@ namespace intSort {
         auto A = p.rb.A; auto B = p.rb.B; bIndexT *Tmp = p.rb.Tmp; intT* counts = p.rb.counts;
         intT* offsets = p.rb.offsets;
         intT Boffset = p.rb.Boffset; intT n = p.rb.n; intT m = p.rb.m; F extract = p.rb.extract;
+        int nbiters = 0;
         switch (t) {
           case entry: {
             i = 0;
@@ -119,12 +123,13 @@ namespace intSort {
             auto lg_lt = controller_type0::predict_lg_nb_iterations();
             auto lt = controller_type0::predict_nb_iterations(lg_lt);
             auto lst = std::min(m, i + lt);
+            nbiters = lst - i;
             while (i < lst) {
               counts[i] = 0;
               i++;
             }
             if (i != m) {
-              controller_type0::register_callback(lg_lt, i);
+              controller_type0::register_callback(lg_lt, nbiters);
               goto exit;
             }
             j = 0;
@@ -134,13 +139,14 @@ namespace intSort {
             auto lg_lt = controller_type1::predict_lg_nb_iterations();
             auto lt = controller_type1::predict_nb_iterations(lg_lt);
             auto lst = std::min(n, j + lt);
+            nbiters = lst - j;
             while (j < lst) {
               intT k = Tmp[j] = extract(A[j]);
               counts[k]++;
               j++;
             }
             if (j != n) {
-              controller_type1::register_callback(lg_lt, j);
+              controller_type1::register_callback(lg_lt, nbiters);
               goto exit;
             }
             s = Boffset;
@@ -151,13 +157,14 @@ namespace intSort {
             auto lg_lt = controller_type2::predict_lg_nb_iterations();
             auto lt = controller_type2::predict_nb_iterations(lg_lt);
             auto lst = std::min(m, i + lt);
+            nbiters = lst - i;
             while (i < lst) {
               s += counts[i];
               offsets[i] = s;
               i++;
             }
             if (i != m) {
-              controller_type2::register_callback(lg_lt, i);
+              controller_type2::register_callback(lg_lt, nbiters);
               goto exit;
             }
             j = n-1;
@@ -167,13 +174,14 @@ namespace intSort {
             auto lg_lt = controller_type3::predict_lg_nb_iterations();
             int lt = controller_type3::predict_nb_iterations(lg_lt);
             int lst = std::max(j - lt, 0);
+            nbiters = j - lst;
             while (j >= lst) {
               intT x =  --offsets[Tmp[j]];
               B[x] = A[j];
               j--;
             }
             if (j + 1 != 0) {
-              controller_type3::register_callback(lg_lt, lst);
+              controller_type3::register_callback(lg_lt, nbiters);
               goto exit;
             }
           }
@@ -258,19 +266,20 @@ namespace intSort {
           int fuel = fuel0;
           auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
           // put the offsets for each bucket in the first bucket set of BK
-          while (j < m) {
+          auto lst = std::min(m, j + fuel);
+          int nbiters = lst - j;
+          while (j < lst) {
             BK[0][j] = oA[j*blocks];
             j++;
-            if (--fuel == 0) {
-              goto exit;
-            }
+          }
+          if (j != m) {
+            goto exit;
           }
           p.not_done = false;
-          controller_type::register_callback(lg_lt, fuel0 - fuel);
           return;
         exit:
-          p.rb.j = j; p.not_done = true;
-          controller_type::register_callback(lg_lt, fuel0 - fuel);
+          p.rb.j = j; p.not_done = true;	  
+          controller_type::register_callback(lg_lt, nbiters);
           return;
         }))
       });
@@ -420,6 +429,14 @@ namespace intSort {
     return sizeof(E)*n + sizeof(bIndexT)*n + sizeof(bucketsT)*numBK;
   }
 
+  pbbs::timer isortt1;
+    pbbs::timer isortt2;
+    pbbs::timer isortt3;
+    pbbs::timer isortt4;
+    pbbs::timer isortt5;
+  pbbs::timer isortt6;
+    pbbs::timer isortt7;
+  
   template <class E, class F, class intT>
   class iSort : public encore::edsl::pcfg::shared_activation_record {
   public:
@@ -461,10 +478,16 @@ namespace intSort {
           std::make_pair([] (sar& s, par& p) {
             return s.bits <= MAX_RADIX;
           }, dc::stmts({
+              dc::stmt([] (sar& s, par& p) {
+                  isortt1.start();
+                }),
             dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
               auto f = eBits<E,F>(s.bits,0,s.f);
               return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT) 1 << s.bits, true, f);
             }),
+              dc::stmt([] (sar& s, par& p) {
+                  isortt1.stop();
+                }),
             dc::mk_if([] (sar& s, par& p) {
               return s.bucketOffsets != NULL;
             }, dc::stmts({
@@ -472,23 +495,53 @@ namespace intSort {
                 p.s = 0;
                 p.e = s.m;
               }),
+                dc::stmt([] (sar& s, par& p) {
+                  isortt2.start();
+                }),
               dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
                 return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.BK[0], s.BK[0] + s.m, s.bucketOffsets);
-              })
-            })),
+                }),
+                dc::stmt([] (sar& s, par& p) {
+                    isortt2.stop();
+                })
+                })),
             dc::exit_function()
           })),
           std::make_pair([] (sar& s, par& p) {
             return s.bottomUp;
-          }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          },
+            dc::stmts({
+                dc::stmt([] (sar& s, par& p) {
+                  isortt3.start();
+                }),
+            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             return encore_call<radixLoopBottomUp<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, true, s.f);
-          }))
-        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+              }),
+                  dc::stmt([] (sar& s, par& p) {
+                  isortt3.stop();
+                })
+ 
+              })
+            )
+        },
+          dc::stmts({
+              dc::stmt([] (sar& s, par& p) {
+                  isortt4.start();
+                }),
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return encore_call<radixLoopTopDown<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, s.f);
-        })),
+            }),
+                  dc::stmt([] (sar& s, par& p) {
+                  isortt4.stop();
+                })
+            })
+          ),
         dc::mk_if([] (sar& s, par& p) {
           return s.bucketOffsets != NULL;
         }, dc::stmts({
+              dc::stmt([] (sar& s, par& p) {
+                  isortt5.start();
+                }),
           dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.m; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
                                 [] (sar& s, par& p, int lo, int hi) {
@@ -508,12 +561,21 @@ namespace intSort {
               }
             }
           }),
+              dc::stmt([] (sar& s, par& p) {
+                  isortt5.start();
+                }),
           dc::stmt([] (sar& s, par& p) {
             s.bucketOffsets[s.f(s.A[0])] = 0;
           }),
+              dc::stmt([] (sar& s, par& p) {
+                  isortt6.start();
+                }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             return sequence::scanIBack(st, pt, s.bucketOffsets, s.bucketOffsets, s.m, pbbs::utils::minF<intT>(), s.n, &s.tmp);
-          })
+            }),
+                dc::stmt([] (sar& s, par& p) {
+                  isortt6.start();
+                })
         }))
       });
     }
