@@ -67,6 +67,7 @@ namespace intSort {
     intT numBK; intT n; intT m; bool top; F extract;
     
     int expand; intT blocks; intT nn; intT* cnts; intT* oA; intT* oB; intT ss;
+    intT jlo; intT jhi;
     
     radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
               intT numBK, intT n, intT m, bool top, F extract)
@@ -255,33 +256,18 @@ namespace intSort {
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return blockTrans2(st, pt, s.B, s.A, s.oB, s.oA, s.cnts, s.blocks, s.m);
         }),
-        dc::stmt([] (sar& s, par& p) {
-          p.not_done = true; p.rb.j = 0;
-        }),
-        dc::sequential_loop([] (sar& s, par& p) { return p.not_done; }, dc::stmt([] (sar& s, par& p) {
-          using controller_type = encore::grain::controller<encore::grain::automatic, radixStep>;
-          auto lg_lt = controller_type::predict_lg_nb_iterations();
-          auto lt = controller_type::predict_nb_iterations(lg_lt);
-          int fuel0 = lt;
-          int fuel = fuel0;
-          auto BK = s.BK; auto j = p.rb.j; auto oA = s.oA; auto blocks = s.blocks; auto m = s.m;
+        dc::sequential_loop([] (sar& s, par&) {
+          s.jlo = 0;
+          s.jhi = s.m;
+        }, [] (sar& s, par&) {
+          return std::make_pair(&s.jlo, &s.jhi);
+        }, [] (sar& s, par&, int lo, int hi) {
           // put the offsets for each bucket in the first bucket set of BK
-          auto lst = std::min(m, j + fuel);
-          int nbiters = lst - j;
-          while (j < lst) {
+          auto BK = s.BK; auto oA = s.oA; auto blocks = s.blocks;
+          for (auto j = lo; j != hi; j++) {
             BK[0][j] = oA[j*blocks];
-            j++;
           }
-          if (j != m) {
-            goto exit;
-          }
-          p.not_done = false;
-          return;
-        exit:
-          p.rb.j = j; p.not_done = true;	  
-          controller_type::register_callback(lg_lt, nbiters);
-          return;
-        }))
+        })
       });
     }
     
