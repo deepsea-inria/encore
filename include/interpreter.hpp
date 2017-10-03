@@ -38,6 +38,8 @@ public:
 #endif
   
 };
+
+using vertex_split_type = sched::vertex_split_type;
   
 sched::vertex* dummy_join = nullptr;
   
@@ -54,9 +56,9 @@ public:
     return 1;
   }
   
-  virtual std::pair<sched::vertex*, sched::vertex*> split(interpreter*, int) {
+  virtual vertex_split_type split(interpreter*, int) {
     assert(false); // impossible
-    return std::make_pair(nullptr, nullptr);
+    return sched::make_vertex_split(nullptr, nullptr);
   }
   
   virtual sched::vertex*& get_join(parallel_loop_id_type) {
@@ -326,8 +328,11 @@ public:
       }
       case Peek_mark_loop_split: {
         auto r = split(nb_strands() / 2);
-        schedule(r.second);
-        schedule(r.first);
+        schedule(r.v2);
+        schedule(r.v1);
+	if (r.v0 != nullptr) {
+	  schedule(r.v0);
+	}
         stats::on_promotion();
         break;
       }
@@ -339,7 +344,7 @@ public:
     return f;
   }
   
-  std::pair<vertex*, vertex*> split(int nb) {
+  vertex_split_type split(int nb) {
     return peek_marked_private_frame<private_activation_record>(stack).split(this, nb);
   }
   
@@ -598,10 +603,8 @@ public:
     return std::max(1, d->nb_strands());
   }
   
-  using split_result = std::pair<sched::vertex*, sched::vertex*>;
-  
-  split_result split_join_trivial(interpreter* interp0, par_type* par0, sar_type* sar0,
-                                  parallel_loop_id_type id, int nb) {
+  vertex_split_type split_join_trivial(interpreter* interp0, par_type* par0, sar_type* sar0,
+				       parallel_loop_id_type id, int nb) {
     assert(nb < interp0->nb_strands());
     assert(nb > 0);
     parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
@@ -610,6 +613,7 @@ public:
     auto lpar0 = par0->loop_activation_record_of(id);
     par_type* par1 = par0;
     sched::vertex* join = lpar0->get_join();
+    interpreter* interp00 = nullptr;
     if (join == nullptr) {
       join = interp0;
       auto stacks = split_stack(interp0->stack);
@@ -639,10 +643,14 @@ public:
       lpar0->get_join() = nullptr;
       sched::new_edge(interp01, join);
       sched::new_edge(interp1, join);
-      interpreter* interp00 = new interpreter(stacks.second);
-      sched::new_edge(interp00, interp01);
-      release(interp01);
-      release(interp00);
+      if (empty_stack(stacks.second)) {
+        interp00 = interp01;
+      } else {
+        interp00 = new interpreter(stacks.second);
+        sched::new_edge(interp00, interp01);
+        release(interp01);
+      }
+      interp00->release_handle->decrement();
       interp1->release_handle->decrement();
     } else {
       interp1 = interp0;
@@ -662,11 +670,11 @@ public:
     });
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
-    return std::make_pair(interp1, interp2);
+    return sched::make_vertex_split(interp00, interp1, interp2);
   }
   
-  split_result split_join_associative_combine(interpreter* interp0, par_type* par0, sar_type* sar0,
-                                              parallel_loop_id_type id, int nb) {
+  vertex_split_type split_join_associative_combine(interpreter* interp0, par_type* par0, sar_type* sar0,
+						   parallel_loop_id_type id, int nb) {
     parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
     interpreter* interp1 = interp0;
     interpreter* interp2 = nullptr;
@@ -694,11 +702,11 @@ public:
       return pcfg::is_splittable(_ar);
     });
     interp2->release_handle->decrement();
-    return std::make_pair(interp1, interp2);
+    return sched::make_vertex_split(interp1, interp2);
   }
   
-  split_result split(interpreter* interp0, int nb) {
-    split_result result;
+  vertex_split_type split(interpreter* interp0, int nb) {
+    vertex_split_type result;
     par_type* par0 = &peek_marked_private_frame<par_type>(interp0->stack);
     sar_type* sar0 = &peek_marked_shared_frame<sar_type>(interp0->stack);
     parallel_loop_id_type id = par0->get_id_of_oldest_nonempty();

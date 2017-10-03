@@ -121,8 +121,11 @@ void worker_loop(vertex* v) {
       if (n >= 2) {
         my_ready.pop_front();
         auto vs = v->split(n / 2);
-        my_ready.push_front(vs.first);
-        v = vs.second;
+	my_ready.push_front(vs.v1);
+	if (vs.v0 != nullptr) {
+	  my_ready.push_front(vs.v0);
+	}
+        v = vs.v2;
       } else {
         my_ready.pop_front();
       }
@@ -320,15 +323,12 @@ public:
     } else if (spill == vnb) {
       vs.push_back(v);
     } else {
-      // this split operation might create and push into this frontier
-      // new threads; as such, if the combined number of strands of the
-      // threads is greater than zero, the frontier after this split
-      // operation will hold more strands than before.
-      auto vertices = v->split(vnb - spill);
-      vertex* v1 = vertices.first;
-      vertex* v2 = vertices.second;
-      other.vs.push_back(v2);
-      vs.push_front(v1);
+      vertex_split_type sr = v->split(vnb - spill);
+      if (sr.v0 != nullptr) {
+        vs.push_front(sr.v0);
+      }
+      vs.push_front(sr.v1);
+      other.vs.push_back(sr.v2);
     }
 #if defined(ENCORE_ENABLE_LOGGING)
     int n2 = nb_strands();
@@ -477,7 +477,7 @@ void worker_loop(vertex* v) {
       update_status();
     }
   }
-  
+
   assert(my_ready.empty());
   assert(my_suspended.empty());
   nb_running_workers--;
@@ -629,7 +629,7 @@ public:
     return fuel::check_no_promote;
   }
   
-  std::pair<vertex*, vertex*> split(int nb) {
+  vertex_split_type split(int nb) {
     vertex* v = nullptr;
     std::deque<outset_tree_node_type*> todo2;
     if (todo.empty()) {
@@ -645,7 +645,7 @@ public:
       todo2.push_back(n);
       v = new parallel_notify_future(out, nullptr, nullptr, todo2);
     }
-    return std::make_pair(this, v);
+    return make_vertex_split(this, v);
   }
   
 };
@@ -734,14 +734,14 @@ public:
     return fuel::check_no_promote;
   }
   
-  std::pair<vertex*, vertex*> split(int nb) {
+  vertex_split_type split(int nb) {
     assert(todo.size() >= 2);
     assert(nb == 1);
     auto n = todo.front();
     todo.pop_front();
     auto v = new parallel_deallocate_heavy;
     v->todo.push_back(n);
-    return std::make_pair(this, v);
+    return make_vertex_split(this, v);
   }
   
 };
