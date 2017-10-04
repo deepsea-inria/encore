@@ -496,6 +496,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       sched::new_edge(branch, incounter);
       schedule(continuation);
       release(branch);
+      logging::push_promote_spawn_minus(sar->get_name());
       break;
     }
     case tag_spawn_plus: {
@@ -510,6 +511,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       *block.variant_spawn_plus.getter(*sar, *par) = branch->get_outset();
       schedule(continuation);
       release(branch);
+      logging::push_promote_spawn_plus(sar->get_name());
       break;
     }
     case tag_join_plus: {
@@ -523,6 +525,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       *block.variant_join_plus.getter(*sar, *par) = continuation->get_incounter();
       sched::new_edge(branch, continuation);
       release(branch);
+      logging::push_promote_join_plus(sar->get_name());
       break;
     }
     default: {
