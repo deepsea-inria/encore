@@ -44,6 +44,8 @@ using event_tag_type = enum {
   program_point,
   promote_spawn2_join, promote_spawn_minus,
   promote_spawn_plus, promote_join_plus,
+  promote_loop_split_join_trivial,
+  promote_loop_split_join_associative_combine,
   nb_events
 };
 
@@ -66,6 +68,10 @@ std::string name_of(event_tag_type e) {
     case promote_spawn_minus: return "promote_spawn_minus";
     case promote_spawn_plus: return "promote_spawn_plus";
     case promote_join_plus: return "promote_join_plus";
+    case promote_loop_split_join_trivial:
+      return "promote_loop_split_join_trivial";
+    case promote_loop_split_join_associative_combine:
+      return "promote_loop_split_join_associative_combine";
     default: return "unknown_event ";
   }
 }
@@ -88,7 +94,10 @@ event_kind_type kind_of(event_tag_type e) {
     case promote_spawn2_join:
     case promote_spawn_minus:
     case promote_spawn_plus:
-    case promote_join_plus:         return promotion;
+    case promote_join_plus:
+    case promote_loop_split_join_trivial:
+    case promote_loop_split_join_associative_combine:
+                                    return promotion;
     default: return nb_kinds;
   }
 }
@@ -180,17 +189,13 @@ public:
                 extra.ppt.ptr);
         break;
       }
-      case promote_spawn2_join: {
+      case promote_spawn2_join:
+      case promote_spawn_minus:
+      case promote_spawn_plus:
+      case promote_join_plus:
+      case promote_loop_split_join_trivial:
+      case promote_loop_split_join_associative_combine: {
         fprintf(f, "%s", extra.promotion.caller_name);
-        break;
-      }
-      case promote_spawn_minus: {
-        break;
-      }
-      case promote_spawn_plus: {
-        break;
-      }
-      case promote_join_plus: {
         break;
       }
       default: {
@@ -426,6 +431,20 @@ void push_promote_spawn_plus(const char* caller_name) {
 static inline
 void push_promote_join_plus(const char* caller_name) {
   event_type e(promote_join_plus);
+  e.extra.promotion.caller_name = caller_name;
+  log_buffer::push(e);
+}
+
+static inline
+void push_promote_loop_split_join_trivial(const char* caller_name) {
+  event_type e(promote_loop_split_join_trivial);
+  e.extra.promotion.caller_name = caller_name;
+  log_buffer::push(e);
+}
+
+static inline
+void push_promote_loop_split_join_associative_combine(const char* caller_name) {
+  event_type e(promote_loop_split_join_associative_combine);
   e.extra.promotion.caller_name = caller_name;
   log_buffer::push(e);
 }

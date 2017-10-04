@@ -616,7 +616,7 @@ public:
   }
   
   vertex_split_type split_join_trivial(interpreter* interp0, par_type* par0, sar_type* sar0,
-				       parallel_loop_id_type id, int nb) {
+                                       parallel_loop_id_type id, int nb) {
     assert(nb < interp0->nb_strands());
     assert(nb > 0);
     parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
@@ -682,11 +682,12 @@ public:
     });
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
+    logging::push_promote_loop_split_join_trivial(sar0->get_name());
     return sched::make_vertex_split(interp00, interp1, interp2);
   }
   
   vertex_split_type split_join_associative_combine(interpreter* interp0, par_type* par0, sar_type* sar0,
-						   parallel_loop_id_type id, int nb) {
+                                                   parallel_loop_id_type id, int nb) {
     parallel_loop_descriptor_type<par_type>& lpdescr = sar_type::cfg.loop_descriptors[id];
     interpreter* interp1 = interp0;
     interpreter* interp2 = nullptr;
@@ -714,6 +715,7 @@ public:
       return pcfg::is_splittable(_ar);
     });
     interp2->release_handle->decrement();
+    logging::push_promote_loop_split_join_associative_combine(sar0->get_name());
     return sched::make_vertex_split(interp1, interp2);
   }
   
