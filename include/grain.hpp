@@ -56,7 +56,7 @@ static constexpr
 int automatic = -1;
 
 static constexpr
-int max_lg_nb_iters = 20;
+int max_lg_nb_iters = 14;
   
 template <int threshold, class Id>
 class controller {
