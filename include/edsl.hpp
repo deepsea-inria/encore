@@ -1,3 +1,4 @@
+#include <typeinfo>
 
 #include "pcfg.hpp"
 #include "interpreter.hpp"
@@ -40,14 +41,19 @@ static stt encore_call(stt s, plt p, Args... args) { \
 static \
 cfg_type cfg; \
 
-#define encore_dc_declare(edsl, name, sar, par, dc, get_dc) \
+#define encore_dc_declare(edsl, __name, sar, par, dc, get_dc) \
 encore_pcfg_default_private_activation_record(edsl::pcfg) \
-encore_pcfg_declare(edsl, name, sar, par, _bb0123) \
+encore_pcfg_declare(edsl, __name, sar, par, _bb0123) \
 using dc = edsl::dc::stmt_type<sar, par>; \
 \
 static \
 cfg_type get_cfg() { \
   return edsl::dc::linearize<sar, par>::transform(get_dc()); \
+} \
+\
+static \
+const char* get_name() { \
+  return typeid(__name).name(); \
 } \
 
 #define encore_pcfg_allocate(name, get_cfg) \

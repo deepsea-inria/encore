@@ -53,7 +53,8 @@ public:
     out_dflt.reset(new outset);
   }
   
-  virtual ~vertex() {
+  virtual
+  ~vertex() {
 #ifndef NDEBUG
     if (in) {
       assert(! in->is_nonzero());
@@ -92,11 +93,14 @@ public:
     assert(is_future());
   }
   
-  virtual int nb_strands() = 0;
+  virtual
+  int nb_strands() = 0;
   
-  virtual fuel::check_type run() = 0;
+  virtual
+  fuel::check_type run() = 0;
   
-  virtual vertex_split_type split(int nb) = 0;
+  virtual
+  vertex_split_type split(int nb) = 0;
   
 };
   

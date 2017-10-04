@@ -27,11 +27,17 @@ namespace pcfg {
 class shared_activation_record {
 public:
   
-  virtual std::pair<stack_type, fuel::check_type> run(stack_type) const = 0;
+  virtual
+  std::pair<stack_type, fuel::check_type> run(stack_type) const = 0;
   
-  virtual void promote_mark(interpreter*, private_activation_record*) = 0;
+  virtual
+  void promote_mark(interpreter*, private_activation_record*) = 0;
   
-  virtual sched::outset* get_dependency_of_join_minus(stack_type stack) = 0;
+  virtual
+  sched::outset* get_dependency_of_join_minus(stack_type stack) = 0;
+  
+  static
+  const char* get_name();
 
 #ifdef ENCORE_ENABLE_LOGGING
   logging::profiling_channel pc;
@@ -52,21 +58,25 @@ public:
   
   trampoline_type trampoline = { .pred = entry_block_label, .succ = entry_block_label };
   
-  virtual int nb_strands() {
+  virtual
+  int nb_strands() {
     return 1;
   }
   
-  virtual vertex_split_type split(interpreter*, int) {
+  virtual
+  vertex_split_type split(interpreter*, int) {
     assert(false); // impossible
     return sched::make_vertex_split(nullptr, nullptr);
   }
   
-  virtual sched::vertex*& get_join(parallel_loop_id_type) {
+  virtual
+  sched::vertex*& get_join(parallel_loop_id_type) {
     assert(false); // impossible
     return dummy_join;
   }
   
-  virtual parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
+  virtual
+  parallel_loop_activation_record* loop_activation_record_of(parallel_loop_id_type id) {
     assert(false); // impossible
     return nullptr;
   }
@@ -324,16 +334,15 @@ public:
       }
       case Peek_mark_fork: {
         r.sar->promote_mark(this, r.par);
-        stats::on_promotion();
         break;
       }
       case Peek_mark_loop_split: {
         auto r = split(nb_strands() / 2);
         schedule(r.v2);
         schedule(r.v1);
-	if (r.v0 != nullptr) {
-	  schedule(r.v0);
-	}
+        if (r.v0 != nullptr) {
+          schedule(r.v0);
+        }
         stats::on_promotion();
         break;
       }
@@ -511,7 +520,6 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       *block.variant_join_plus.getter(*sar, *par) = continuation->get_incounter();
       sched::new_edge(branch, continuation);
       release(branch);
-      stats::on_promotion();
       break;
     }
     default: {

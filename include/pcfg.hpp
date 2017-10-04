@@ -416,15 +416,20 @@ public:
 class parallel_loop_activation_record {
 public:
   
-  virtual int nb_strands() = 0;
+  virtual
+  int nb_strands() = 0;
   
-  virtual void split(parallel_loop_activation_record*, int) = 0;
+  virtual
+  void split(parallel_loop_activation_record*, int) = 0;
   
-  virtual sched::vertex*& get_join() = 0;
+  virtual
+  sched::vertex*& get_join() = 0;
   
-  virtual std::unique_ptr<children_record>& get_children() = 0;
+  virtual
+  std::unique_ptr<children_record>& get_children() = 0;
   
-  virtual private_activation_record*& get_destination() = 0;
+  virtual
+  private_activation_record*& get_destination() = 0;
   
 };
 
