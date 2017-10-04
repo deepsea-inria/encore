@@ -36,8 +36,10 @@ public:
   virtual
   sched::outset* get_dependency_of_join_minus(stack_type stack) = 0;
   
-  static
-  const char* get_name();
+  virtual
+  const char* get_name() {
+    return "no name";
+  }
 
 #ifdef ENCORE_ENABLE_LOGGING
   logging::profiling_channel pc;
@@ -479,6 +481,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       sched::new_edge(branch1, join);
       release(branch2);
       release(branch1);
+      logging::push_promote_spawn2_join(sar->get_name());
       break;
     }
     case tag_spawn_minus: {

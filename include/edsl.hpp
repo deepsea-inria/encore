@@ -51,7 +51,6 @@ cfg_type get_cfg() { \
   return edsl::dc::linearize<sar, par>::transform(get_dc()); \
 } \
 \
-static \
 const char* get_name() { \
   return typeid(__name).name(); \
 } \

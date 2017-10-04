@@ -29,6 +29,7 @@ using event_kind_type = enum {
   communicate,
   leaf_loop,
   program,
+  promotion,
   nb_kinds
 };
 
@@ -41,6 +42,8 @@ using event_tag_type = enum {
   frontier_acquire,   frontier_split,
   leaf_loop_update,
   program_point,
+  promote_spawn2_join, promote_spawn_minus,
+  promote_spawn_plus, promote_join_plus,
   nb_events
 };
 
@@ -59,6 +62,10 @@ std::string name_of(event_tag_type e) {
     case frontier_split: return "frontier_split ";
     case leaf_loop_update: return "leaf_loop_update ";
     case program_point: return "program_point";
+    case promote_spawn2_join: return "promote_spawn2_join";
+    case promote_spawn_minus: return "promote_spawn_minus";
+    case promote_spawn_plus: return "promote_spawn_plus";
+    case promote_join_plus: return "promote_join_plus";
     default: return "unknown_event ";
   }
 }
@@ -78,6 +85,10 @@ event_kind_type kind_of(event_tag_type e) {
     case frontier_split:            return migration;
     case leaf_loop_update:          return leaf_loop;
     case program_point:             return program;
+    case promote_spawn2_join:
+    case promote_spawn_minus:
+    case promote_spawn_plus:
+    case promote_join_plus:         return promotion;
     default: return nb_kinds;
   }
 }
@@ -129,12 +140,15 @@ public:
       void* estimator;
     } leaf_loop;
     program_point_type ppt;
+    struct {
+      const char* caller_name;
+    } promotion;
   } extra;
       
   void print_byte(FILE* f) {
     fwrite_int64 (f, (int64_t) timestamp);
     fwrite_int64 (f, worker_id);
-    fwrite_int64 (f, tag  );
+    fwrite_int64 (f, tag);
   }
       
   void print_text(FILE* f) {
@@ -164,6 +178,19 @@ public:
                 extra.ppt.source_fname,
                 extra.ppt.line_nb,
                 extra.ppt.ptr);
+        break;
+      }
+      case promote_spawn2_join: {
+        fprintf(f, "%s", extra.promotion.caller_name);
+        break;
+      }
+      case promote_spawn_minus: {
+        break;
+      }
+      case promote_spawn_plus: {
+        break;
+      }
+      case promote_join_plus: {
         break;
       }
       default: {
@@ -219,6 +246,7 @@ public:
     tracking_kind[migration] = deepsea::cmdline::parse_or_default_bool("log_migration", false);
     tracking_kind[leaf_loop] = deepsea::cmdline::parse_or_default_bool("log_leaf_loop", false);
     tracking_kind[program] = tracking_kind[leaf_loop];
+    tracking_kind[promotion] = deepsea::cmdline::parse_or_default_bool("log_promotion", false);
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
     if (pview) {
       tracking_kind[phases] = true;
@@ -372,6 +400,34 @@ void push_program_point(int line_nb,
   ppt.source_fname = source_fname;
   ppt.ptr = ptr;
   log_buffer::ppts[log_buffer::nb_ppts++] = ppt;
+}
+
+static inline
+void push_promote_spawn2_join(const char* caller_name) {
+  event_type e(promote_spawn2_join);
+  e.extra.promotion.caller_name = caller_name;
+  log_buffer::push(e);
+}
+
+static inline
+void push_promote_spawn_minus(const char* caller_name) {
+  event_type e(promote_spawn_minus);
+  e.extra.promotion.caller_name = caller_name;
+  log_buffer::push(e);
+}
+
+static inline
+void push_promote_spawn_plus(const char* caller_name) {
+  event_type e(promote_spawn_plus);
+  e.extra.promotion.caller_name = caller_name;
+  log_buffer::push(e);
+}
+
+static inline
+void push_promote_join_plus(const char* caller_name) {
+  event_type e(promote_join_plus);
+  e.extra.promotion.caller_name = caller_name;
+  log_buffer::push(e);
 }
 
 /*---------------------------------------------------------------------*/
