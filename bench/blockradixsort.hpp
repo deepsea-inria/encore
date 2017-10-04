@@ -48,6 +48,7 @@ namespace intSort {
   typedef unsigned char bIndexT;
 
     pbbs::timer isortt8;
+      pbbs::timer rblk;
     
   // A is the input and sorted output (length = n)
   // B is temporary space for copying data (length = n)
@@ -137,7 +138,7 @@ namespace intSort {
             t = loop2;
           }
           case loop2: {
-            auto lg_lt = controller_type1::predict_lg_nb_iterations();
+            auto lg_lt = 10; //controller_type1::predict_lg_nb_iterations();
             auto lt = controller_type1::predict_nb_iterations(lg_lt);
             auto lst = std::min(n, j + lt);
             nbiters = lst - j;
@@ -147,7 +148,7 @@ namespace intSort {
               j++;
             }
             if (j != n) {
-              controller_type1::register_callback(lg_lt, nbiters);
+              //              controller_type1::register_callback(lg_lt, nbiters);
               goto exit;
             }
             s = Boffset;
@@ -172,7 +173,7 @@ namespace intSort {
             t = loop4;
           }
           case loop4: {
-            auto lg_lt = controller_type3::predict_lg_nb_iterations();
+            auto lg_lt = 10; //controller_type3::predict_lg_nb_iterations();
             int lt = controller_type3::predict_nb_iterations(lg_lt);
             int lst = std::max(j - lt, 0);
             nbiters = j - lst;
@@ -182,7 +183,7 @@ namespace intSort {
               j--;
             }
             if (j + 1 != 0) {
-              controller_type3::register_callback(lg_lt, nbiters);
+              //              controller_type3::register_callback(lg_lt, nbiters);
               goto exit;
             }
           }
@@ -225,8 +226,7 @@ namespace intSort {
           s.oB = (intT*) (s.BK+2*s.blocks);
           p.s = 0;
           p.e = s.blocks;
-        }), // critical code starting here and ending at the end of the function
-            // (to see how often its invoked, insert algo_phase log events)
+        }), 
         dc::parallel_for_loop([] (sar&, par& p) { return p.s < p.e; },
                               [] (par& p) { return std::make_pair(&p.s, &p.e); },
                               dc::stmts({
@@ -314,15 +314,27 @@ namespace intSort {
           dc::stmt([] (sar& s, par& p) {
             if (s.bitOffset+s.rbits > s.bits) s.rbits = s.bits-s.bitOffset;
           }),
+            dc::stmt([] (sar& s, par& p) {
+                if (s.n < 50000) {
+                  //                  encore::logging::push_event(encore::logging::algo_phase);
+                  rblk.start();
+                }
+                }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             auto f = eBits<E,F>(s.rbits,s.bitOffset,s.f);
             return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)1 << s.rbits, s.top, f);
-          }),
+            }),
+            dc::stmt([] (sar& s, par& p) {
+                if (s.n < 50000) {
+                  //                  encore::logging::push_event(encore::logging::algo_phase);
+                  rblk.stop();
+                }
+              }),
           dc::stmt([] (sar& s, par& p) {
             s.bitOffset += s.rbits;
           })
-        }))
-      });
+            }))
+          });
     }
     
   };
@@ -397,10 +409,10 @@ namespace intSort {
               })
             }))
           }))
-        }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return encore_call<radixLoopBottomUp<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, false, s.f);
-        }))
-      });
+            }, dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+                return encore_call<radixLoopBottomUp<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, false, s.f);
+              }))
+          });
     }
     
   };
@@ -560,7 +572,7 @@ namespace intSort {
             return sequence::scanIBack(st, pt, s.bucketOffsets, s.bucketOffsets, s.m, pbbs::utils::minF<intT>(), s.n, &s.tmp);
             }),
                 dc::stmt([] (sar& s, par& p) {
-                  isortt6.start();
+                  isortt6.stop();
                 })
         }))
       });
