@@ -14,6 +14,9 @@
 #define _ENCORE_LOGGING_H_
 
 namespace encore {
+
+double cpu_frequency_ghz = 1.2;
+  
 namespace logging {
 
 /*---------------------------------------------------------------------*/
@@ -122,7 +125,7 @@ public:
     struct {
       int nb_iters;
       int nb_iters_new;
-      double elapsed;
+      uint64_t elapsed;
       void* estimator;
     } leaf_loop;
     program_point_type ppt;
@@ -146,10 +149,13 @@ public:
         break;
       }
       case leaf_loop_update: {
-        fprintf(f, "%d \t %d \t %lf \t %p",
+        double cycles_per_nsec = cpu_frequency_ghz;
+        double cycles_per_usec = cycles_per_nsec * 1000;
+        double elapsed = extra.leaf_loop.elapsed / cycles_per_usec;
+        fprintf(f, "%d \t %d \t %.3lf \t %p",
                 extra.leaf_loop.nb_iters,
                 extra.leaf_loop.nb_iters_new,
-                extra.leaf_loop.elapsed,
+                elapsed,
                 extra.leaf_loop.estimator);
         break;
       }
@@ -344,7 +350,7 @@ void push_frontier_split(int n1, int n2) {
 static inline
 void push_leaf_loop_update(int nb_iters,
                            int nb_iters_new,
-                           double elapsed,
+                           uint64_t elapsed,
                            void* estimator) {
   event_type e(leaf_loop_update);
   e.extra.leaf_loop.nb_iters = nb_iters;

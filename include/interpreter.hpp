@@ -324,6 +324,7 @@ public:
       }
       case Peek_mark_fork: {
         r.sar->promote_mark(this, r.par);
+        stats::on_promotion();
         break;
       }
       case Peek_mark_loop_split: {
