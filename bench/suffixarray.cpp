@@ -690,6 +690,8 @@ public:
         return encore_call<suffix_array_rec>(st, pt, s.ss, s.n, s.k, s.findLCPs, &(s.SA_LCP));
       }),
       dc::stmt([] (sar& s, par& p) {
+
+#ifdef TIME_MEASURE
           std::cout << "Radix sort time: " << radixTime.total() << std::endl;
           std::cout << "Merge time: " << mergeTime.total() << std::endl;
           std::cout << "loop1 time: " << loop1Time.total() << std::endl;
@@ -705,7 +707,9 @@ public:
           std::cout << "radix4 time: " << intSort::isortt4.total() << std::endl;
           std::cout << "radix5 time: " << intSort::isortt5.total() << std::endl;
           std::cout << "radix6 time: " << intSort::isortt6.total() << std::endl;
-                    std::cout << "radix8 time: " << intSort::isortt8.total() << std::endl;
+          std::cout << "radix8 time: " << intSort::isortt8.total() << std::endl;
+          std::cout << "rblk time: " << intSort::rblk.total() << std::endl;
+#endif
           
         free(s.ss);
         *s.dest = s.SA_LCP;
