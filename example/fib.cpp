@@ -78,8 +78,9 @@ public:
     return encore::fuel::check_no_promote;
   }
   
-  std::pair<vertex*, vertex*> split(int nb) {
+  sched::vertex_split_type split(int nb) {
     assert(false); // impossible
+    return sched::make_vertex_split(nullptr, nullptr);
   }
   
 };
@@ -155,7 +156,6 @@ public:
     );
   }
 
-  
 };
 
 encore_pcfg_allocate(fib_dc, get_cfg)
