@@ -87,6 +87,13 @@ public:
   logging::profile_wrapper work;
 #endif
 
+#ifndef NDEBUG
+  virtual
+  std::vector<std::pair<int,int>> loop_activation_records() {
+    return std::vector<std::pair<int,int>>();
+  }
+#endif
+  
 };
   
 template <class Shared_activation_record>
@@ -268,6 +275,139 @@ std::pair<stack_type, stack_type> fork_stack(stack_type s) {
     return is_splittable(_ar);
   });
 }
+
+#ifndef NDEBUG
+  
+using frame_summary_type = struct {
+  cactus_stack::plus::frame_header_type* fp;
+  cactus_stack::plus::call_link_type link_type;
+  std::vector<std::pair<int,int>> loops;
+};
+
+bool operator==(std::vector<std::pair<int,int>> loops1,
+                std::vector<std::pair<int,int>> loops2) {
+  auto n = loops1.size();
+  if (n != loops2.size()) {
+    return false;
+  }
+  for (auto i = 0; i < n; i++) {
+    if (loops1[i].first != loops2[i].first) {
+      return false;
+    }
+    if (loops1[i].second != loops2[i].second) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool operator!=(std::vector<std::pair<int,int>> loops1,
+                std::vector<std::pair<int,int>> loops2) {
+  return ! (loops1 == loops2);
+}
+
+bool operator==(frame_summary_type fs1, frame_summary_type fs2) {
+  if (fs1.fp != fs2.fp) {
+    return false;
+  }
+  if (fs1.link_type != fs2.link_type) {
+    return false;
+  }
+  if (fs1.loops != fs2.loops) {
+    return false;
+  }
+  return true;
+}
+
+bool operator!=(frame_summary_type fs1, frame_summary_type fs2) {
+  return ! (fs1 == fs2);
+}
+
+void print_frame_summary(frame_summary_type fs) {
+  printf("fs.fp=%p \t", fs.fp);
+  if (fs.link_type == cactus_stack::plus::Call_link_async) {
+    printf("fs.link_type = async \t");
+  } else {
+    printf("fs.link_type = sync \t");
+  }
+  printf("|fs.loops|=%lld", fs.loops.size());
+}
+
+void print_frame_summaries(std::vector<frame_summary_type> vfs) {
+  for (auto fs : vfs) {
+    print_frame_summary(fs);
+    printf("\n");
+  }
+}
+
+frame_summary_type summarize_frame(cactus_stack::plus::frame_header_type* fp) {
+  frame_summary_type result;
+  result.fp = fp;
+  result.link_type = fp->ext.clt;
+  char* ar = frame_data(fp);
+  private_activation_record* par = get_private_frame_pointer<private_activation_record>(ar);
+  result.loops = par->loop_activation_records();
+  return result;    
+}
+
+bool is_mark(frame_summary_type s) {
+  if (s.link_type == cactus_stack::plus::Call_link_async) {
+    return true;
+  }
+  for (auto r : s.loops) {
+    if ((r.second - r.first) >= 2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<frame_summary_type> summarize_stack(stack_type s) {
+  std::vector<frame_summary_type> result;
+  auto start = s.begin();
+  for (auto it = start; it != s.end(); it++) {
+    auto& fh = *it;
+    frame_summary_type fs = summarize_frame(&fh);
+    if (! is_mark(fs)) {
+      continue;
+    }
+    result.push_back(fs);
+  }
+  return result;
+}
+
+std::vector<frame_summary_type> summarize_mark_stack(stack_type s) {
+  std::vector<frame_summary_type> result;
+  auto start = s.begin_mark();
+  for (auto it = start; it != s.end_mark(); it++) {
+    auto& fh = *it;
+    frame_summary_type fs = summarize_frame(&fh);
+    if (! is_mark(fs)) {
+      assert(fh.ext.llt == cactus_stack::plus::Loop_link_child);
+      continue;
+    }
+    result.push_back(fs);
+  }
+  return result;
+}
+
+void check_stack(stack_type s) {
+  std::vector<frame_summary_type> vfs = summarize_stack(s);
+  std::vector<frame_summary_type> mark_vfs = summarize_mark_stack(s);
+  if (vfs != mark_vfs) {
+    printf("-------------------\n");
+    printf("stack (size=%lld)\n", vfs.size());
+    print_frame_summaries(vfs);
+    printf("\n");
+    printf("mark stack (size=%lld)\n", mark_vfs.size());
+    print_frame_summaries(mark_vfs);
+    printf("\n");
+    printf("-------------------\n");
+    printf("\n");
+  }
+}
+
+#endif
   
 bool never_promote = false;
   
@@ -296,6 +436,9 @@ public:
   fuel::check_type run() {
     stack_type s = stack;
     fuel::check_type f = fuel::check_no_promote;
+#ifndef NDEBUG
+    check_stack(s);
+#endif
     while ((! empty_stack(s)) && (f == fuel::check_no_promote)) {
       auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s);
       s = r.first;
@@ -304,6 +447,9 @@ public:
     stack = cactus::update_mark_stack(s, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
+#ifndef NDEBUG
+    check_stack(s);
+#endif
     if (nb_strands() == 0) {
       assert(! is_suspended);
       assert(f != fuel::check_suspend);
@@ -571,6 +717,22 @@ public:
   parallel_loop_id_type get_id_of_current_parallel_loop() {
     return sar_type::cfg.loop_of[trampoline.pred];
   }
+
+#ifdef NDEBUG
+  std::vector<std::pair<int,int>> loop_activation_records() {
+    std::vector<parallel_loop_activation_record*> result;
+    parallel_loop_id_type current = get_id_of_current_parallel_loop();
+    if (current == not_a_parallel_loop_id) {
+      return result;
+    }
+    for (parallel_loop_id_type id : sar_type::cfg.loop_descriptors[current].parents) {
+      assert(id != not_a_parallel_loop_id);
+      auto loop_ar = loop_activation_record_of(id);
+      result.push_back();
+    }
+    return result;
+  }
+#endif
   
   parallel_loop_id_type get_id_of_oldest_nonempty() {
     parallel_loop_id_type current = get_id_of_current_parallel_loop();
@@ -788,7 +950,13 @@ public:
     assert(false); // impossible
     return dummy_destination;
   }
-  
+
+#ifndef NDEBUG
+  std::pair<int, int> loop_range() {
+    return std::make_pair(*lo, *hi);
+  }
+#endif
+
 };
 
 class parallel_combine_activation_record : public parallel_loop_activation_record {
@@ -838,6 +1006,12 @@ public:
   private_activation_record*& get_destination() {
     return destination;
   }
+
+#ifndef NDEBUG
+  std::pair<int, int> loop_range() {
+    return std::make_pair(*lo, *hi);
+  }
+#endif
   
 };
   

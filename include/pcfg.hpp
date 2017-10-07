@@ -430,6 +430,11 @@ public:
   
   virtual
   private_activation_record*& get_destination() = 0;
+
+#ifndef NDEBUG
+  virtual
+  std::pair<int, int> loop_range() = 0;
+#endif
   
 };
 
