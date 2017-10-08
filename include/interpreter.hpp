@@ -368,6 +368,17 @@ std::vector<frame_summary_type> summarize_stack(stack_type s) {
   for (auto it = start; it != s.end(); it++) {
     auto& fh = *it;
     frame_summary_type fs = summarize_frame(&fh);
+    result.push_back(fs);
+  }
+  return result;
+}
+
+std::vector<frame_summary_type> summarize_stack_marks(stack_type s) {
+  std::vector<frame_summary_type> result;
+  auto start = s.begin();
+  for (auto it = start; it != s.end(); it++) {
+    auto& fh = *it;
+    frame_summary_type fs = summarize_frame(&fh);
     if (! is_mark(fs)) {
       continue;
     }
@@ -393,11 +404,15 @@ std::vector<frame_summary_type> summarize_mark_stack(stack_type s) {
 
 void check_stack(stack_type s) {
   std::vector<frame_summary_type> vfs = summarize_stack(s);
+  std::vector<frame_summary_type> vfs_marks = summarize_stack_marks(s);
   std::vector<frame_summary_type> mark_vfs = summarize_mark_stack(s);
-  if (vfs != mark_vfs) {
+  if (vfs_marks != mark_vfs) {    
     printf("-------------------\n");
     printf("stack (size=%lld)\n", vfs.size());
     print_frame_summaries(vfs);
+    printf("\n");
+    printf("stack marks (size=%lld)\n", vfs_marks.size());
+    print_frame_summaries(vfs_marks);
     printf("\n");
     printf("mark stack (size=%lld)\n", mark_vfs.size());
     print_frame_summaries(mark_vfs);
@@ -434,22 +449,18 @@ public:
   }
   
   fuel::check_type run() {
-    stack_type s = stack;
     fuel::check_type f = fuel::check_no_promote;
-#ifndef NDEBUG
-    check_stack(s);
-#endif
-    while ((! empty_stack(s)) && (f == fuel::check_no_promote)) {
-      auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s);
-      s = r.first;
-      f = r.second;
+    {
+      stack_type s = stack;
+      while ((! empty_stack(s)) && (f == fuel::check_no_promote)) {
+        auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s);
+        s = r.first;
+        f = r.second;
+      }
+      stack = cactus::update_mark_stack(s, [&] (char* _ar) {
+          return pcfg::is_splittable(_ar);
+        });
     }
-    stack = cactus::update_mark_stack(s, [&] (char* _ar) {
-      return pcfg::is_splittable(_ar);
-    });
-#ifndef NDEBUG
-    check_stack(s);
-#endif
     if (nb_strands() == 0) {
       assert(! is_suspended);
       assert(f != fuel::check_suspend);
@@ -718,7 +729,7 @@ public:
     return sar_type::cfg.loop_of[trampoline.pred];
   }
 
-#ifdef NDEBUG
+#ifndef NDEBUG
   std::vector<std::pair<int,int>> loop_activation_records() {
     std::vector<parallel_loop_activation_record*> result;
     parallel_loop_id_type current = get_id_of_current_parallel_loop();
@@ -728,7 +739,7 @@ public:
     for (parallel_loop_id_type id : sar_type::cfg.loop_descriptors[current].parents) {
       assert(id != not_a_parallel_loop_id);
       auto loop_ar = loop_activation_record_of(id);
-      result.push_back();
+      result.push_back(loop_ar->loop_range());
     }
     return result;
   }
