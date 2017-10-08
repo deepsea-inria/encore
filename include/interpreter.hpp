@@ -460,16 +460,10 @@ public:
         auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s);
         s = r.first;
         f = r.second;
-#ifndef NDEBUG
-        s = cactus::update_mark_stack(s, [&] (char* _ar) {
-            return pcfg::is_splittable(_ar);
-          });
-        check_stack(s);
-#endif
       }
       stack = cactus::update_mark_stack(s, [&] (char* _ar) {
-          return pcfg::is_splittable(_ar);
-        });
+        return pcfg::is_splittable(_ar);
+      });
     }
     if (nb_strands() == 0) {
       assert(! is_suspended);
@@ -497,7 +491,12 @@ public:
           auto dep = par.get_dependency_of_join_minus(stack);
           sched::new_edge(dep, this);
         } else {
-          assert(summarize_stack_marks(stack).size() == 0);
+#ifndef NDEBUG
+	  if (summarize_stack_marks(stack).size() != 0) {
+	    check_stack(stack);
+	  }
+#endif
+	  //          assert(summarize_stack_marks(stack).size() == 0);
           schedule(this);
         }
         break;
