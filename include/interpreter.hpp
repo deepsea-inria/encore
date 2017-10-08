@@ -731,7 +731,7 @@ public:
 
 #ifndef NDEBUG
   std::vector<std::pair<int,int>> loop_activation_records() {
-    std::vector<parallel_loop_activation_record*> result;
+    std::vector<std::pair<int,int>> result;
     parallel_loop_id_type current = get_id_of_current_parallel_loop();
     if (current == not_a_parallel_loop_id) {
       return result;
