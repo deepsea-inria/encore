@@ -350,16 +350,20 @@ frame_summary_type summarize_frame(cactus_stack::plus::frame_header_type* fp) {
   return result;    
 }
 
-bool is_mark(frame_summary_type s) {
-  if (s.link_type == cactus_stack::plus::Call_link_async) {
-    return true;
-  }
+bool has_parallel_loop(frame_summary_type s) {
   for (auto r : s.loops) {
     if ((r.second - r.first) >= 2) {
       return true;
     }
   }
   return false;
+}
+
+bool is_mark(frame_summary_type s) {
+  if (s.link_type == cactus_stack::plus::Call_link_async) {
+    return true;
+  }
+  return has_parallel_loop(s);
 }
 
 std::vector<frame_summary_type> summarize_stack(stack_type s) {
@@ -456,6 +460,12 @@ public:
         auto r = peek_newest_shared_frame<shared_activation_record>(s).run(s);
         s = r.first;
         f = r.second;
+#ifndef NDEBUG
+        s = cactus::update_mark_stack(s, [&] (char* _ar) {
+            return pcfg::is_splittable(_ar);
+          });
+        check_stack(s);
+#endif
       }
       stack = cactus::update_mark_stack(s, [&] (char* _ar) {
           return pcfg::is_splittable(_ar);
@@ -487,6 +497,7 @@ public:
           auto dep = par.get_dependency_of_join_minus(stack);
           sched::new_edge(dep, this);
         } else {
+          assert(summarize_stack_marks(stack).size() == 0);
           schedule(this);
         }
         break;
