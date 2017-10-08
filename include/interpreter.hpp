@@ -485,22 +485,24 @@ public:
     auto r = peek_mark(stack);
     switch (r.tag) {
       case Peek_mark_none: {
+	assert(summarize_stack_marks(stack).size() == 0);
         if (is_suspended) {
           is_suspended = false;
           auto& par = peek_newest_shared_frame<shared_activation_record>(stack);
           auto dep = par.get_dependency_of_join_minus(stack);
           sched::new_edge(dep, this);
         } else {
-          assert(summarize_stack_marks(stack).size() == 0);
           schedule(this);
         }
         break;
       }
       case Peek_mark_fork: {
+	//encore::logging::push_event(encore::logging::algo_phase);
         r.sar->promote_mark(this, r.par);
         break;
       }
       case Peek_mark_loop_split: {
+	//encore::logging::push_event(encore::logging::algo_phase);
         auto r = split(nb_strands() / 2);
         schedule(r.v2);
         schedule(r.v1);
