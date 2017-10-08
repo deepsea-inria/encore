@@ -14,16 +14,16 @@ using check_type = enum {
   check_suspend
 };
 
-data::perworker::array<uint64_t> time_last_promote;
+data::perworker::array<uint64_t> target_for_next_promotion;
 
 uint64_t promotion_threshold = 0;
 
-check_type check(uint64_t current) {
-  uint64_t previous = time_last_promote.mine();
-  if (current < previous) {
+check_type check(uint64_t now) {
+  uint64_t next = target_for_next_promotion.mine();
+  if (now < next) {
     return check_no_promote;
   }
-  time_last_promote.mine() = current + promotion_threshold;
+  target_for_next_promotion.mine() = now + promotion_threshold;
   return check_yes_promote;
 }
 
@@ -33,7 +33,7 @@ void initialize(double cpu_freq_ghz, double kappa_nsec) {
 }
 
 void initialize_worker() {
-  time_last_promote.mine() = cycles::now();
+  target_for_next_promotion.mine() = cycles::now();
 }
 
 } // end namespace
