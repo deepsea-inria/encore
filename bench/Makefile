@@ -45,7 +45,7 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g $(LOGGING_PREFIX) -DENCO
 %.dbg: %.cpp $(INCLUDE_FILES)
 	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
-%.cilk: %.cpp $(INCLUDE_FILES)
+%.cilk: %.cpp $(INCLUDE_FILES) $(PBBS_PCTL_INCLUDE_HOME)
 	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
 
 clean: pbench_clean
