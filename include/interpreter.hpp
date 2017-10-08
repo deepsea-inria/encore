@@ -491,12 +491,7 @@ public:
           auto dep = par.get_dependency_of_join_minus(stack);
           sched::new_edge(dep, this);
         } else {
-#ifndef NDEBUG
-	  if (summarize_stack_marks(stack).size() != 0) {
-	    check_stack(stack);
-	  }
-#endif
-	  //          assert(summarize_stack_marks(stack).size() == 0);
+          assert(summarize_stack_marks(stack).size() == 0);
           schedule(this);
         }
         break;
@@ -614,6 +609,12 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
     return x + y;
   });
 #endif
+#ifndef NDEBUG
+  stack = cactus::update_mark_stack(stack, [&] (char* _ar) {
+      return pcfg::is_splittable(_ar);
+    });
+  check_stack(stack);
+#endif
   return std::make_pair(stack, f);
 }
 
@@ -643,6 +644,11 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       sar->pc.set_join();
       auto& branch2_sar = peek_newest_shared_frame<shared_activation_record>(branch2->stack);
       branch2_sar.pc.set_parent(&(sar->pc));
+#endif
+#ifndef NDEBUG
+      check_stack(join->stack);
+      check_stack(branch1->stack);
+      check_stack(branch2->stack);
 #endif
       sched::new_edge(branch2, join);
       sched::new_edge(branch1, join);
@@ -812,6 +818,9 @@ public:
     par_type* par1 = par0;
     sched::vertex* join = lpar0->get_join();
     interpreter* interp00 = nullptr;
+#ifndef NDEBUG
+    check_stack(interp0->stack);
+#endif    
     if (join == nullptr) {
       join = interp0;
       auto stacks = split_stack(interp0->stack);
@@ -839,6 +848,9 @@ public:
       lpar1->get_join() = join;
       lpar01->get_join() = join;
       lpar0->get_join() = nullptr;
+      interp1->stack = cactus::update_mark_stack(interp1->stack, [&] (char* _ar) {
+        return pcfg::is_splittable(_ar);
+      });
       sched::new_edge(interp01, join);
       sched::new_edge(interp1, join);
       if (empty_stack(stacks.second)) {
@@ -850,6 +862,13 @@ public:
       }
       interp00->release_handle->decrement();
       interp1->release_handle->decrement();
+#ifndef NDEBUG
+      check_stack(interp00->stack);
+      check_stack(interp01->stack);
+      check_stack(interp1->stack);
+      check_stack(interp0->stack);
+#endif
+
     } else {
       interp1 = interp0;
     }
@@ -869,6 +888,11 @@ public:
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
     logging::push_promote_loop_split_join_trivial(sar0->get_name());
+#ifndef NDEBUG
+    //    check_stack(interp00->stack);
+    check_stack(interp1->stack);
+    check_stack(interp2->stack);
+#endif    
     return sched::make_vertex_split(interp00, interp1, interp2);
   }
   
@@ -902,6 +926,10 @@ public:
     });
     interp2->release_handle->decrement();
     logging::push_promote_loop_split_join_associative_combine(sar0->get_name());
+#ifndef NDEBUG
+    check_stack(interp1->stack);
+    check_stack(interp2->stack);
+#endif
     return sched::make_vertex_split(interp1, interp2);
   }
   
