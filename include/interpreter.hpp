@@ -485,7 +485,6 @@ public:
     auto r = peek_mark(stack);
     switch (r.tag) {
       case Peek_mark_none: {
-	assert(summarize_stack_marks(stack).size() == 0);
         if (is_suspended) {
           is_suspended = false;
           auto& par = peek_newest_shared_frame<shared_activation_record>(stack);
@@ -497,12 +496,10 @@ public:
         break;
       }
       case Peek_mark_fork: {
-	//encore::logging::push_event(encore::logging::algo_phase);
         r.sar->promote_mark(this, r.par);
         break;
       }
       case Peek_mark_loop_split: {
-	//encore::logging::push_event(encore::logging::algo_phase);
         auto r = split(nb_strands() / 2);
         schedule(r.v2);
         schedule(r.v1);
@@ -820,9 +817,6 @@ public:
     par_type* par1 = par0;
     sched::vertex* join = lpar0->get_join();
     interpreter* interp00 = nullptr;
-#ifndef NDEBUG
-    check_stack(interp0->stack);
-#endif    
     if (join == nullptr) {
       join = interp0;
       auto stacks = split_stack(interp0->stack);
@@ -864,13 +858,6 @@ public:
       }
       interp00->release_handle->decrement();
       interp1->release_handle->decrement();
-#ifndef NDEBUG
-      check_stack(interp00->stack);
-      check_stack(interp01->stack);
-      check_stack(interp1->stack);
-      check_stack(interp0->stack);
-#endif
-
     } else {
       interp1 = interp0;
     }
@@ -890,11 +877,6 @@ public:
     sched::new_edge(interp2, join);
     interp2->release_handle->decrement();
     logging::push_promote_loop_split_join_trivial(sar0->get_name());
-#ifndef NDEBUG
-    //    check_stack(interp00->stack);
-    check_stack(interp1->stack);
-    check_stack(interp2->stack);
-#endif    
     return sched::make_vertex_split(interp00, interp1, interp2);
   }
   
@@ -928,10 +910,6 @@ public:
     });
     interp2->release_handle->decrement();
     logging::push_promote_loop_split_join_associative_combine(sar0->get_name());
-#ifndef NDEBUG
-    check_stack(interp1->stack);
-    check_stack(interp2->stack);
-#endif
     return sched::make_vertex_split(interp1, interp2);
   }
   

@@ -35,8 +35,6 @@
 #include "logging.hpp"
 #include "merge.hpp"
 
-#include "gettime.h"
-
 namespace encorebench {
 
 using intT = int;
@@ -251,15 +249,6 @@ stack_type radixSortPair(stack_type s, plt_type pt, std::pair<intT,intT> *A, int
   return intSort::iSort4(s, pt, A, n, m, pbbs::utils::firstF<intT,intT>());
 }
 
-pbbs::timer radixTime;
-pbbs::timer mergeTime;
-pbbs::timer loop1Time;
-pbbs::timer loop2Time;
-pbbs::timer loop3Time;
-pbbs::timer loop4Time;
-pbbs::timer loop5Time;
-pbbs::timer loop6Time;
-
 class suffix_array_rec : public encore::edsl::pcfg::shared_activation_record {
 public:
 
@@ -295,9 +284,6 @@ public:
       dc::mk_if([] (sar& s, par& p) {
         return s.bits < 11;
       }, dc::stmts({
-        dc::stmt([] (sar& s, par& p) {
-          loop1Time.start();
-        }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
@@ -310,22 +296,10 @@ public:
             C[i].second = j;
           }
         }),
-        dc::stmt([] (sar& s, par& p) {
-          loop1Time.stop();
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.start();
-        }),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return radixSortPair(st, pt, s.C, s.n12, (intT) 1 << 3*s.bits);
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.stop();
         })
       }), dc::stmts({ // else
-        dc::stmt([] (sar& s, par& p) {
-          loop2Time.start();
-        }),
         // otherwise do 3 radix sorts, one per char
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -339,15 +313,8 @@ public:
             C[i].second = j;
           }
         }),
-        dc::stmt([] (sar& s, par& p) {
-          loop2Time.stop();
-          radixTime.start();
-        }),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return radixSortPair(st, pt, s.C, s.n12, s.K);
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.stop();
         }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -358,14 +325,8 @@ public:
             C[i].first = _s[C[i].second+1];
           }
         }), 
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.start();
-        }),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return radixSortPair(st, pt, s.C, s.n12, s.K);
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.stop();
         }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -376,14 +337,8 @@ public:
             C[i].first = _s[C[i].second];
           }
         }), 
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.start();
-        }),
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return radixSortPair(st, pt, s.C, s.n12, s.K);
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          radixTime.stop();
         })
       })), // end if
       // copy sorted results into sorted12
@@ -437,9 +392,6 @@ public:
           s.s12 = malloc_array<intT>(s.n12 + 3);
           s.s12[s.n12] = s.s12[s.n12+1] = s.s12[s.n12+2] = 0;
         }),
-        dc::stmt([] (sar& s, par& p) {
-          loop3Time.start();
-        }),
         // move mod 1 suffixes to bottom half and and mod 2 suffixes to top
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -454,9 +406,6 @@ public:
           }
         }),
         dc::stmt([] (sar& s, par& p) {
-          loop3Time.stop();
-        }),
-        dc::stmt([] (sar& s, par& p) {
           free(s.name12);
           free(s.sorted12);
         }),
@@ -468,9 +417,6 @@ public:
           s.LCP12 = s.SA12_LCP.second;
           free(s.s12);
         }),
-        dc::stmt([] (sar& s, par& p) {
-          loop4Time.start();
-        }),
         // restore proper indices into original array
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -481,9 +427,6 @@ public:
             intT l = SA12[i]; 
             SA12[i] = (l<n1) ? 3*l+1 : 3*(l-n1)+2;
           }
-        }),
-        dc::stmt([] (sar& s, par& p) {
-          loop4Time.stop();
         })
       }), dc::stmts({ // else
         dc::stmt([] (sar& s, par& p) {
@@ -507,9 +450,6 @@ public:
         s.rank = malloc_array<intT>(s.n + 2);
         s.rank[s.n]=1; s.rank[s.n+1] = 0;
       }),
-      dc::stmt([] (sar& s, par& p) {
-        loop5Time.start();
-      }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n12; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
@@ -520,9 +460,6 @@ public:
         }
       }),
       dc::stmt([] (sar& s, par& p) {
-        loop5Time.stop();
-      }),
-      dc::stmt([] (sar& s, par& p) {
         s.s0 = malloc_array<intT>(s.n0);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
@@ -531,9 +468,6 @@ public:
       dc::stmt([] (sar& s, par& p) {
         s.D = malloc_array<std::pair<intT,intT>>(s.n0);
         s.D[0].first = s.s[s.n-1]; s.D[0].second = s.n-1;
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        loop6Time.start();
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.x; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -548,17 +482,8 @@ public:
             D[i+n0-x].second = s0[i]-1;
           }
       }),
-      dc::stmt([] (sar& s, par& p) {
-        loop6Time.stop();
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        radixTime.start();
-      }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return radixSortPair(st, pt, s.D, s.n0, s.K);
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        radixTime.stop();
       }),
       dc::stmt([] (sar& s, par& p) {
         s.SA0  = s.s0; // reuse memory since not overlapping
@@ -577,15 +502,9 @@ public:
         s.o = (s.n%3 == 1) ? 1 : 0;
         s.SA = malloc_array<intT>(s.n);
       }),
-      dc::stmt([] (sar& s, par& p) {
-        mergeTime.start();
-      }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         compS comp(s.s,s.rank);
         return encore_call<merge<intT,compS,intT>>(st, pt, s.SA0 + s.o, s.n0 - s.o, s.SA12 + 1 - s.o, s.n12 + s.o - 1, s.SA, comp);
-      }),
-      dc::stmt([] (sar& s, par& p) {
-        mergeTime.stop();
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.SA0); free(s.SA12);
@@ -689,28 +608,7 @@ public:
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return encore_call<suffix_array_rec>(st, pt, s.ss, s.n, s.k, s.findLCPs, &(s.SA_LCP));
       }),
-      dc::stmt([] (sar& s, par& p) {
-
-#ifdef TIME_MEASURE
-          std::cout << "Radix sort time: " << radixTime.total() << std::endl;
-          std::cout << "Merge time: " << mergeTime.total() << std::endl;
-          std::cout << "loop1 time: " << loop1Time.total() << std::endl;
-          std::cout << "loop2 time: " << loop2Time.total() << std::endl;
-          std::cout << "loop3 time: " << loop3Time.total() << std::endl;
-          std::cout << "loop4 time: " << loop4Time.total() << std::endl;
-          std::cout << "loop5 time: " << loop5Time.total() << std::endl;
-          std::cout << "loop6 time: " << loop6Time.total() << std::endl;
-          
-          std::cout << "radix1 time: " << intSort::isortt1.total() << std::endl;
-          std::cout << "radix2 time: " << intSort::isortt2.total() << std::endl;
-          std::cout << "radix3 time: " << intSort::isortt3.total() << std::endl;
-          std::cout << "radix4 time: " << intSort::isortt4.total() << std::endl;
-          std::cout << "radix5 time: " << intSort::isortt5.total() << std::endl;
-          std::cout << "radix6 time: " << intSort::isortt6.total() << std::endl;
-          std::cout << "radix8 time: " << intSort::isortt8.total() << std::endl;
-          std::cout << "rblk time: " << intSort::rblk.total() << std::endl;
-#endif
-          
+      dc::stmt([] (sar& s, par& p) {          
         free(s.ss);
         *s.dest = s.SA_LCP;
       })        

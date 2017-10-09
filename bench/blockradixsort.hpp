@@ -314,27 +314,15 @@ namespace intSort {
           dc::stmt([] (sar& s, par& p) {
             if (s.bitOffset+s.rbits > s.bits) s.rbits = s.bits-s.bitOffset;
           }),
-            dc::stmt([] (sar& s, par& p) {
-                if (s.n < 50000) {
-                  //                  encore::logging::push_event(encore::logging::algo_phase);
-                  rblk.start();
-                }
-                }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             auto f = eBits<E,F>(s.rbits,s.bitOffset,s.f);
             return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT)1 << s.rbits, s.top, f);
             }),
-            dc::stmt([] (sar& s, par& p) {
-                if (s.n < 50000) {
-                  //                  encore::logging::push_event(encore::logging::algo_phase);
-                  rblk.stop();
-                }
-              }),
           dc::stmt([] (sar& s, par& p) {
             s.bitOffset += s.rbits;
           })
-            }))
-          });
+        }))
+      });
     }
     
   };
@@ -426,14 +414,6 @@ namespace intSort {
     intT numBK = 1+n/(BUCKETS*8);
     return sizeof(E)*n + sizeof(bIndexT)*n + sizeof(bucketsT)*numBK;
   }
-
-  pbbs::timer isortt1;
-    pbbs::timer isortt2;
-    pbbs::timer isortt3;
-    pbbs::timer isortt4;
-    pbbs::timer isortt5;
-  pbbs::timer isortt6;
-    pbbs::timer isortt7;
   
   template <class E, class F, class intT>
   class iSort : public encore::edsl::pcfg::shared_activation_record {
@@ -476,16 +456,10 @@ namespace intSort {
           std::make_pair([] (sar& s, par& p) {
             return s.bits <= MAX_RADIX;
           }, dc::stmts({
-              dc::stmt([] (sar& s, par& p) {
-                  isortt1.start();
-                }),
             dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
               auto f = eBits<E,F>(s.bits,0,s.f);
               return encore_call<radixStep<E,typeof(f),intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, (intT) 1 << s.bits, true, f);
             }),
-              dc::stmt([] (sar& s, par& p) {
-                  isortt1.stop();
-                }),
             dc::mk_if([] (sar& s, par& p) {
               return s.bucketOffsets != NULL;
             }, dc::stmts({
@@ -493,53 +467,25 @@ namespace intSort {
                 p.s = 0;
                 p.e = s.m;
               }),
-                dc::stmt([] (sar& s, par& p) {
-                  isortt2.start();
-                }),
               dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
                 return encore_call<sequence::copy<intT*, intT*>>(st, pt, s.BK[0], s.BK[0] + s.m, s.bucketOffsets);
-                }),
-                dc::stmt([] (sar& s, par& p) {
-                    isortt2.stop();
                 })
-                })),
+            })),
             dc::exit_function()
           })),
           std::make_pair([] (sar& s, par& p) {
             return s.bottomUp;
           },
-            dc::stmts({
-                dc::stmt([] (sar& s, par& p) {
-                  isortt3.start();
-                }),
             dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             return encore_call<radixLoopBottomUp<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, true, s.f);
-              }),
-                  dc::stmt([] (sar& s, par& p) {
-                  isortt3.stop();
-                })
- 
-              })
-            )
+          }))
         },
-          dc::stmts({
-              dc::stmt([] (sar& s, par& p) {
-                  isortt4.start();
-                }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           return encore_call<radixLoopTopDown<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, s.f);
-            }),
-                  dc::stmt([] (sar& s, par& p) {
-                  isortt4.stop();
-                })
-            })
-          ),
+        })),
         dc::mk_if([] (sar& s, par& p) {
           return s.bucketOffsets != NULL;
         }, dc::stmts({
-              dc::stmt([] (sar& s, par& p) {
-                  isortt5.start();
-                }),
           dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.m; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },
                                 [] (sar& s, par& p, int lo, int hi) {
@@ -559,21 +505,12 @@ namespace intSort {
               }
             }
           }),
-              dc::stmt([] (sar& s, par& p) {
-                  isortt5.start();
-                }),
           dc::stmt([] (sar& s, par& p) {
             s.bucketOffsets[s.f(s.A[0])] = 0;
           }),
-              dc::stmt([] (sar& s, par& p) {
-                  isortt6.start();
-                }),
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
             return sequence::scanIBack(st, pt, s.bucketOffsets, s.bucketOffsets, s.m, pbbs::utils::minF<intT>(), s.n, &s.tmp);
-            }),
-                dc::stmt([] (sar& s, par& p) {
-                  isortt6.stop();
-                })
+            })
         }))
       });
     }
