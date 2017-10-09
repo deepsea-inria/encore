@@ -27,7 +27,6 @@
 #include "transpose.hpp"
 #include "utils.h"
 #include "logging.hpp"
-#include "gettime.h"
 
 #ifndef _ENCORE_A_RADIX_INCLUDED
 #define _ENCORE_A_RADIX_INCLUDED
@@ -46,9 +45,6 @@ namespace intSort {
   
   // a type that must hold MAX_RADIX bits
   typedef unsigned char bIndexT;
-
-    pbbs::timer isortt8;
-      pbbs::timer rblk;
     
   // A is the input and sorted output (length = n)
   // B is temporary space for copying data (length = n)
