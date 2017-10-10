@@ -163,6 +163,8 @@ void initialize(int argc, char** argv) {
   auto scheduler = cmdline::parse_or_default_string("scheduler", "steal_half_work_stealing");
   if (scheduler == "steal_half_work_stealing") {
     sched::scheduler = sched::steal_half_work_stealing_tag;
+  } else if (scheduler == "encore_work_stealing") {
+    sched::scheduler = sched::encore_work_stealing_tag;
   } else if (scheduler == "steal_one_work_stealing") {
     sched::scheduler = sched::steal_one_work_stealing_tag;
   } else {
