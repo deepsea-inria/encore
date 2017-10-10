@@ -27,7 +27,7 @@
 #include "geometry.h"
 #include "deterministicHash.h"
 
-namespace pbbs {
+namespace encorebench {
 using namespace std;
 
 // *************************************************************
@@ -248,6 +248,7 @@ typedef Table<hashEdges,intT> EdgeTable;
 EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
 
 // this might or might not be needed
+  /*
 void topologyFromTriangles(triangles<point2d> Tri, vertex** vr, tri** tr) {
   intT n = Tri.numPoints;
   point2d* P = Tri.P;
@@ -289,5 +290,7 @@ void topologyFromTriangles(triangles<point2d> Tri, vertex** vr, tri** tr) {
   free(E);
 
 }
+  */
+  
 } // end namespace
 #endif // _TOPOLOGY_INCLUDED
