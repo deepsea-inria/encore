@@ -55,7 +55,7 @@ public:
   
   virtual
   ~vertex() {
-    assert(in ? in->is_nonzero() : true);
+    assert(in ? ! in->is_nonzero() : true);
   }
   
   incounter* get_incounter() {
