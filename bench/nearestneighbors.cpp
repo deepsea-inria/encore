@@ -70,7 +70,7 @@ void benchmark(parray<Item1>& x, int k) {
       auto x = result[i];
       auto y = result2[i];
       if (x != y) {
-	encore::atomic::die("i=%d x=%d y=%d\n",i,x,y);
+        encore::atomic::die("i=%d x=%d y=%d\n",i,x,y);
       }
       assert(x == y);
     }
