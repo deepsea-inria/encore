@@ -55,11 +55,7 @@ public:
   
   virtual
   ~vertex() {
-#ifndef NDEBUG
-    if (in) {
-      assert(! in->is_nonzero());
-    }
-#endif
+    assert(in ? in->is_nonzero() : true);
   }
   
   incounter* get_incounter() {
