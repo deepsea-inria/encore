@@ -995,7 +995,7 @@ private:
         break;
       }
       case tag_profile_statement: {
-#if defined(ENCORE_ENABLE_LOGGING)
+#if 0 //defined(ENCORE_ENABLE_LOGGING)
         auto start_profiling_label = entry;
         auto body_label = new_label();
         auto end_profiling_label = new_label();

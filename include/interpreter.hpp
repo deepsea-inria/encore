@@ -40,10 +40,6 @@ public:
   const char* get_name() {
     return "no name";
   }
-
-#ifdef ENCORE_ENABLE_LOGGING
-  logging::profiling_channel pc;
-#endif
   
 };
 
@@ -82,10 +78,6 @@ public:
     assert(false); // impossible
     return nullptr;
   }
-
-#ifdef ENCORE_ENABLE_LOGGING
-  logging::profile_wrapper work;
-#endif
 
 #ifndef NDEBUG
   virtual
@@ -232,12 +224,6 @@ stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
   using private_activation_record = typename Shared_activation_record::private_activation_record;
   static constexpr size_t shared_szb = sizeof(Shared_activation_record);
   static constexpr size_t frame_szb = sizeof(size_t) + shared_szb + sizeof(private_activation_record);
-#ifdef ENCORE_ENABLE_LOGGING
-  logging::profiling_channel* pc = nullptr;
-  if (! empty_stack(s)) {
-    pc = &peek_newest_shared_frame<shared_activation_record>(s).pc;
-  }
-#endif  
   stack_type t = cactus::push_back<frame_szb>(s, plt, [&] (char* _ar)  {
     new ((size_t*)_ar) size_t(shared_szb);
     new (get_shared_frame_pointer<Shared_activation_record>(_ar)) Shared_activation_record(args...);
@@ -245,9 +231,6 @@ stack_type push_call(stack_type s, cactus::parent_link_type plt, Args... args) {
   }, [&] (char* _ar) {
     return is_splittable(_ar);
   });
-#ifdef ENCORE_ENABLE_LOGGING
-  peek_newest_shared_frame<shared_activation_record>(t).pc.set_parent(pc);
-#endif  
   return t;
 }
   
@@ -533,9 +516,6 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   basic_block_label_type pred = par.trampoline.succ;
   basic_block_label_type succ;
   if (pred == exit_block_label) {
-#ifdef ENCORE_ENABLE_LOGGING
-    sar.pc.emit(par.work.load());
-#endif
     stack = pop_call<Shared_activation_record>(stack);
     return std::make_pair(stack, f);
   }
@@ -603,17 +583,6 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   f = (f == fuel::check_suspend) ? f : fuel::check(end_time);
   auto elapsed = cycles::diff(start_time, end_time);
   grain::callback(elapsed);
-#ifdef ENCORE_ENABLE_LOGGING
-  logging::update_profile_cell(par.work, elapsed, [] (uint64_t x, uint64_t y) {
-    return x + y;
-  });
-#endif
-#ifndef NDEBUG
-  stack = cactus::update_mark_stack(stack, [&] (char* _ar) {
-      return pcfg::is_splittable(_ar);
-    });
-  check_stack(stack);
-#endif
   return std::make_pair(stack, f);
 }
 
@@ -639,16 +608,6 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       par->trampoline.pred = pred;
       par->trampoline.succ = spawn_join_block.variant_spawn_join.next;
       branch2->stack = spawn_join_block.variant_spawn_join.code(*sar, *par, cactus::Parent_link_sync, branch2->stack);
-#ifdef ENCORE_ENABLE_LOGGING
-      sar->pc.set_join();
-      auto& branch2_sar = peek_newest_shared_frame<shared_activation_record>(branch2->stack);
-      branch2_sar.pc.set_parent(&(sar->pc));
-#endif
-#ifndef NDEBUG
-      check_stack(join->stack);
-      check_stack(branch1->stack);
-      check_stack(branch2->stack);
-#endif
       sched::new_edge(branch2, join);
       sched::new_edge(branch1, join);
       release(branch2);
