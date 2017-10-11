@@ -733,12 +733,12 @@ public:
         }))
       })),
       dc::stmt([] (sar& s, par& p) {
-	auto parent = s.parent;
-	auto n = (1<<s.g->center.dimension());
-	for (auto i = 0; i != n; i++) {
-	  parent->data = parent->data + (parent->children[i])->data;
-	  parent->count += (parent->children[i])->count;
-	}
+        auto parent = s.parent;
+        auto n = (1<<s.g->center.dimension());
+        for (auto i = 0; i != n; i++) {
+          parent->data = parent->data + (parent->children[i])->data;
+          parent->count += (parent->children[i])->count;
+        }
         if (parent->count == 0) {
           // make it look like a leaf
           parent->vertices = s.S.A;
