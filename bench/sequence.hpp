@@ -1112,7 +1112,7 @@ template <class Iter, class Item>
 typename fill<Iter,Item>::cfg_type fill<Iter,Item>::cfg = fill<Iter,Item>::get_cfg();
 
 template <class Iter, class Item>
-stack_type fill(stack_type st, plt_type pt, Iter lo, Iter hi, const Item* dst) {
+stack_type fill3(stack_type st, plt_type pt, Iter lo, Iter hi, const Item* dst) {
   return encore_call<fill<Iter, Item>>(st, pt, lo, hi, dst);
 }
 
