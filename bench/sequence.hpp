@@ -1111,6 +1111,11 @@ public:
 template <class Iter, class Item>
 typename fill<Iter,Item>::cfg_type fill<Iter,Item>::cfg = fill<Iter,Item>::get_cfg();
 
+template <class Iter, class Item>
+stack_type fill(stack_type st, plt_type pt, Iter lo, Iter hi, const Item* dst) {
+  return encore_call<fill<Iter, Item>>(st, pt, lo, hi, dst);
+}
+
 void initialize() {
   block_size = deepsea::cmdline::parse_or_default("block_size", sequence::block_size);
 }
