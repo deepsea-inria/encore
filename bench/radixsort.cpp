@@ -27,31 +27,10 @@ void benchmark(parray<int>& x) {
   deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
     encore::launch_interpreter<encorebench::integerSort<int>>(x.begin(), (int)x.size());
-#ifdef TIME_MEASURE
-          std::cout << "radix1 time: " << encorebench::intSort::isortt1.total() << std::endl;
-          std::cout << "radix2 time: " << encorebench::intSort::isortt2.total() << std::endl;
-          std::cout << "radix3 time: " << encorebench::intSort::isortt3.total() << std::endl;
-          std::cout << "radix4 time: " << encorebench::intSort::isortt4.total() << std::endl;
-          std::cout << "radix5 time: " << encorebench::intSort::isortt5.total() << std::endl;
-          std::cout << "radix6 time: " << encorebench::intSort::isortt6.total() << std::endl;
-          std::cout << "radix8 time: " << encorebench::intSort::isortt8.total() << std::endl;
-          std::cout << "rblk time: " << encorebench::intSort::rblk.total() << std::endl;
-#endif
   });
   d.add("pbbs", [&] {
     encore::run_and_report_elapsed_time([&] {
       integerSort<int>(&x[0], (int)x.size());
-      #ifdef TIME_MEASURE
-          std::cout << "radix1 time: " << intSort::isortt1.total() << std::endl;
-          std::cout << "radix2 time: " << intSort::isortt2.total() << std::endl;
-          std::cout << "radix3 time: " << intSort::isortt3.total() << std::endl;
-          std::cout << "radix4 time: " << intSort::isortt4.total() << std::endl;
-          std::cout << "radix5 time: " << intSort::isortt5.total() << std::endl;
-          std::cout << "radix6 time: " << intSort::isortt6.total() << std::endl;
-          std::cout << "radix8 time: " << intSort::isortt8.total() << std::endl;
-          std::cout << "rblk time: " << intSort::rblk.total() << std::endl;
-#endif
-
     });
   });
   d.dispatch("algorithm");
@@ -72,31 +51,10 @@ void benchmark(parray<std::pair<int, int>>& x) {
   deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
     encore::launch_interpreter<encorebench::integerSortPair<int,intT>>(x.begin(), (int)x.size());
-      #ifdef TIME_MEASURE
-          std::cout << "radix1 time: " << encorebench::intSort::isortt1.total() << std::endl;
-          std::cout << "radix2 time: " << encorebench::intSort::isortt2.total() << std::endl;
-          std::cout << "radix3 time: " << encorebench::intSort::isortt3.total() << std::endl;
-          std::cout << "radix4 time: " << encorebench::intSort::isortt4.total() << std::endl;
-          std::cout << "radix5 time: " << encorebench::intSort::isortt5.total() << std::endl;
-          std::cout << "radix6 time: " << encorebench::intSort::isortt6.total() << std::endl;
-          std::cout << "radix8 time: " << encorebench::intSort::isortt8.total() << std::endl;
-          std::cout << "rblk time: " << encorebench::intSort::rblk.total() << std::endl;
-#endif
   });
   d.add("pbbs", [&] {
     encore::run_and_report_elapsed_time([&] {
       integerSort<int>(&x[0], (int)x.size());
-            #ifdef TIME_MEASURE
-          std::cout << "radix1 time: " << intSort::isortt1.total() << std::endl;
-          std::cout << "radix2 time: " << intSort::isortt2.total() << std::endl;
-          std::cout << "radix3 time: " << intSort::isortt3.total() << std::endl;
-          std::cout << "radix4 time: " << intSort::isortt4.total() << std::endl;
-          std::cout << "radix5 time: " << intSort::isortt5.total() << std::endl;
-          std::cout << "radix6 time: " << intSort::isortt6.total() << std::endl;
-          std::cout << "radix8 time: " << intSort::isortt8.total() << std::endl;
-          std::cout << "rblk time: " << intSort::rblk.total() << std::endl;
-#endif
-
     });
   });
   d.dispatch("algorithm");
