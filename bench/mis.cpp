@@ -85,7 +85,7 @@ public:
     return dc::stmts({
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         s.Flags = malloc_array<char>(s.GS.n);
-        return encore_call<sequence::fill<char*, char>>(st, pt, s.Flags, s.Flags + s.GS.n, &(s.z));
+        return sequence::fill3(st, pt, s.Flags, s.Flags + s.GS.n, &(s.z));
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         MISstep mis(s.Flags, s.GS.V);
