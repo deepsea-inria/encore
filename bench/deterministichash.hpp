@@ -43,7 +43,8 @@ using namespace std;
 // Deletions must happen sequentially
 template <class HASH, class intT>
 class Table {
- private:
+  // private:
+public:
   typedef typename HASH::eType eType;
   typedef typename HASH::kType kType;
   intT m;
@@ -230,84 +231,6 @@ class Table {
   }
 };
 
-template <class HASH, class ET>
-_seq<ET> removeDuplicates(_seq<ET> S, HASH hashF) {
-  return removeDuplicates(S, S.n, hashF);
-}
-
-template <class intT>
-struct hashInt {
-  typedef intT eType;
-  typedef intT kType;
-  eType empty() {return -1;}
-  kType getKey(eType v) {return v;}
-  intT hash(kType v) {return utils::hash(v);}
-  int cmp(kType v, kType b) {return (v > b) ? 1 : ((v == b) ? 0 : -1);}
-  bool replaceQ(eType v, eType b) {return 0;}
-};
-
-// works for non-negative integers (uses -1 to mark cell as empty)
-
-_seq<intT> removeDuplicates(_seq<intT> A) {
-  return removeDuplicates(A,hashInt<intT>());
-}
-
-//typedef Table<hashInt> IntTable;
-//static IntTable makeIntTable(int m) {return IntTable(m,hashInt());}
-template <class intT>
-Table<hashInt<intT>,intT > makeIntTable(intT m) {
-  return Table<hashInt<intT>,intT >(m,hashInt<intT>());}
-
-struct hashStr {
-  typedef char* eType;
-  typedef char* kType;
-
-  eType empty() {return NULL;}
-  kType getKey(eType v) {
-    return v;}
-
-  uintT hash(kType s) {
-    uintT hash = 0;
-    while (*s) hash = *s++ + (hash << 6) + (hash << 16) - hash;
-    return hash;
-  }
-
-  int cmp(kType s, kType s2) {
-    while (*s && *s==*s2) {s++; s2++;};
-    return (*s > *s2) ? 1 : ((*s == *s2) ? 0 : -1);
-  }
-
-  bool replaceQ(eType s, eType s2) {return 0;}
-};
-
-_seq<char*> removeDuplicates(_seq<char*> S) {
-  return removeDuplicates(S,hashStr());}
-
-template <class intT>
-Table<hashStr,intT> makeStrTable(intT m) {
-  return Table<hashStr,intT>(m,hashStr());}
-
-template <class KEYHASH, class DTYPE>
-struct hashPair {
-  KEYHASH keyHash;
-  typedef typename KEYHASH::kType kType;
-  typedef pair<kType,DTYPE>* eType;
-  eType empty() {return NULL;}
-
-  hashPair(KEYHASH _k) : keyHash(_k) {}
-
-  kType getKey(eType v) { return v->first; }
-
-  uintT hash(kType s) { return keyHash.hash(s);}
-  int cmp(kType s, kType s2) { return keyHash.cmp(s, s2);}
-
-  bool replaceQ(eType s, eType s2) {
-    return s->second > s2->second;}
-};
-
-_seq<pair<char*,intT>*> removeDuplicates(_seq<pair<char*,intT>*> S) {
-  return removeDuplicates(S,hashPair<hashStr,intT>(hashStr()));}
-
 template <class HASH, class intT>
 class Table_entries : public encore::edsl::pcfg::shared_activation_record {
 public:
@@ -356,7 +279,7 @@ public:
 
 };
 
-template <class HASH, class intT>
+template <class HASH, class ET, class intT>
 class Table_removeDuplicates : public encore::edsl::pcfg::shared_activation_record {
 public:
 
@@ -366,9 +289,11 @@ public:
   intT m;
   HASH hashF;
   _seq<ET>* dst;
+  typedef typename HASH::eType eType;
+  eType empty;
 
-  Table_removeDuplicates(_seq<ET> S, intT m, HASH hashF)
-    : S(S), m(m), hashF(hashF), T(m, hashF) { }
+  Table_removeDuplicates(_seq<ET> S, HASH hashF)
+    : S(S), m(S.n), hashF(hashF), T(S.n, hashF) { }
 
   encore_private_activation_record_begin(encore::edsl, Table_removeDuplicates, 1)
     int lo; int hi;
@@ -377,6 +302,9 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return sequence::fill(st, pt, s.T.TA, s.T.TA + s.n, &s.empty);
+      }),
       dc::parallel_for_loop([] (sar& s, par& p) {
         p.lo = 0;
         p.hi = s.S.n;
@@ -399,6 +327,83 @@ public:
   }
 
 };
+
+template <class intT>
+struct hashInt {
+  typedef intT eType;
+  typedef intT kType;
+  eType empty() {return -1;}
+  kType getKey(eType v) {return v;}
+  intT hash(kType v) {return utils::hash(v);}
+  int cmp(kType v, kType b) {return (v > b) ? 1 : ((v == b) ? 0 : -1);}
+  bool replaceQ(eType v, eType b) {return 0;}
+};
+
+// works for non-negative integers (uses -1 to mark cell as empty)
+
+stack_type removeDuplicates(_seq<intT> A, _seq<intT>* dst) {
+  auto hp = hashInt<intT>();
+  return encore_call<removeDuplicates<decltype(hp),intT>>(A,hp,dst);
+}
+
+//typedef Table<hashInt> IntTable;
+//static IntTable makeIntTable(int m) {return IntTable(m,hashInt());}
+template <class intT>
+Table<hashInt<intT>,intT > makeIntTable(intT m) {
+  return Table<hashInt<intT>,intT >(m,hashInt<intT>());}
+
+struct hashStr {
+  typedef char* eType;
+  typedef char* kType;
+
+  eType empty() {return NULL;}
+  kType getKey(eType v) {
+    return v;}
+
+  uintT hash(kType s) {
+    uintT hash = 0;
+    while (*s) hash = *s++ + (hash << 6) + (hash << 16) - hash;
+    return hash;
+  }
+
+  int cmp(kType s, kType s2) {
+    while (*s && *s==*s2) {s++; s2++;};
+    return (*s > *s2) ? 1 : ((*s == *s2) ? 0 : -1);
+  }
+
+  bool replaceQ(eType s, eType s2) {return 0;}
+};
+
+stack_type removeDuplicates(stack_type st, plt_type pt, _seq<char*> S, _seq<char*>* dst) {
+  auto hp = hashStr();
+  return encore_call<removeDuplicates<decltype(hp),char*>>(S,hp,dst);
+}
+
+template <class intT>
+Table<hashStr,intT> makeStrTable(intT m) {
+  return Table<hashStr,intT>(m,hashStr());}
+
+template <class KEYHASH, class DTYPE>
+struct hashPair {
+  KEYHASH keyHash;
+  typedef typename KEYHASH::kType kType;
+  typedef pair<kType,DTYPE>* eType;
+  eType empty() {return NULL;}
+
+  hashPair(KEYHASH _k) : keyHash(_k) {}
+
+  kType getKey(eType v) { return v->first; }
+
+  uintT hash(kType s) { return keyHash.hash(s);}
+  int cmp(kType s, kType s2) { return keyHash.cmp(s, s2);}
+
+  bool replaceQ(eType s, eType s2) {
+    return s->second > s2->second;}
+};
+
+stack_type removeDuplicates(stack_type st, plt_type pt, _seq<pair<char*,intT>*> S, _seq<pair<char*,intT>*>* dst) {
+  auto hp = hashPair<hashStr,intT>(hashStr()));
+  return encore_call<removeDuplicates<decltype(hp),pair<char*,intT>>(S,hp,dst);}
   
 } //end namespace
 #endif /*! _ENCORE_DETERMINSTIC_HASH_ !*/
