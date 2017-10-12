@@ -625,6 +625,7 @@ void worker_loop(vertex* v) {
   frontier& my_ready = frontiers[my_id];
   std::atomic<frontier*>& my_transfer = transfers[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
+  std::unique_ptr<frontier> my_transfer_buf(new frontier);
   fuel::initialize_worker();
   
   if (v != nullptr) {
@@ -668,7 +669,10 @@ void worker_loop(vertex* v) {
     if (my_transfer.load() != nullptr) {
       return;
     }
-    frontier* f = new frontier;
+    frontier* f = my_transfer_buf.release();
+    if (f == nullptr) {
+      f = new frontier;
+    }
     my_ready.split(nb_strands / 2, *f);
     my_transfer.store(f);
     logging::push_event(logging::worker_communicate);    
@@ -699,7 +703,7 @@ void worker_loop(vertex* v) {
       }
       if (transfer_k.compare_exchange_strong(orig, nullptr)) {
         orig->swap(my_ready);
-        delete orig;
+        my_transfer_buf.reset(orig);
         stats::on_steal();
         logging::push_frontier_acquire(k);
         break;
@@ -722,7 +726,7 @@ void worker_loop(vertex* v) {
       frontier* orig = f;
       if (my_transfer.compare_exchange_strong(orig, nullptr)) {
         f->swap(my_ready);
-        delete f;
+        my_transfer_buf.reset(f);
       }
     } else {
       auto s = stats::on_enter_acquire();

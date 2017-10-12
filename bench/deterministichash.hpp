@@ -303,7 +303,7 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::fill(st, pt, s.T.TA, s.T.TA + s.n, &s.empty);
+        return sequence::fill3(st, pt, s.T.TA, s.T.TA + s.n, &s.empty);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) {
         p.lo = 0;
