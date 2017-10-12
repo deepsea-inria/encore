@@ -69,7 +69,7 @@ public:
   // Size is the maximum number of values the hash table will hold.
   // Overfilling the table could put it into an infinite loop.
   Table(intT size, HASH hashF) :
-    m(1 << utils::log2Up(100+2*size)), 
+    m(1 << pbbs::utils::log2Up(100+2*size)), 
     mask(m-1),
     empty(hashF.empty()),
     hashStruct(hashF), 
@@ -98,7 +98,7 @@ public:
       cmp = (c==empty) ? 1 : hashStruct.cmp(vkey,hashStruct.getKey(c));
 
       // while v is higher priority than entry at TA[h] try to swap it in
-      while (cmp == 1 && !(swapped=utils::CAS(&TA[h],c,v))) {
+      while (cmp == 1 && !(swapped=pbbs::utils::CAS(&TA[h],c,v))) {
         c = TA[h];
         cmp = hashStruct.cmp(vkey,hashStruct.getKey(c));
       }
@@ -118,7 +118,7 @@ public:
           if (!hashStruct.replaceQ(v,c)) return 0; 
           
           // otherwise try to replace (atomically) and quit if successful
-          else if (utils::CAS(&TA[h],c,v)) return 1;
+          else if (pbbs::utils::CAS(&TA[h],c,v)) return 1;
           
           // otherwise failed due to concurrent write, try again
           c = TA[h];
@@ -174,7 +174,7 @@ public:
         }
         
         // try to copy the the replacement element into j
-        if (utils::CAS(&TA[j],c,x)) {
+        if (pbbs::utils::CAS(&TA[j],c,x)) {
           // swap was successful
           // if the replacement element was empty, we are done
           if (x == empty) return true;
@@ -218,7 +218,7 @@ public:
 
   // returns the number of entries
   intT count() {
-    return sequence::mapReduce<intT>(TA,m,utils::addF<intT>(),notEmptyF(empty));
+    return sequence::mapReduce<intT>(TA,m,pbbs::utils::addF<intT>(),notEmptyF(empty));
   }
 
   // prints the current entries along with the index they are stored at
@@ -235,12 +235,13 @@ template <class HASH, class intT>
 class Table_entries : public encore::edsl::pcfg::shared_activation_record {
 public:
 
+  typedef typename HASH::eType eType;
   Table<HASH, intT>* t;
   bool *FL;
   _seq<eType> R;
   _seq<eType>* dst;
 
-  Table_entries(Table* t, _seq<eType>* dst)
+  Table_entries(Table<HASH, intT>* t, _seq<eType>* dst)
   : t(t), dst(dst) { }
 
   encore_private_activation_record_begin(encore::edsl, Table_entries, 1)
@@ -249,7 +250,7 @@ public:
 
   static
   dc get_dc() {
-    return dc::stmts({
+    return dc::stmts({ 
       dc::parallel_for_loop([] (sar& s, par& p) {
         auto m = s.t->m;
         s.FL = malloc_array<bool>(m);
@@ -268,16 +269,19 @@ public:
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         auto FL = s.FL;
         auto TA = s.t->TA;
-        return sequence::pack5(st, pt, nullptr, FL, (intT)0, s.t->m, &s.R);
+        return sequence::pack4(st, pt, TA, FL, s.t->m, &s.R);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.FL);
         *s.dst = s.R;
-      })
+        }) 
     });
   }
 
 };
+
+template <class HASH, class intT>
+typename Table_entries<HASH,intT>::cfg_type Table_entries<HASH,intT>::cfg = Table_entries<HASH,intT>::get_cfg();
 
 template <class HASH, class ET, class intT>
 class Table_removeDuplicates : public encore::edsl::pcfg::shared_activation_record {
@@ -292,8 +296,8 @@ public:
   typedef typename HASH::eType eType;
   eType empty;
 
-  Table_removeDuplicates(_seq<ET> S, HASH hashF)
-    : S(S), m(S.n), hashF(hashF), T(S.n, hashF) { }
+  Table_removeDuplicates(_seq<ET> S, HASH hashF, _seq<ET>* dst)
+    : S(S), m(S.n), hashF(hashF), T(S.n, hashF), dst(dst) { }
 
   encore_private_activation_record_begin(encore::edsl, Table_removeDuplicates, 1)
     int lo; int hi;
@@ -303,7 +307,7 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::fill3(st, pt, s.T.TA, s.T.TA + s.n, &s.empty);
+        return sequence::fill3(st, pt, s.T.TA, s.T.TA + s.m, &s.empty);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) {
         p.lo = 0;
@@ -321,12 +325,15 @@ public:
       }),
       dc::stmt([] (sar& s, par& p) {
         s.T.del();
-        *dst = s.R;
+        *s.dst = s.R;
       })
     });
   }
 
 };
+
+template <class HASH, class ET, class intT>
+typename Table_removeDuplicates<HASH,ET,intT>::cfg_type Table_removeDuplicates<HASH,ET,intT>::cfg = Table_removeDuplicates<HASH,ET,intT>::get_cfg();
 
 template <class intT>
 struct hashInt {
@@ -334,16 +341,23 @@ struct hashInt {
   typedef intT kType;
   eType empty() {return -1;}
   kType getKey(eType v) {return v;}
-  intT hash(kType v) {return utils::hash(v);}
+  intT hash(kType v) {return pbbs::utils::hash(v);}
   int cmp(kType v, kType b) {return (v > b) ? 1 : ((v == b) ? 0 : -1);}
   bool replaceQ(eType v, eType b) {return 0;}
 };
 
+using stack_type = encore::edsl::pcfg::stack_type;
+
+template <class Activation_record, class ...Args>
+static stack_type encore_call(stack_type s, plt_type p, Args... args) {
+  return encore::edsl::pcfg::push_call<Activation_record>(s, p, args...);
+}
+
 // works for non-negative integers (uses -1 to mark cell as empty)
 
-stack_type removeDuplicates(_seq<intT> A, _seq<intT>* dst) {
+stack_type removeDuplicates(stack_type st, plt_type pt, _seq<intT> A, _seq<intT>* dst) {
   auto hp = hashInt<intT>();
-  return encore_call<removeDuplicates<decltype(hp),intT>>(A,hp,dst);
+  return encore_call<Table_removeDuplicates<decltype(hp),intT,intT>>(st, pt, A,hp,dst);
 }
 
 //typedef Table<hashInt> IntTable;
@@ -376,7 +390,7 @@ struct hashStr {
 
 stack_type removeDuplicates(stack_type st, plt_type pt, _seq<char*> S, _seq<char*>* dst) {
   auto hp = hashStr();
-  return encore_call<removeDuplicates<decltype(hp),char*>>(S,hp,dst);
+  return encore_call<Table_removeDuplicates<decltype(hp),char*,intT>>(st,pt,S,hp,dst);
 }
 
 template <class intT>
@@ -402,8 +416,9 @@ struct hashPair {
 };
 
 stack_type removeDuplicates(stack_type st, plt_type pt, _seq<pair<char*,intT>*> S, _seq<pair<char*,intT>*>* dst) {
-  auto hp = hashPair<hashStr,intT>(hashStr()));
-  return encore_call<removeDuplicates<decltype(hp),pair<char*,intT>>(S,hp,dst);}
+  auto hp = hashPair<hashStr,intT>(hashStr());
+  return encore_call<Table_removeDuplicates<decltype(hp),pair<char*,intT>*,intT>>(st,pt,S,hp,dst);
+}
   
 } //end namespace
 #endif /*! _ENCORE_DETERMINSTIC_HASH_ !*/

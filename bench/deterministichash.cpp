@@ -29,11 +29,17 @@ void encore_bench(parray<Item>& x) {
   std::string lib_type = deepsea::cmdline::parse_or_default_string("lib_type", "pctl");
   if (lib_type == "pbbs") {
     encorebench::run_and_report_elapsed_time([&] {
-      pbbs::removeDuplicates(pbbs::_seq<Item>(&x[0], x.size()));
+        pbbs::_seq<Item> res = pbbs::removeDuplicates(pbbs::_seq<Item>(&x[0], x.size()));
     });
   } else {
-    encore::call_and_
-    encore::launch_interpreter<encorebench::Enter_removeDuplicates<Item>(encorebench::sequence::_seq(&x[0], x.size()));
+    auto ptr = x.begin();
+    auto n = x.size();
+    encore::launch_interpreter_via_lambda([=] (encore::edsl::pcfg::stack_type st) {
+      auto ty = encore::edsl::pcfg::cactus::Parent_link_sync;
+      auto s = _seq<Item>(ptr, n);
+      _seq<Item> res;
+      return encorebench::removeDuplicates(st, ty, s, &res);
+    });
   }
 }
 
