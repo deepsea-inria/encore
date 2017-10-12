@@ -4,15 +4,7 @@
 #include <cilk/cilk_api.h>
 #endif
 
-#ifdef HAVE_HWLOC
-#include <hwloc.h>
-#endif
-
-#ifdef TARGET_MAC_OS
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#endif
-
+#include "machine.hpp"
 #include "scheduler.hpp"
 #include "edsl.hpp"
 #include "cmdline.hpp"
@@ -22,11 +14,9 @@
 #ifndef _ENCORE_H_
 #define _ENCORE_H_
 
-namespace cmdline = deepsea::cmdline;
-
 namespace encore {
-  
-namespace {
+
+namespace cmdline = deepsea::cmdline;
   
 template <class Function>
 class call_and_report_elapsed : public edsl::pcfg::shared_activation_record {
@@ -88,70 +78,12 @@ void cilk_set_nb_cores(int proc) {
 void cilk_set_nb_cores() {
   cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
 }
-
-#ifdef HAVE_HWLOC
-hwloc_topology_t topology;
-#endif
-
-void initialize_hwloc(int nb_workers) {
-#ifdef HAVE_HWLOC
-  hwloc_topology_init(&topology);
-  hwloc_topology_load(topology);
-  bool numa_alloc_interleaved = (nb_workers == 0) ? false : true;
-  numa_alloc_interleaved = cmdline::parse_or_default("numa_alloc_interleaved", numa_alloc_interleaved);
-  if (numa_alloc_interleaved) {
-    hwloc_cpuset_t all_cpus =
-      hwloc_bitmap_dup(hwloc_topology_get_topology_cpuset(topology));
-    int err = hwloc_set_membind(topology, all_cpus, HWLOC_MEMBIND_INTERLEAVE, 0);
-    if (err < 0) {
-      printf("Warning: failed to set NUMA round-robin allocation policy\n");
-    }
-  }
-#endif
-}
-
-void initialize_hwloc() {
-  initialize_hwloc(cmdline::parse_or_default("proc", 1));
-}
-  
-void initialize_cpuinfo() {
-  float cpu_frequency_mhz = 0.0;
-#ifdef TARGET_LINUX
-  /* Get information from /proc/cpuinfo.     *
-   * cpu MHz         : <float>             # cpu frequency in MHz
-   */
-  FILE *cpuinfo_file = fopen("/proc/cpuinfo", "r");
-  char buf[1024];
-  int cache_line_szb;
-  if (cpuinfo_file != NULL) {
-    while (fgets(buf, sizeof(buf), cpuinfo_file) != 0) {
-      sscanf(buf, "cpu MHz : %f", &(cpu_frequency_mhz));
-    }
-    fclose (cpuinfo_file);
-  }
-#endif
-#ifdef TARGET_MAC_OS
-  uint64_t freq = 0;
-  size_t size;
-  size = sizeof(freq);
-  if (sysctlbyname("hw.cpufrequency", &freq, &size, NULL, 0) < 0) {
-    perror("sysctl");
-  }
-  cpu_frequency_mhz = (float)freq / 1000000.;
-#endif
-  if (cpu_frequency_mhz == 0.) {
-    atomic::die("Failed to read CPU frequency\n");
-  }
-  cpu_frequency_ghz = (double) (cpu_frequency_mhz / 1000.0);
-}
-
-} // end namespace
   
 void initialize(int argc, char** argv) {
   cmdline::set(argc, argv);
   atomic::init_print_lock();
-  initialize_hwloc();
-  initialize_cpuinfo();
+  machine::initialize_hwloc();
+  machine::initialize_cpuinfo();
   auto scheduler = cmdline::parse_or_default_string("scheduler", "steal_half_work_stealing");
   if (scheduler == "steal_half_work_stealing") {
     sched::scheduler = sched::steal_half_work_stealing_tag;
@@ -168,10 +100,10 @@ void initialize(int argc, char** argv) {
     promotion_threshold_usec = 10000000.0;
   }
   promotion_threshold_usec = cmdline::parse_or_default_double("promotion_threshold", promotion_threshold_usec);
-  fuel::initialize(cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
+  fuel::initialize(machine::cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
   double grain_usec = promotion_threshold_usec / 4.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
-  grain::initialize(cpu_frequency_ghz, grain_usec * 1000.0, promotion_threshold_usec * 1000.0);
+  grain::initialize(machine::cpu_frequency_ghz, grain_usec * 1000.0, promotion_threshold_usec * 1000.0);
   cilk_set_nb_cores();
 }
   

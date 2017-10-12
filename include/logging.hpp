@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <memory>
 
+#include "machine.hpp"
 #include "perworker.hpp"
 #include "cmdline.hpp"
 #include "atomic.hpp"
@@ -14,8 +15,6 @@
 #define _ENCORE_LOGGING_H_
 
 namespace encore {
-
-double cpu_frequency_ghz = 1.2;
   
 namespace logging {
 
@@ -172,7 +171,7 @@ public:
         break;
       }
       case leaf_loop_update: {
-        double cycles_per_nsec = cpu_frequency_ghz;
+        double cycles_per_nsec = machine::cpu_frequency_ghz;
         double cycles_per_usec = cycles_per_nsec * 1000;
         double elapsed = extra.leaf_loop.elapsed / cycles_per_usec;
         fprintf(f, "%d \t %d \t %.3lf \t %p",
