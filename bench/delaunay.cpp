@@ -2,7 +2,8 @@
 #include <math.h>
 #include <functional>
 #include <stdlib.h>
-#include "bench.hpp"
+
+#include "encorebench.hpp"
 #include "delaunay.hpp"
 #include "loaders.hpp"
 #include "delaunay.h"
@@ -33,7 +34,7 @@ void benchmark(parray<Item1>& x) {
   });
   d.add("pbbs", [&] {
     parray<Item2> y = to_pbbs(x);
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       pbbs::delaunay(&y[0], (int)y.size());
     });
   });
@@ -44,7 +45,7 @@ void benchmark(parray<Item1>& x) {
 } // end namespace
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   parray<pasl::pctl::_point2d<double>> x = pasl::pctl::io::load<parray<pasl::pctl::_point2d<double>>>(infile);
   pasl::pctl::benchmark(x);

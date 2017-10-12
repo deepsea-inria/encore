@@ -2,13 +2,14 @@
 #include <iostream>
 #include <chrono>
 
+#include "encorebench.hpp"
 #include "merge.hpp"
 #include "merge.h"
 
 namespace cmdline = deepsea::cmdline;
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   int* a1 = malloc_array<int>(n);
   int* a2 = malloc_array<int>(n);
@@ -24,7 +25,7 @@ int main(int argc, char** argv) {
   if (algorithm == "encore") {
     encore::launch_interpreter<encorebench::merge<int,decltype(f),int>>(a1, n, a2, n, a3, f);
   } else if (algorithm == "pbbs") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       pbbs::merge(a1, n, a2, n, a3, f);
     });
   }

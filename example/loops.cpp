@@ -1,7 +1,7 @@
 #include <iostream>
 #include <chrono>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
@@ -446,10 +446,10 @@ public:
 encore_pcfg_allocate(parallel_combine_1, get_cfg)
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   cutoff = cmdline::parse_or_default("cutoff", cutoff);
-  encore::run_and_report_elapsed_time([&] {
+  encorebench::run_and_report_elapsed_time([&] {
     cmdline::dispatcher d;
     d.add("sequential_loop_0", [=] {
       encore::launch_interpreter<sequential_loop_0>(n);

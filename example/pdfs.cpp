@@ -8,7 +8,7 @@
 #include <ostream>
 #include <sstream>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
@@ -284,7 +284,7 @@ void launch() {
   std::atomic<int>* visited_parallel = nullptr;
   adjlist<Vertex_id> graph;
   graph.load_from_file(fname);
-  encore::run_and_report_elapsed_time([&] {
+  encorebench::run_and_report_elapsed_time([&] {
     if (algo == "serial") {
       visited_serial = dfs(graph, source);
     } else if (algo == "pdfs") {
@@ -314,7 +314,7 @@ void launch() {
 }
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = cmdline::parse<int>("bits");
   if (n == 32) {
     launch<int>();

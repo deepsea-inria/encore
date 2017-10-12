@@ -1,7 +1,7 @@
 
 #include <iostream>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
@@ -80,7 +80,7 @@ public:
 encore_pcfg_allocate(bintree, get_cfg)
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   cutoff = cmdline::parse_or_default("cutoff", cutoff);
   int* a = malloc_array<int>(n);

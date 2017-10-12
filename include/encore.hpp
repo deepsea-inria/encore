@@ -1,9 +1,4 @@
 
-#ifdef USE_CILK_PLUS
-#include <cilk/cilk.h>
-#include <cilk/cilk_api.h>
-#endif
-
 #include "machine.hpp"
 #include "scheduler.hpp"
 #include "edsl.hpp"
@@ -69,17 +64,7 @@ public:
 template <class Function>
 typename call_and_report_elapsed<Function>::cfg_type call_and_report_elapsed<Function>::cfg = call_and_report_elapsed<Function>::get_cfg();
   
-void cilk_set_nb_cores(int proc) {
-#ifdef USE_CILK_PLUS
-  __cilkrts_set_param("nworkers", std::to_string(proc).c_str());
-#endif
-}
-
-void cilk_set_nb_cores() {
-  cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
-}
-  
-void initialize(int argc, char** argv) {
+void initialize_runtime(int argc, char** argv) {
   cmdline::set(argc, argv);
   atomic::init_print_lock();
   machine::initialize_hwloc();
@@ -104,7 +89,6 @@ void initialize(int argc, char** argv) {
   double grain_usec = promotion_threshold_usec / 4.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
   grain::initialize(machine::cpu_frequency_ghz, grain_usec * 1000.0, promotion_threshold_usec * 1000.0);
-  cilk_set_nb_cores();
 }
   
 template <class Init>
@@ -159,15 +143,6 @@ void launch_interpreter(Args... args) {
   data::perworker::reset();
 }
   
-template <class Function>
-void run_and_report_elapsed_time(const Function& f) {
-  auto start = std::chrono::system_clock::now();
-  f();
-  auto end = std::chrono::system_clock::now();
-  std::chrono::duration<float> diff = end - start;
-  printf ("exectime %.3lf\n", diff.count());
-}
-
 } // end namespace
 
 #endif /*! _ENCORE_H_ */

@@ -8,9 +8,8 @@
 #include <ostream>
 #include <sstream>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 #include "sequence.hpp"
-
 #include "test.hpp"
 #include "prandgen.hpp"
 
@@ -43,11 +42,11 @@ void bench_reduce() {
   } else if (algorithm == "encore_sequential") {
     encore::launch_interpreter<sequence::reduceSerial<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
   } else if (algorithm == "sequential") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::reduceSerial<value_type>(0, n, f, g);
     });
   } else if (algorithm == "pbbs") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::reduce<value_type>(0, n, f, g);
     });
   }
@@ -81,11 +80,11 @@ void bench_max_index() {
   } else if (algorithm == "encore_sequential") {
     encore::launch_interpreter<sequence::maxIndexSerial<value_type,intT,typeof(f),typeof(g)>>(0, n, f, g, &result);
   } else if (algorithm == "sequential") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::maxIndexSerial<value_type>(0, n, f, g);
     });
   } else if (algorithm == "pbbs") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::maxIndex<value_type>(0, n, f, g);
     });
   }
@@ -149,11 +148,11 @@ void bench_scan() {
   } else if (algorithm == "encore_sequential") {
     encore::launch_interpreter<sequence::scanSerial<value_type,intT,typeof(f),typeof(g)>>(output, 0, n, f, g, zero, inclusive, back, &result);
   } else if (algorithm == "sequential") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::scanSerial<value_type>(output, (intT) 0, n, f, g, zero, inclusive, back);
     });
   } else if (algorithm == "pbbs") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = pbbs::sequence::scan<value_type>(output, (intT) 0, n, f, g, zero, inclusive, back);
     });
   }
@@ -199,11 +198,11 @@ void bench_pack() {
   } else if (algorithm == "encore_sequential") {
     encore::launch_interpreter<sequence::packSerial<value_type, intT, typeof(f)>>((value_type*)nullptr, flags, (intT)0, n, f, &output);
   } else if (algorithm == "sequential") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       output = from_pbbs(pbbs::sequence::packSerial((value_type*)nullptr, flags, (intT)0, n, f));
     });
   } else if (algorithm == "pbbs") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       output = from_pbbs(pbbs::sequence::pack((value_type*)nullptr, flags, (intT)0, n, f));
     });
   }
@@ -267,11 +266,11 @@ void bench_filter() {
   } else if (algorithm == "encore_sequential") {
     assert(false);
   } else if (algorithm == "sequential") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       output = filterSerial(input, n, p);
     });
   } else if (algorithm == "pbbs") {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       output = from_pbbs(pbbs::sequence::filter(input, n, p));
     });
   }
@@ -535,7 +534,7 @@ void test() {
 }
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   sequence::initialize();
   cmdline::dispatcher d;
   d.add("benchmark", [&] {
