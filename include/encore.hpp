@@ -111,9 +111,9 @@ void launch(sched::vertex* v, int nb_workers) {
 void launch(sched::vertex* v) {
   launch(v, cmdline::parse_or_default("proc", 1));
 }
-  
-template <class Shared_activation_record, class ...Args>
-void launch_interpreter(Args... args) {
+
+template <class F>
+void launch_interpreter_via_lambda(const F& f) {
   /* thanks to buggy GCC, the code here will crash the compiler...
   launch(cmdline::parse_or_default("proc", 1), [&] {
     auto interp = new edsl::pcfg::interpreter<edsl::pcfg::stack_type>;
@@ -129,18 +129,26 @@ void launch_interpreter(Args... args) {
   logging::log_buffer::initialize();
   stats::initialize();
   auto interp = new edsl::pcfg::interpreter;
-  auto ty = edsl::pcfg::cactus::Parent_link_sync;
-  auto f = [=] (edsl::pcfg::stack_type st) {
-    return edsl::pcfg::push_call<Shared_activation_record>(st, ty, args...);
-  };
-  using t = call_and_report_elapsed<typeof(f)>;
-  interp->stack = edsl::pcfg::push_call<t>(interp->stack, ty, f);
+  using t = call_and_report_elapsed<F>;
+  interp->stack = edsl::pcfg::push_call<t>(interp->stack,
+                                           edsl::pcfg::cactus::Parent_link_sync,
+                                           f);
   stats::on_enter_launch();
   sched::launch_scheduler(nb_workers, interp);
   stats::on_exit_launch();
   stats::report();
   logging::log_buffer::output();
   data::perworker::reset();
+}
+
+template <class Shared_activation_record, class ...Args>
+void launch_interpreter(Args... args) {
+  using sar = Shared_activation_record;
+  launch_interpreter_via_lambda([=] (edsl::pcfg::stack_type st) {
+    return edsl::pcfg::push_call<sar>(st,
+                                      edsl::pcfg::cactus::Parent_link_sync,
+                                      args...);
+  });
 }
   
 } // end namespace
