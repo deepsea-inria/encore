@@ -24,6 +24,7 @@
 #include "utils.h"
 #include "sequence.hpp"
 
+
 #ifndef _ENCORE_DETERMINISTIC_HASH_
 #define _ENCORE_DETERMINISTIC_HASH_
 namespace encorebench {
@@ -348,16 +349,18 @@ struct hashInt {
 
 using stack_type = encore::edsl::pcfg::stack_type;
 
+namespace foo {
 template <class Activation_record, class ...Args>
 static stack_type encore_call(stack_type s, plt_type p, Args... args) {
   return encore::edsl::pcfg::push_call<Activation_record>(s, p, args...);
+}
 }
 
 // works for non-negative integers (uses -1 to mark cell as empty)
 
 stack_type removeDuplicates(stack_type st, plt_type pt, _seq<intT> A, _seq<intT>* dst) {
   auto hp = hashInt<intT>();
-  return encore_call<Table_removeDuplicates<decltype(hp),intT,intT>>(st, pt, A,hp,dst);
+  return foo::encore_call<Table_removeDuplicates<decltype(hp),intT,intT>>(st, pt, A,hp,dst);
 }
 
 //typedef Table<hashInt> IntTable;
@@ -390,7 +393,7 @@ struct hashStr {
 
 stack_type removeDuplicates(stack_type st, plt_type pt, _seq<char*> S, _seq<char*>* dst) {
   auto hp = hashStr();
-  return encore_call<Table_removeDuplicates<decltype(hp),char*,intT>>(st,pt,S,hp,dst);
+  return foo::encore_call<Table_removeDuplicates<decltype(hp),char*,intT>>(st,pt,S,hp,dst);
 }
 
 template <class intT>
@@ -417,7 +420,7 @@ struct hashPair {
 
 stack_type removeDuplicates(stack_type st, plt_type pt, _seq<pair<char*,intT>*> S, _seq<pair<char*,intT>*>* dst) {
   auto hp = hashPair<hashStr,intT>(hashStr());
-  return encore_call<Table_removeDuplicates<decltype(hp),pair<char*,intT>*,intT>>(st,pt,S,hp,dst);
+  return foo::encore_call<Table_removeDuplicates<decltype(hp),pair<char*,intT>*,intT>>(st,pt,S,hp,dst);
 }
   
 } //end namespace
