@@ -1081,6 +1081,11 @@ public:
 template <class Iter, class Output_iterator>
 typename copy<Iter,Output_iterator>::cfg_type copy<Iter,Output_iterator>::cfg = copy<Iter,Output_iterator>::get_cfg();
 
+template <class Iter, class Output_iterator>
+stack_type copy3(stack_type st, plt_type pt, Iter lo, Iter hi, Output_iterator dst) {
+  return encore_call<copy<Iter, Output_iterator>>(st, pt, lo, hi, dst);
+}
+  
 template <class Iter, class Item>
 class fill : public encore::edsl::pcfg::shared_activation_record {
 public:
