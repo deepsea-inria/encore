@@ -1050,6 +1050,11 @@ public:
 
 template <class ET, class intT, class PRED>
 typename filter<ET,intT,PRED>::cfg_type filter<ET,intT,PRED>::cfg = filter<ET,intT,PRED>::get_cfg();
+
+template <class ET, class intT, class PRED>
+stack_type filter4(stack_type st, plt_type pt, ET* In, intT n, PRED p, _seq<ET>* dest) {
+  return encore_call<filter<ET, intT, PRED>>(st, pt, In, n, p, dest);
+}
   
 template <class Iter, class Output_iterator>
 class copy : public encore::edsl::pcfg::shared_activation_record {
