@@ -8,7 +8,7 @@
 #include <sstream>
 #include <algorithm>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 #include "blockradixsort.hpp"
 #include "loaders.hpp"
 #include "blockRadixSort.h"
@@ -29,7 +29,7 @@ void benchmark(parray<int>& x) {
     encore::launch_interpreter<encorebench::integerSort<int>>(x.begin(), (int)x.size());
   });
   d.add("pbbs", [&] {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       integerSort<int>(&x[0], (int)x.size());
     });
   });
@@ -53,7 +53,7 @@ void benchmark(parray<std::pair<int, int>>& x) {
     encore::launch_interpreter<encorebench::integerSortPair<int,intT>>(x.begin(), (int)x.size());
   });
   d.add("pbbs", [&] {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       integerSort<int>(&x[0], (int)x.size());
     });
   });
@@ -150,7 +150,7 @@ public:
 } // end namespace
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {
     pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);

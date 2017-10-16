@@ -31,7 +31,7 @@
 #include "sequence.hpp"
 #include "blockradixsort.hpp"
 #include "utils.h"
-#include "encore.hpp"
+#include "encorebench.hpp"
 #include "logging.hpp"
 #include "merge.hpp"
 
@@ -638,7 +638,7 @@ void benchmark(std::string infile) {
     encore::launch_interpreter<encorebench::suffix_array>(x.data(), x.length(), false, &res);
   });
   d.add("pbbs", [&] {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       res.first = pbbs::suffixArray(x.data(), (intT)x.length());
     });
   });
@@ -656,7 +656,7 @@ void benchmark(std::string infile) {
 } // end namespace
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   sequence::initialize();  
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {

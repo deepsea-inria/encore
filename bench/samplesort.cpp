@@ -8,7 +8,7 @@
 #include <sstream>
 #include <algorithm>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 #include "sequence.hpp"
 #include "samplesort.hpp"
 
@@ -102,7 +102,7 @@ void benchmark(parray<Item>& xs, const Compare_fn& compare_fn) {
     encore::launch_interpreter<encorebench::sampleSort<Item, Compare_fn, intT>>(xs.begin(), (int)xs.size(), compare_fn);
   });
   d.add("pbbs", [&] {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       sampleSort(xs.begin(), (int)xs.size(), compare_fn);
     });
   });
@@ -139,7 +139,7 @@ void benchmark(std::string infile) {
 } // end namespace
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   encorebench::SSORT_THR = cmdline::parse_or_default_int("threshold", encorebench::SSORT_THR);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile != "") {

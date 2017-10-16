@@ -949,11 +949,11 @@ stack_type pack5(stack_type st, plt_type pt, ET* In, ET* Out, bool* Fl, intT n, 
   auto f = getA<ET,intT>(In);
   return encore_call<pack<ET,intT,typeof(f)>>(st, pt, Out, Fl, (intT) 0, n, f, dest);
 }
-  
+
 template <class ET, class intT>
 stack_type pack4(stack_type st, plt_type pt, ET* In, bool* Fl, intT n, _seq<ET>* dest) {
   auto f = getA<ET,intT>(In);
-  return encore_call<pack<ET,intT,typeof(f)>>(st, pt, (ET*) nullptr, Fl, (intT) 0, n, f, dest);
+  return encore_call<pack<ET,intT,typeof(f)>>(st, pt, (ET*)nullptr, Fl, (intT)0, n, f, dest);
 }
 
 template <class ET, class intT, class PRED>
@@ -1081,6 +1081,11 @@ public:
 template <class Iter, class Output_iterator>
 typename copy<Iter,Output_iterator>::cfg_type copy<Iter,Output_iterator>::cfg = copy<Iter,Output_iterator>::get_cfg();
 
+template <class Iter, class Output_iterator>
+stack_type copy3(stack_type st, plt_type pt, Iter lo, Iter hi, Output_iterator dst) {
+  return encore_call<copy<Iter, Output_iterator>>(st, pt, lo, hi, dst);
+}
+  
 template <class Iter, class Item>
 class fill : public encore::edsl::pcfg::shared_activation_record {
 public:

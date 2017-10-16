@@ -20,6 +20,7 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include "encorebench.hpp"
 #include "nearestneighbors.hpp"
 #include "nearestNeighbors.h"
 #undef blocked_for
@@ -57,7 +58,7 @@ void benchmark(parray<Item1>& x, int k) {
   });
   d.add("pbbs", [&] {
     parray<Item2> y = to_pbbs(x);
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       pbbs::findNearestNeighbors<K, Item2>(&y[0], n, k, result);
     });
   });
@@ -97,7 +98,7 @@ void benchmark(std::string infile) {
 } // end namespace
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {
     std::cerr << "bogus input filename" << std::endl;

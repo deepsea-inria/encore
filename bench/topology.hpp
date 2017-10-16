@@ -20,15 +20,17 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef _TOPOLOGY_INCLUDED
-#define _TOPOLOGY_INCLUDED
-
 #include <iostream>
-#include "geometry.h"
-#include "deterministicHash.h"
+#include "geometry.hpp"
+#include "deterministichash.hpp"
+
+#ifndef ENCORE__TOPOLOGY_INCLUDED
+#define ENCORE__TOPOLOGY_INCLUDED
 
 namespace encorebench {
 using namespace std;
+
+using point2d = pasl::pctl::point2d;
 
 // *************************************************************
 //    TOPOLOGY
@@ -94,6 +96,7 @@ struct simplex {
   tri *t;
   int o;
   bool boundary;
+  simplex() { }
   simplex(tri *tt, int oo) : t(tt), o(oo), boundary(0) {}
   simplex(tri *tt, int oo, bool _b) : t(tt), o(oo), boundary(_b) {}
   simplex(vertex *v1, vertex *v2, vertex *v3, tri *tt) {
@@ -150,7 +153,7 @@ struct simplex {
 
   bool outside(vertex *v) {
     if (boundary || t == NULL) return 0;
-    return counterClockwise(t->vtx[mod3(o+2)]->pt, v->pt, t->vtx[o]->pt);
+    return counter_clockwise(t->vtx[mod3(o+2)]->pt, v->pt, t->vtx[o]->pt);
   }
 
   // flips two triangles and adjusts neighboring triangles
@@ -234,7 +237,7 @@ struct hashEdges {
   typedef edge* eType;
   eType empty() {return NULL;}
   kType getKey(eType v) { return v->first;}
-  uintT hash(kType s) { return utils::hash(s.first)+3*(utils::hash(s.second)); }
+  uintT hash(kType s) { return pbbs::utils::hash(s.first)+3*(pbbs::utils::hash(s.second)); }
   int cmp(kType s1, kType s2) {
     return ((s1.first > s2.first) ? 1 : 
 	    (s1.first < s2.first) ? -1 : 
@@ -291,6 +294,6 @@ void topologyFromTriangles(triangles<point2d> Tri, vertex** vr, tri** tr) {
 
 }
   */
-  
+    
 } // end namespace
 #endif // _TOPOLOGY_INCLUDED

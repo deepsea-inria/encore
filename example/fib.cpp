@@ -2,7 +2,7 @@
 #include <iostream>
 #include <chrono>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 
 int fib(int n) {
   if (n <= 1) {
@@ -151,7 +151,7 @@ public:
               return encore_call<fib_dc>(st, p, s.n - 1, &s.d1); },
             [] (sar& s, par&, plt p, stt st) {
               return encore_call<fib_dc>(st, p, s.n - 2, &s.d2); }),
-        dc::stmt([] (sar& s, par&) { *s.dp = s.d1 + s.d2; }),
+         dc::stmt([] (sar& s, par&) { *s.dp = s.d1 + s.d2; }),
       })
     );
   }
@@ -163,7 +163,7 @@ encore_pcfg_allocate(fib_dc, get_cfg)
 namespace cmdline = deepsea::cmdline;
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   cutoff = cmdline::parse_or_default("cutoff", cutoff);
   int result = -1;
@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
   d.add("dc", [&] {
     encore::launch_interpreter<fib_dc>(n, &result);
   });
-  encore::run_and_report_elapsed_time([&] {
+  encorebench::run_and_report_elapsed_time([&] {
     d.dispatch("algorithm");
   });
   auto fn = fib(n);

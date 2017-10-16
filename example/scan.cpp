@@ -8,7 +8,7 @@
 #define cilk_for for
 #endif
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
@@ -161,7 +161,7 @@ value_type scan_cilk(int n, value_type z, value_type* src, value_type* dst) {
 }
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = cmdline::parse<int>("n");
   branching_factor = cmdline::parse_or_default("branching_factor", branching_factor);
   value_type* src = malloc_array<value_type>(n);
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
   d.add("encore", [&] {
     encore::launch_interpreter<scan_dc>(n, 0, src, dst);
   });
-  encore::run_and_report_elapsed_time([&] {
+  encorebench::run_and_report_elapsed_time([&] {
     d.dispatch_or_default("algorithm", "serial");
   });
 #ifndef NDEBUG

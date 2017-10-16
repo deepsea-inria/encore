@@ -1,7 +1,7 @@
 #include <iostream>
 #include <chrono>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
@@ -54,9 +54,9 @@ public:
 encore_pcfg_allocate(mixed, get_cfg)
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   int n = 1 << cmdline::parse<int>("lgn");
-  encore::run_and_report_elapsed_time([&] {
+  encorebench::run_and_report_elapsed_time([&] {
     encore::launch_interpreter<mixed>(n);
   });
   assert(nb.load() + 1 == 2 * n);

@@ -26,6 +26,9 @@
 #include "nearestneighbors.hpp"
 #include "topology.hpp"
 
+#ifndef _ENCORE_DELAUNAY_H_
+#define _ENCORE_DELAUNAY_H_
+
 namespace encorebench {
 
 using namespace std;
@@ -98,7 +101,7 @@ void reserveForInsert(vertex *v, simplex t, Qs *q) {
   // the maximum id new vertex that tries to reserve a boundary vertex 
   // will have its id written.  reserve starts out as -1
   for (intT i = 0; i < q->vertexQ.size(); i++)
-    utils::writeMax(&((q->vertexQ)[i]->reserve), v->id);
+    pbbs::utils::writeMax(&((q->vertexQ)[i]->reserve), v->id);
 }
 
 // checks if v "won" on all adjacent vertices and inserts point if so
@@ -126,7 +129,7 @@ bool insert(vertex *v, simplex t, Qs *q) {
 // *************************************************************
 //    CHECKING THE TRIANGULATION
 // *************************************************************
-
+#if 0
 void checkDelaunay(tri *triangs, intT n, intT boundarySize) {
   intT *bcount = newA(intT,n);
   /* cilk_for */ for (intT j=0; j<n; j++) bcount[j] = 0;
@@ -146,20 +149,21 @@ void checkDelaunay(tri *triangs, intT n, intT boundarySize) {
       }
     }
   }
+  /*
   if (boundarySize != sequence::plusReduce(bcount,n))
     cout << "Wrong boundary size: should be " << boundarySize 
-         << " is " << bcount << endl;
+    << " is " << bcount << endl; */
   free(bcount);
 }
-
+#endif
 // *************************************************************
 //    CREATING A BOUNDING CIRCULAR REGION AND FILL WITH INITIAL SIMPLICES
 // *************************************************************
 
 struct minpt {
-  point2d operator() (point2d a, point2d b) {return a.minCoords(b);}};
+  point2d operator() (point2d a, point2d b) {return a.min_coord(b);}};
 struct maxpt {
-  point2d operator() (point2d a, point2d b) {return a.maxCoords(b);}};
+  point2d operator() (point2d a, point2d b) {return a.max_coord(b);}};
 
 // P is the set of points to bound and n the number
 // bCount is the number of points to put on the boundary
@@ -172,7 +176,7 @@ public:
   simplex* dst; int lo; int hi;
 
   double size; double radius; point2d center; point2d* boundaryP;
-  simplex s;
+  simplex s; point2d minP; point2d maxP;
 
   generateBoundary(point2d* P, intT n, intT bCount, vertex* v, tri* t, simplex* dst)
     : P(P), n(n), bCount(bCount), v(v), t(t), dst(dst) { }
@@ -181,19 +185,19 @@ public:
   
   static
   dc get_dc() {
-    return dc::stmts({
+    return dc::stmts({ 
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return sequence::reduce4(st, pt, s.P, s.n, minpt(), &s.minP);
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return sequence::reduce4(st, pt, s.P, s.n, maxpt(), &s.maxP);
-      }),
+      }), 
       dc::stmt([] (sar& s, par& p) {
-        s.size = (s.maxP-s.minP).Length();
+        s.size = (s.maxP-s.minP).length();
         double stretch = 10.0;
         s.radius = stretch*s.size;
         s.center = s.maxP + (s.maxP-s.minP)/2.0;
-        s.boundaryP = malloc_array<point2d>(bCount);
+        s.boundaryP = malloc_array<point2d>(s.bCount);
       }),
       // Generate the bounding points on a circle far outside the bounding box
       dc::sequential_loop([] (sar& s, par&) {
@@ -208,6 +212,7 @@ public:
         auto center = s.center;
         auto boundaryP = s.boundaryP;
         auto n = s.n;
+        auto v = s.v;
         for (auto i = lo; i != hi; i++) {
           double x = radius * cos(2*pi*((float) i)/((float) bCount));
           double y = radius * sin(2*pi*((float) i)/((float) bCount));
@@ -232,8 +237,9 @@ public:
           _s = _s.extend(&v[i], t+i-2);
         }
         *s.dst = _s;
-      }),
+      })
     });
+  }
       
 };
 
@@ -248,11 +254,11 @@ public:
 
   vertex** v; intT n; vertex* start;
 
-  typedef kNearestNeighbor<vertex,1> KNN;
+  typedef kNearestNeighbor<vertex,1> kNN;
 
   intT maxR; Qs *qqs; Qs **qs; simplex *t; bool *flags; vertex** h;
-  KNN knn; int multiplier; intT nextNN; intT top; intT rounds; intT failed;
-  vertex **vv; intT cnt; sequence::_seq<ET> tmp;
+  kNN knn; int multiplier; intT nextNN; intT top; intT rounds; intT failed;
+  vertex **vv; intT cnt; _seq<vertex*> tmp; intT k;
   int lo; int hi;
 
   incrementallyAddPoints(vertex** v, intT n, vertex* start)
@@ -268,8 +274,8 @@ public:
       dc::stmt([] (sar& s, par& p) {
         // various structures needed for each parallel insertion
         s.maxR = (intT) (s.n/100) + 1; // maximum number to try in parallel
-        s.qqs = malloc_array<Qs>(maxR);
-        s.qs = malloc_array<Qs>(maxR);
+        s.qqs = malloc_array<Qs>(s.maxR);
+        s.qs = malloc_array<Qs*>(s.maxR);
       }),
       dc::sequential_loop([] (sar& s, par&) {
         s.lo = 0;
@@ -284,10 +290,16 @@ public:
         }
       }),
       dc::stmt([] (sar& s, par& p) {
-        s.t = malloc_array<<simplex>(s.maxR);
+        s.t = malloc_array<simplex>(s.maxR);
         s.flags = malloc_array<bool>(s.maxR);
         s.h = malloc_array<vertex*>(s.maxR);
-        new (&s.knn) KNN(&s.start, 1);
+      }),
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        using cons = typename kNN::qoTreeCons;
+        new (&s.knn) kNN;
+        return encore_call<cons>(st, pt, &s.start, 1, &s.knn.tree);
+      }),
+      dc::stmt([] (sar& s, par& p) {
         s.multiplier = 8; // when to regenerate
         s.nextNN = s.multiplier;
         s.top=s.n;
@@ -295,19 +307,30 @@ public:
         s.failed = 0;
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.top > 0; }, dc::stmts({
+        // every once in a while create a new point location
+        // structure using all points inserted so far
+        dc::mk_if([] (sar& s, par& p) {
+            return (s.n-s.top)>=s.nextNN && (s.n-s.top) < s.n/s.multiplier;
+          }, dc::stmts({
+            dc::stmt([] (sar& s, par& p) {
+              s.knn.del();
+            }),
+            dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+              using cons = typename kNN::qoTreeCons;
+              new (&s.knn) kNN;
+              return encore_call<cons>(st, pt, s.v+s.top, s.n-s.top, &s.knn.tree);
+            }),
+            dc::stmt([] (sar& s, par& p) {
+              s.nextNN = s.nextNN*s.multiplier;
+            })
+        })),
         dc::stmt([] (sar& s, par& p) {
-          // every once in a while create a new point location
-          // structure using all points inserted so far
-          if ((s.n-s.top)>=s.nextNN && (s.n-s.top) < s.n/s.multiplier) {
-            s.knn.del();
-            s.knn = KNN(s.v+s.top, s.n-s.top);
-            s.nextNN = s.nextNN*s.multiplier;
-          }
           // determine how many vertices to try in parallel
           s.cnt = 1 + (s.n-s.top)/100;  // 100 is pulled out of a hat
           s.cnt = (s.cnt > s.maxR) ? s.maxR : s.cnt;
           s.cnt = (s.cnt > s.top) ? s.top : s.cnt;
           s.vv = s.v+s.top-s.cnt;
+
         }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -334,7 +357,10 @@ public:
           }
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-          return sequence::pack5(st, pt, s.vv, s.h+s.k, s.flags, s.cnt, &s.tmp);
+          return sequence::pack5(st, pt, s.vv, s.h, s.flags, s.cnt, &s.tmp);
+        }),
+        dc::stmt([] (sar& s, par& p) {
+          s.k = s.tmp.n;
         }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -348,7 +374,7 @@ public:
           return sequence::pack5(st, pt, s.vv, s.h+s.k, s.flags, s.cnt, &s.tmp);
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-          return encore_call<sequence::copy<vertex***, vertex***>>(st, pt, s.h, s.h + s.cnt, s.vv);
+          return sequence::copy3(st, pt, s.h, s.h + s.cnt, s.vv);
         }),
         dc::stmt([] (sar& s, par& p) {
           s.failed += s.k;
@@ -389,7 +415,7 @@ private:
 
 public:
   hashID(intT nn) : n(nn) {
-    k = utils::hash(nn)%nn;
+    k = pbbs::utils::hash(nn)%nn;
     while (GCD(k,nn) > 1) k = (k + 1) % nn;     
   }
   intT get(intT i) { return (i*k)%n; }
@@ -398,9 +424,12 @@ public:
 class delaunay : public encore::edsl::pcfg::shared_activation_record {
 public:
 
-  triangles<point2d>* dst; hashID hash; intT numVertices;
+  point2d* P; intT n; triangles<point2d>* dst;
+
+  hashID hash; intT numVertices;
   vertex** v; vertex* vv; simplex sBoundary; vertex* v0;
   triangle* rt; intT *M; point2d* rp;
+  tri* Triangs; intT numTriangles;
   static constexpr intT boundarySize = 10;
   
   delaunay(point2d* P, intT n, triangles<point2d>* dst)
@@ -419,6 +448,23 @@ public:
         s.v = malloc_array<vertex*>(s.n); // don't need pointers to boundary
         s.vv = malloc_array<vertex>(s.numVertices);
       }),
+      // The points are psuedorandomly permuted 
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.n;},
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto v = s.v;
+        auto vv = s.vv;
+        auto& hash = s.hash;
+        auto P = s.P;
+        for (auto i = lo; i != hi; i++) {
+          v[i] = new (&vv[i]) vertex(P[hash.get(i)], i);
+        }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        // allocate all the triangles needed
+        s.numTriangles = 2 * s.n + (s.boundarySize - 2);
+        s.Triangs = malloc_array<tri>(s.numTriangles); 
+      }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
@@ -429,7 +475,7 @@ public:
         }
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return encore_call<generateBoundary>(st, pt, s.P, s.n, s.boundarySize, s.vv + s.n, s.Triangs + 2*s.n, s.sBoundary);
+        return encore_call<generateBoundary>(st, pt, s.P, s.n, s.boundarySize, s.vv + s.n, s.Triangs + 2*s.n, &s.sBoundary);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.v0 = s.sBoundary.t->vtx[0];
@@ -477,7 +523,7 @@ public:
         s.rp = malloc_array<point2d>(s.numVertices);
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return encore_call<sequence::copy<point2d**, point2d**>>(st, pt, s.rp, s.rp + s.n, s.P);
+        return sequence::copy3(st, pt, s.P, s.P + s.n, s.rp);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.numVertices;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -497,7 +543,9 @@ public:
   }
 
 };
-
+ 
 encore_pcfg_allocate(delaunay, get_cfg)
   
 } // end namespace
+
+#endif

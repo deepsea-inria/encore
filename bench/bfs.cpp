@@ -30,7 +30,7 @@
 #include <sstream>
 #include <algorithm>
 
-#include "encore.hpp"
+#include "encorebench.hpp"
 #include "bfs.hpp"
 #include "bfs.h"
 #include "graphio.hpp"
@@ -46,7 +46,7 @@ void benchmark(std::string infile) {
     encore::launch_interpreter<encorebench::bfs>(source, g, &result);
   });
   d.add("pbbs", [&] {
-    encore::run_and_report_elapsed_time([&] {
+    encorebench::run_and_report_elapsed_time([&] {
       result = BFS(source, g);
     });
   });
@@ -58,7 +58,7 @@ void benchmark(std::string infile) {
 } // end namespace
 
 int main(int argc, char** argv) {
-  encore::initialize(argc, argv);
+  encorebench::initialize(argc, argv);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {
     std::cout << "bogus input file name" << std::endl;
