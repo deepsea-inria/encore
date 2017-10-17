@@ -521,11 +521,13 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   }
   auto start_time = cycles::now();
   assert(pred >= 0 && pred < cfg.nb_basic_blocks());
+  bool possibly_updated_parallel_loop_range = false;
   auto& block = cfg.basic_blocks[pred];
   switch (block.tag) {
     case tag_unconditional_jump: {
       block.variant_unconditional_jump.code(sar, par);
       succ = block.variant_unconditional_jump.next;
+      possibly_updated_parallel_loop_range = true;
       break;
     }
     case tag_conditional_jump: {
@@ -583,6 +585,11 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   f = (f == fuel::check_suspend) ? f : fuel::check(end_time);
   auto elapsed = cycles::diff(start_time, end_time);
   grain::callback(elapsed);
+  if (possibly_updated_parallel_loop_range) {
+    stack = cactus::update_mark_stack_just_for_loops(stack, [&] (char* _ar) {
+              return pcfg::is_splittable(_ar);
+            });
+  }
   return std::make_pair(stack, f);
 }
 
