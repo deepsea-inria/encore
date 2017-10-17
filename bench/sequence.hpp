@@ -722,9 +722,8 @@ class sumFlagsSerial : public encore::edsl::pcfg::shared_activation_record {
 public:
   
   bool *Fl; intT n; intT* dest;
-  int* IFl; int k; intT r; intT j; intT rr;
-  using trampoline = enum { loop0, loop1 };
-  trampoline t;
+  int* IFl; int k; intT r; intT j; 
+  int lo; int hi;
   
   sumFlagsSerial(bool *Fl, intT n, intT* dest)
   : Fl(Fl), n(n), dest(dest) { }
@@ -742,57 +741,23 @@ public:
       dc::mk_if([] (sar& s, par&) { return (s.n >= 128 && (s.n & 511) == 0 && ((long) s.Fl & 3) == 0); }, dc::stmts({
         dc::stmt([] (sar& s, par&) {
           s.IFl = (int*)s.Fl;
-          s.rr = 0;
-          s.t = loop0;
         }),
-        dc::sequential_loop([] (sar& s, par&) { return s.k < (s.n >> 9); }, dc::stmt([] (sar& s, par&) {
-          using controller_type = encore::grain::controller<encore::grain::automatic, sumFlagsSerial>;
-          // later: set_ppt()
-          auto lg_lt = controller_type::predict_lg_nb_iterations();
-          auto lt = controller_type::predict_nb_iterations(lg_lt);
-          int fuel0 = lt;
-          int fuel = fuel0;
-          int rr = s.rr;
+        dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = (s.n >> 9); },
+                            [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                            [] (sar& s, par&, int lo, int hi) {
+          auto r = s.r;
           auto IFl = s.IFl;
-          intT k = s.k;
-          intT n = s.n;
-          intT r = s.r;
-          intT j = s.j;
-          trampoline t = s.t;
-          while (k < (n >> 9)) {
-            switch (t) {
-              case loop0: {
-		auto lst = std::min(128, fuel);
-                while (j < lst) {
-                  rr += IFl[j];
-                  j++;
-                }
-		fuel = std::max(1, fuel - j);
-		if (--fuel == 0) {
-		  goto exit;
-		}
-                t = loop1;
-              }
-              case loop1: {
-                r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
-                IFl += 128;
-                k++;
-                if (--fuel == 0) {
-                  goto exit;
-                }
-                j = 0;
-                rr = 0;
-                t = loop0;
-              }
-            }
+          for (auto k = lo; k != hi; k++) {
+            int rr = 0;
+            for (int j=0; j < 128; j++) rr += IFl[j];
+            r += (rr&255) + ((rr>>8)&255) + ((rr>>16)&255) + ((rr>>24)&255);
+            IFl += 128;
           }
-        exit:
-          s.j = j; s.k = k; s.r = r; s.rr = rr; s.t = t; s.IFl = IFl;
-          controller_type::register_callback(lg_lt, fuel0 - fuel);
-          return;
-        }))
+          s.r = r;
+          s.IFl = IFl;
+        })
       }), // else
-      dc::sequential_loop([] (sar& s, par&) { return s.j < s.n;  },
+      dc::sequential_loop([] (sar& s, par&) { s.j = 0;  },
                           [] (sar& s, par&) { return std::make_pair(&s.j, &s.n); },
                           [] (sar& s, par&, int lo, int hi) {
         intT r = s.r;
