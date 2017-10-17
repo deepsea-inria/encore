@@ -184,6 +184,12 @@ typename speculative_for<S>::cfg_type speculative_for<S>::cfg = speculative_for<
 using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class S>
+stack_type speculative_for5(stack_type st, plt_type pt, S step, intT s, intT e, int granularity,
+                            bool hasState, int maxTries, intT* dest) {
+  return sequence::encore_call<speculative_for<S>>(st, pt, step, s, e, granularity, hasState, maxTries, dest);
+}
+
+template <class S>
 stack_type speculative_for4(stack_type st, plt_type pt, S step, intT s, intT e, int granularity, intT* dest) {
   return sequence::encore_call<speculative_for<S>>(st, pt, step, s, e, granularity, 1, -1, dest);
 }

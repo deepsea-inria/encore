@@ -431,7 +431,7 @@ namespace intSort {
     : A(A), bucketOffsets(bucketOffsets), n(n), m(m), bottomUp(bottomUp),
     tmpSpace(tmpSpace), f(f) { }
     
-    encore_private_activation_record_begin(encore::edsl, iSort, 3)
+    encore_private_activation_record_begin(encore::edsl, iSort, 2)
       int s; int e;
     encore_private_activation_record_end(encore::edsl, iSort, sar, par, dc, get_dc)
     
@@ -477,15 +477,13 @@ namespace intSort {
           }))
         },
           dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          return encore_call<radixLoopTopDown<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, s.f);
+            return encore_call<radixLoopTopDown<E, F, intT>>(st, pt, s.A, s.B, s.Tmp, s.BK, s.numBK, s.n, s.bits, s.f);
         })),
         dc::mk_if([] (sar& s, par& p) {
           return s.bucketOffsets != NULL;
         }, dc::stmts({
-          dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.m; },
-                                [] (par& p) { return std::make_pair(&p.s, &p.e); },
-                                [] (sar& s, par& p, int lo, int hi) {
-            std::fill(s.bucketOffsets + lo, s.bucketOffsets + hi, s.n);
+          dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+            return sequence::fill3(st, pt, s.bucketOffsets, s.bucketOffsets + s.m, &s.n);
           }),
           dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n-1; },
                                 [] (par& p) { return std::make_pair(&p.s, &p.e); },

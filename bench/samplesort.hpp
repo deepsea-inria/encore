@@ -228,6 +228,11 @@ public:
 template<class E, class BinPred, class intT>
 typename sampleSort<E,BinPred,intT>::cfg_type sampleSort<E,BinPred,intT>::cfg = sampleSort<E,BinPred,intT>::get_cfg();
 
+template<class E, class BinPred, class intT>
+stack_type sampleSort3(stack_type st, plt_type pt, E* a, intT n, BinPred compare) {
+  return sequence::encore_call<sampleSort<E,BinPred,intT>>(st, pt, a, n, compare);
+}
+
 } // end namespace
 
 #endif
