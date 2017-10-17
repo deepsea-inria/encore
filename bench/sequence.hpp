@@ -956,6 +956,12 @@ stack_type pack4(stack_type st, plt_type pt, ET* In, bool* Fl, intT n, _seq<ET>*
   return encore_call<pack<ET,intT,typeof(f)>>(st, pt, (ET*)nullptr, Fl, (intT)0, n, f, dest);
 }
 
+template <class intT>
+stack_type packIndex(stack_type st, plt_type pt, intT* Out, bool* Fl, intT n, _seq<intT>* dest) {
+  auto f = pbbs::utils::identityF<intT>();
+  return encore_call<pack<intT,intT,decltype(f)>>(st, pt, Out, Fl, (intT) 0, n, f, dest);
+}
+    
 template <class ET, class intT, class PRED>
 class filterDPS : public encore::edsl::pcfg::shared_activation_record {
 public:
