@@ -212,7 +212,7 @@ let cilk_elision_prog_of n = n ^ ".cilk_elision"
 let encore_progs = List.map encore_prog_of all_benchmarks
 let cilk_progs = List.map cilk_prog_of all_benchmarks
 let cilk_elision_progs = List.map cilk_elision_prog_of all_benchmarks
-let all_progs = List.concat [encore_progs; cilk_progs]
+let all_progs = List.concat [encore_progs; cilk_progs; cilk_elision_progs]
 
 let mk_proc = mk_list int "proc" arg_proc
 
