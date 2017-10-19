@@ -207,9 +207,11 @@ let all_benchmarks =
     
 let encore_prog_of n = n ^ ".encore"
 let cilk_prog_of n = n ^ ".cilk"
-
+let cilk_elision_prog_of n = n ^ ".cilk_elision"
+                             
 let encore_progs = List.map encore_prog_of all_benchmarks
 let cilk_progs = List.map cilk_prog_of all_benchmarks
+let cilk_elision_progs = List.map cilk_elision_prog_of all_benchmarks
 let all_progs = List.concat [encore_progs; cilk_progs]
 
 let mk_proc = mk_list int "proc" arg_proc
@@ -241,10 +243,17 @@ let mk_encore_prog n =
   & (mk string "algorithm" "encore")
 (*  & (mk string "scheduler" arg_scheduler)        *)
 (*  & (mk int "sharing_threshold" 0)*)
-       
+
+let mk_pbbs_lib =
+  mk string "algorithm" "pbbs"
+    
 let mk_pbbs_prog n =
     (mk string "prog" (cilk_prog_of n))
-  & (mk string "algorithm" "pbbs")
+  & mk_pbbs_lib
+
+let mk_pbbs_elision_prog n =
+    (mk string "prog" (cilk_elision_prog_of n))
+  & mk_pbbs_lib
     
 type input_descriptor =
     string * Env.value * string (* file name, type, pretty name *)
@@ -368,6 +377,9 @@ let mk_never_promote =
 
 let file_results_never_promote exp_name =
   file_results (exp_name ^ "_never_promote")
+
+let file_results_pbbs_elision exp_name =
+  file_results (exp_name ^ "_cilk_elision")
         
 let run() =
   List.iter (fun benchmark ->
@@ -379,9 +391,12 @@ let run() =
     in
     let encore_prog = mk_encore_prog benchmark.bd_name in
     let pbbs_prog = mk_pbbs_prog benchmark.bd_name in
+    let pbbs_elision_prog = mk_pbbs_elision_prog benchmark.bd_name in
     (r ((encore_prog ++ pbbs_prog) & mk_proc) (file_results benchmark.bd_name);
-     if List.exists (fun p -> p = 1) arg_proc then
-       r ((encore_prog & mk_never_promote) & mk int "proc" 1) (file_results_never_promote benchmark.bd_name)
+     if List.exists (fun p -> p = 1) arg_proc then (
+       r ((encore_prog & mk_never_promote) & mk int "proc" 1) (file_results_never_promote benchmark.bd_name);
+       r (pbbs_elision_prog & mk int "proc" 1) (file_results_pbbs_elision benchmark.bd_name);
+      )
      else
        ())
   ) benchmarks
@@ -404,10 +419,10 @@ let plot() =
                  ]
                  ))
     in
+    let nb_columns = nb_proc * 2 + 2 in
     Mk_table.build_table tex_file pdf_file (fun add ->
       let hdr =
-        let m = nb_proc * 2 + 1 in
-        let ls = String.concat "|" (XList.init m (fun _ -> "c")) in
+        let ls = String.concat "|" (XList.init nb_columns (fun _ -> "c")) in
         Printf.sprintf "p{1cm}l|%s" ls
       in
       add (Latex.tabular_begin hdr);
@@ -416,7 +431,7 @@ let plot() =
         let last = i + 1 = nb_proc in
         let label = Printf.sprintf "Nb. Cores %d" proc in
         let str = if last then "c" else "c|" in
-        let nbcol = if proc = 1 then 3 else 2 in
+        let nbcol = if proc = 1 then 4 else 2 in
         let label = Latex.tabular_multicol nbcol str label in
         Mk_table.cell ~escape:false ~last:last add label);
       add Latex.tabular_newline;
@@ -425,24 +440,24 @@ let plot() =
       let _ = Mk_table.cell ~escape:false ~last:false add "" in
       ~~ List.iteri arg_proc (fun i proc ->
         let last = i + 1 = nb_proc in
-        let pbbs_str = "\\begin{tabular}[x]{@{}c@{}}Time (s)\\\\PBBS\\end{tabular}" in
+        let pbbs_str = "PBBS" in
         let encore_str = "Encore" in
-        Mk_table.cell ~escape:true ~last:false add pbbs_str;
-        (if proc = 1 then
-          Mk_table.cell add (Latex.tabular_multicol 2 "c|" encore_str)
-        else
-          Mk_table.cell ~escape:true ~last:last add encore_str));
+        (if proc = 1 then (
+          Mk_table.cell add (Latex.tabular_multicol 2 "c|" pbbs_str);
+          Mk_table.cell add (Latex.tabular_multicol 2 "c|" encore_str))
+        else (
+          Mk_table.cell ~escape:true ~last:false add pbbs_str;
+          Mk_table.cell ~escape:true ~last:last add encore_str)));
       add Latex.tabular_newline;
 
       Mk_table.cell add (Latex.tabular_multicol 2 "l|" "");
       ~~ List.iteri arg_proc (fun i proc ->
         let last = i + 1 = nb_proc in
         if proc = 1 then (
-          let pbbs_str = "Rel. PBBS" in
-          let encore_str = "Rel. Elision" in
-          Mk_table.cell ~escape:true ~last:false add "";
-          Mk_table.cell ~escape:true ~last:false add pbbs_str;
-          Mk_table.cell ~escape:true ~last:last add encore_str)
+          Mk_table.cell ~escape:true ~last:false add "Time (s)";
+          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\elision\\end{tabular}";
+          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\PBBS\\end{tabular}";
+          Mk_table.cell ~escape:true ~last:last add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\elision\\end{tabular}")
         else (
           Mk_table.cell ~escape:true ~last:false add "";
           Mk_table.cell ~escape:true ~last:last add ""));
@@ -450,6 +465,10 @@ let plot() =
 
       ~~ List.iteri benchmarks (fun benchmark_i benchmark ->
         Mk_table.cell add (Latex.tabular_multicol 2 "l|" (sprintf "\\textbf{%s}" (Latex.escape benchmark.bd_name)));
+        for i = 1 to nb_columns - 2 do
+          let last = i = nb_columns in
+          Mk_table.cell ~escape:true ~last:last add "";
+        done;
         add Latex.tabular_newline;
         let results_file = file_results benchmark.bd_name in
         let all_results = Results.from_file results_file in
@@ -459,9 +478,12 @@ let plot() =
         let env_rows = mk_rows env in
         let results_file_never_promote = file_results_never_promote benchmark.bd_name in
         let results_never_promote = Results.from_file results_file_never_promote in
+        let results_file_pbbs_elision = file_results_pbbs_elision benchmark.bd_name in
+        let results_pbbs_elision = Results.from_file results_file_pbbs_elision in
         ~~ List.iter env_rows (fun env_rows ->  (* loop over each input for current benchmark *)
           let results = Results.filter env_rows results in
           let results_never_promote = Results.filter env_rows results_never_promote in
+          let results_pbbs_elision = Results.filter env_rows results_pbbs_elision in          
           let env = Env.append env env_rows in
           let row_title = main_formatter env_rows in
           let _ = Mk_table.cell ~escape:true ~last:false add "" in
@@ -469,16 +491,31 @@ let plot() =
           ~~ List.iteri arg_proc (fun proc_i proc ->
             let last = proc_i + 1 = nb_proc in
             let mk_procs = mk int "proc" proc in
-            let (pbbs_str, b) = 
+            let (pbbs_str, b, elision_str) =
+              let [col_elision] = ((mk_pbbs_elision_prog benchmark.bd_name) & mk_procs) env in
+              let env_elision = Env.append env col_elision in
               let [col] = ((mk_pbbs_prog benchmark.bd_name) & mk_procs) env in
               let env = Env.append env col in
               let results = Results.filter col results in
               let v = eval_exectime env all_results results in
               let e = eval_exectime_stddev env all_results results in
               let err =  if arg_print_err then Printf.sprintf "(%.2f%s)"  e "$\\sigma$" else "" in
-              (Printf.sprintf "%.3f %s" v err, v)
+              let elision_str =
+                if proc = 1 then
+                  let results = Results.filter col_elision results_pbbs_elision in
+                  let v' = Results.get_mean_of "exectime" results_pbbs_elision in
+                  let vs = string_of_percentage_change v v' in
+                  vs
+                else
+                  ""
+              in
+              (Printf.sprintf "%.3f %s" v err, v, elision_str)
             in
-            Mk_table.cell ~escape:false ~last:false add pbbs_str;
+            (if proc = 1 then (
+              Mk_table.cell ~escape:false ~last:false add pbbs_str;
+              Mk_table.cell ~escape:false ~last:false add elision_str)
+            else (
+              Mk_table.cell ~escape:false ~last:false add pbbs_str)); 
             let (encore_str, never_promote_str) = 
               let [col] = ((mk_encore_prog benchmark.bd_name) & mk_procs) env in
               let results = Results.filter col results in
