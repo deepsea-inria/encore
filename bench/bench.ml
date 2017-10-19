@@ -406,7 +406,7 @@ let plot() =
     in
     Mk_table.build_table tex_file pdf_file (fun add ->
       let hdr =
-        let m = nb_proc * 2 in
+        let m = nb_proc * 2 + 1 in
         let ls = String.concat "|" (XList.init m (fun _ -> "c")) in
         Printf.sprintf "p{1cm}l|%s" ls
       in
@@ -416,7 +416,8 @@ let plot() =
         let last = i + 1 = nb_proc in
         let label = Printf.sprintf "Nb. Cores %d" proc in
         let str = if last then "c" else "c|" in
-        let label = Latex.tabular_multicol 2 str label in
+        let nbcol = if proc = 1 then 3 else 2 in
+        let label = Latex.tabular_multicol nbcol str label in
         Mk_table.cell ~escape:false ~last:last add label);
       add Latex.tabular_newline;
 
@@ -425,9 +426,26 @@ let plot() =
       ~~ List.iteri arg_proc (fun i proc ->
         let last = i + 1 = nb_proc in
         let pbbs_str = "\\begin{tabular}[x]{@{}c@{}}Time (s)\\\\PBBS\\end{tabular}" in
-        let encore_str = "\\begin{tabular}[x]{@{}c@{}}Time (s)\\\\Encore\\end{tabular}" in
+        let encore_str = "Encore" in
         Mk_table.cell ~escape:true ~last:false add pbbs_str;
-        Mk_table.cell ~escape:true ~last:last add encore_str);
+        (if proc = 1 then
+          Mk_table.cell add (Latex.tabular_multicol 2 "c|" encore_str)
+        else
+          Mk_table.cell ~escape:true ~last:last add encore_str));
+      add Latex.tabular_newline;
+
+      Mk_table.cell add (Latex.tabular_multicol 2 "l|" "");
+      ~~ List.iteri arg_proc (fun i proc ->
+        let last = i + 1 = nb_proc in
+        if proc = 1 then (
+          let pbbs_str = "Rel. PBBS" in
+          let encore_str = "Rel. Elision" in
+          Mk_table.cell ~escape:true ~last:false add "";
+          Mk_table.cell ~escape:true ~last:false add pbbs_str;
+          Mk_table.cell ~escape:true ~last:last add encore_str)
+        else (
+          Mk_table.cell ~escape:true ~last:false add "";
+          Mk_table.cell ~escape:true ~last:last add ""));
       add Latex.tabular_newline;
 
       ~~ List.iteri benchmarks (fun benchmark_i benchmark ->
@@ -461,24 +479,28 @@ let plot() =
               (Printf.sprintf "%.3f %s" v err, v)
             in
             Mk_table.cell ~escape:false ~last:false add pbbs_str;
-            let encore_str = 
+            let (encore_str, never_promote_str) = 
               let [col] = ((mk_encore_prog benchmark.bd_name) & mk_procs) env in
               let results = Results.filter col results in
               let v = Results.get_mean_of "exectime" results in
-              let vs = string_of_percentage_change b v in
+              let encore_str = string_of_percentage_change b v in
               let never_promote_str =
                 if proc = 1 then
                   let [col] = (mk_encore_prog benchmark.bd_name & mk_never_promote & (mk int "proc" 1)) env in
                   let results = Results.filter col results_never_promote in
                   let v' = Results.get_mean_of "exectime" results_never_promote in
                   let vs = string_of_percentage_change v v' in
-                  Printf.sprintf " (%s)" vs
+                  vs
                 else
                   ""
               in
-              Printf.sprintf "%s%s" vs never_promote_str
+              (encore_str, never_promote_str)
             in
-            Mk_table.cell ~escape:false ~last:last add encore_str);
+            if proc = 1 then (
+              Mk_table.cell ~escape:false ~last:false add encore_str;
+              Mk_table.cell ~escape:false ~last:last add never_promote_str)
+            else
+              Mk_table.cell ~escape:false ~last:last add encore_str);
           add Latex.tabular_newline);
       );
       add Latex.tabular_end;
