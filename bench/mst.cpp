@@ -22,6 +22,7 @@ namespace encorebench {
 struct unionFind {
   int* parents;
 
+  unionFind() { }
   // initialize with all roots marked with -1
   unionFind(int n) {
     parents = (int*) malloc(sizeof(int) * n);
@@ -92,7 +93,7 @@ public:
 
   E* A; E* B; intT k; intT n; F f;
   intT ssize; intT stride; intT km; E* T; E p; bool *flags; intT l;
-  intT* dest; _seq<ET> tmp;
+  intT* dest; _seq<E> tmp;
 
   almostKth(E* A, E* B, intT k, intT n, F f, intT* dest)
     : A(A), B(B), k(k), n(n), f(f), dest(dest) { }
@@ -109,14 +110,18 @@ public:
         auto ssize = s.ssize;
         s.stride = s.n/ssize;
         s.km = (intT) (s.k * ((double) ssize) / s.n);
-        T = malloc_array<E>(ssize);
+        s.T = malloc_array<E>(ssize);
+        auto T = s.T;
+        auto A = s.A;
+        auto stride = s.stride;
         for (intT i = 0; i < ssize; i++) {
           T[i] = A[i*stride];
         }
-      }),
+        std::sort(T,T+ssize,s.f);
+      }), /*
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return samplesort3(st, pt, s.T, s.T + s.n, s.f);
-      }),
+        return sampleSort3(st, pt, s.T, s.n, s.f);
+        }), */
       dc::stmt([] (sar& s, par& p) {
         s.p = s.T[s.km];
         s.flags = malloc_array<bool>(s.n);
@@ -147,7 +152,7 @@ public:
         }
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return sequence::pack5(st, pt, s.A,s.B+l,s.flags,s.n, &s.tmp);
+        return sequence::pack5(st, pt, s.A,s.B+s.l,s.flags,s.n, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.flags);
@@ -161,7 +166,7 @@ public:
 template <class E, class F>
 typename almostKth<E,F>::cfg_type almostKth<E,F>::cfg = almostKth<E,F>::get_cfg();
 
-typedef pair<double,intT> ei;
+typedef std::pair<double,intT> ei;
 
 struct edgeLess {
   bool operator() (ei a, ei b) { 
@@ -176,11 +181,11 @@ reservation restmp;
 class mst : public encore::edsl::pcfg::shared_activation_record {
 public:
 
+  pbbs::graph::wghEdgeArray<intT> G; std::pair<intT*, intT>* dest;
   pbbs::graph::wghEdge<intT> *E; ei* x;
   intT l; ei* y; unionFind UF; reservation *R; indexedEdge* z;
-  bool *mstFlags; bool *flags; intT k; intT* mst; intT nInMst;
-  _seq<intT> tmp;
-  std::pair<intT*, intT>* dest;
+  bool *mstFlags; bool *flags; intT k; intT* _mst; intT nInMst;
+  _seq<intT> tmp; intT tmpi; _seq<ei> tmp22;
 
   mst(pbbs::graph::wghEdgeArray<intT> G, std::pair<intT*, intT>* dest)
     : G(G), dest(dest) { }
@@ -211,14 +216,14 @@ public:
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         auto el = edgeLess();
-        return encore_call<almostKth<ei,typeof(el)>(st, pt, s.x, s.y, s.l, s.G.m, el, &s.l);
+        return encore_call<almostKth<ei,decltype(el)>>(st, pt, s.x, s.y, s.l, s.G.m, el, &s.l);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return sampleSort3(st, pt, s.y, s.l, edgeLess());
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         new (&s.UF) unionFind(s.G.n);
-        return sequence::fill3(st, pt, s.parents, s.parents + s.n, &neg1);
+        return sequence::fill3(st, pt, s.UF.parents, s.UF.parents + s.G.n, &neg1);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.R = malloc_array<reservation>(s.G.n);
@@ -246,7 +251,7 @@ public:
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         UnionFindStep UFStep(s.z, s.UF, s.R,  s.mstFlags);
-        return speculative_for5(st, pt, UFStep, 0, s.l, 100);
+        return speculative_for4(st, pt, UFStep, 0, s.l, 100, &s.tmpi);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.z);
@@ -259,6 +264,7 @@ public:
         auto& UF = s.UF;
         auto flags = s.flags;
         auto E = s.E;
+        auto l = s.l;
         for (auto i = lo; i != hi; i++) {
           intT j = y[i+l].second;
           intT u = UF.find(E[j].u);
@@ -268,9 +274,10 @@ public:
         }
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return sequence::pack5(st, pt, s.y+s.l, s.x, s.flags, s.G.m-s.l, &s.k);
+        return sequence::pack5(st, pt, s.y+s.l, s.x, s.flags, s.G.m-s.l, &s.tmp22);
       }),
       dc::stmt([] (sar& s, par& p) {
+        s.k = s.tmp22.n;
         free(s.flags);
         free(s.y);
       }),
@@ -296,21 +303,21 @@ public:
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         UnionFindStep UFStep(s.z, s.UF, s.R, s.mstFlags);
-        return speculative_for5(st, pt, UFStep, 0, s.k, 20);
+        return speculative_for4(st, pt, UFStep, 0, s.k, 20, &s.tmpi);
       }),
       dc::stmt([] (sar& s, par& p) {
         free(s.z);
-        s.mst = malloc_array<intT>(s.G.m);
+        s._mst = malloc_array<intT>(s.G.m);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return sequence::packIndex(st, pt, s.mst, s.mstFlags, s.G.m, &s.tmp);
+        return sequence::packIndex(st, pt, s._mst, s.mstFlags, s.G.m, &s.tmp);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.nInMst = s.tmp.n;
         free(s.mstFlags);
-        UF.del();
+        s.UF.del();
         free(s.R);
-        *s.dest = std::make_pair(s.mst, s.nInMst);
+        *s.dest = std::make_pair(s._mst, s.nInMst);
       }),
     });
   }
@@ -378,6 +385,6 @@ void benchmark(std::string infile) {
 int main(int argc, char** argv) {
   encorebench::initialize(argc, argv);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
-  benchmark(infile);
+  pbbs::benchmark(infile);
   return 0;
 }
