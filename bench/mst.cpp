@@ -157,6 +157,7 @@ public:
       dc::stmt([] (sar& s, par& p) {
         free(s.flags);
         free(s.T);
+        *s.dest = s.l;
       })
     });
   }
