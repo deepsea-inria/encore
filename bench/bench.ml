@@ -289,17 +289,39 @@ let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
     
 (*****************)
 (* BFS *)
-
+(*
 let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
-(*  "wikipedia-20070206.bin", int 0, "wikipedia";*)
   "rmat24_large.bin", int 0, "rMat24";
+  "rmat27_large.bin", int 0, "rMat27";
 ]
 
 let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
+*)
+(*****************)
+(* MIS *)
+
+let input_descriptor_mis = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "cube_large.bin", int 0, "cube";
+  "rmat24_large.bin", int 0, "rMat24";
+  "rmat27_large.bin", int 0, "rMat27";
+]
+
+let mk_mis_infiles = mk_infiles "source" input_descriptor_mis
 
 (*****************)
-(* Maximum Independent Set *)
+(* MST *)
+
+let input_descriptor_mst = input_descriptor_mis
+
+let mk_mst_infiles = mk_infiles "source" input_descriptor_mst
+
+(*****************)
+(* Matching *)
+
+let input_descriptor_matching = input_descriptor_mis
+
+let mk_matching_infiles = mk_infiles "source" input_descriptor_matching
 
 (*****************)
 (* Suffix array *)
@@ -342,8 +364,16 @@ let benchmarks' : benchmark_descriptor list = [
     bd_input_descr = input_descriptor_radixsort;
   };
   { bd_name = "mis";
-    bd_infiles = mk_pbfs_infiles;
-    bd_input_descr = input_descriptor_pbfs;
+    bd_infiles = mk_mis_infiles;
+    bd_input_descr = input_descriptor_mis;
+  }; 
+  { bd_name = "mst";
+    bd_infiles = mk_mst_infiles;
+    bd_input_descr = input_descriptor_mst;
+  }; 
+  { bd_name = "matching";
+    bd_infiles = mk_matching_infiles;
+    bd_input_descr = input_descriptor_matching;
   }; 
   { bd_name = "suffixarray";
     bd_infiles = mk_suffixarray_infiles;
