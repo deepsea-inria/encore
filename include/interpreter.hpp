@@ -822,8 +822,8 @@ public:
         sched::new_edge(interp00, interp01);
         release(interp01);
       }
-      interp00->release_handle->decrement();
-      interp1->release_handle->decrement();
+      interp00->make_ready();
+      interp1->make_ready();
     } else {
       interp1 = interp0;
     }
@@ -841,7 +841,7 @@ public:
       return pcfg::is_splittable(_ar);
     });
     sched::new_edge(interp2, join);
-    interp2->release_handle->decrement();
+    interp2->make_ready();
     logging::push_promote_loop_split_join_trivial(sar0->get_name());
     return sched::make_vertex_split(interp00, interp1, interp2);
   }
@@ -874,7 +874,7 @@ public:
     interp2->stack = cactus::update_mark_stack(interp2->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
     });
-    interp2->release_handle->decrement();
+    interp2->make_ready();
     logging::push_promote_loop_split_join_associative_combine(sar0->get_name());
     return sched::make_vertex_split(interp1, interp2);
   }

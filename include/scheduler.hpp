@@ -778,6 +778,7 @@ vertex* my_vertex() {
 }
   
 void schedule(vertex* v) {
+  assert(v->is_ready());
   if (v->is_suspended) {
     suspend(v);
     return;
@@ -797,10 +798,10 @@ void schedule(vertex* v) {
 }
   
 void new_edge(outset* source_outset, incounter* destination_incounter) {
-  incounter_handle* h = destination_incounter->increment(source_outset);
+  incounter_handle h = destination_incounter->increment(source_outset);
   bool success = source_outset->insert(h);
   if (! success) {
-    destination_incounter->decrement(h);
+    incounter::decrement(h);
   }
 }
   
@@ -818,9 +819,8 @@ void new_edge(vertex* source, vertex* destination) {
   
 void release(vertex* v) {
   assert(v != nullptr);
-  assert(v->release_handle != nullptr);
   assert(v->get_incounter() != nullptr);
-  v->get_incounter()->decrement(v->release_handle);
+  incounter::decrement(v->release_handle);
 }
   
 void suspend(vertex* v) {
@@ -868,7 +868,7 @@ public:
     switch (trampoline) {
       case entry: {
         continue_with(header);
-        out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle* h) {
+        out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle h) {
           incounter::decrement(h);
         });
         break;
@@ -916,7 +916,7 @@ public:
 void parallel_notify(bool is_future, outset* out) {
   using outset_tree_node_type = typename outset::node_type;
   using item_iterator = typename outset::item_iterator;
-  outset_tree_node_type* root = out->notify_init([&] (incounter_handle* h) {
+  outset_tree_node_type* root = out->notify_init([&] (incounter_handle h) {
     incounter::decrement(h);
   });
   if (root == nullptr) {
@@ -926,7 +926,7 @@ void parallel_notify(bool is_future, outset* out) {
   todo.push_back(root);
   item_iterator lo = nullptr;
   item_iterator hi = nullptr;
-  out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle* h) {
+  out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle h) {
     incounter::decrement(h);
   });
   auto is_finished = [&] {
@@ -937,7 +937,7 @@ void parallel_notify(bool is_future, outset* out) {
   }
   if (is_future) {
     while (! is_finished()) {
-      out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle* h) {
+      out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle h) {
         incounter::decrement(h);
       });
     }

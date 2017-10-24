@@ -34,33 +34,38 @@ vertex_split_type make_vertex_split(vertex* v1, vertex* v2) {
 class vertex {
 public:
   
-  incounter_handle* release_handle = nullptr;
+  incounter_handle release_handle;
   
   bool is_suspended = false;
   
 private:
   
-  std::unique_ptr<incounter> in;
+  incounter in;
 
   outset* out_future = nullptr; // to use if is_future
   std::unique_ptr<outset> out_dflt; // to use otherwise
   
 public:
   
-  vertex() {
-    in.reset(new incounter(this));
-    release_handle = get_incounter()->increment(this);
+  vertex() : in(this) {
+    release_handle = in.increment(this);
     out_dflt.reset(new outset);
   }
   
   virtual
   ~vertex() {
-    assert(in ? ! in->is_nonzero() : true);
+    assert(is_ready());
   }
   
   incounter* get_incounter() {
-    return in.get();
+    return &in;
   }
+
+#ifndef NDEBUG
+  bool is_ready() {
+    return ! in.is_nonzero();
+  }
+#endif
   
   outset* get_outset() {
     outset* r = nullptr;
@@ -87,6 +92,10 @@ public:
     assert(! is_future());
     out_future = out_dflt.release();
     assert(is_future());
+  }
+
+  void make_ready() {
+    in.make_ready(this);
   }
   
   virtual

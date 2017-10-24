@@ -231,7 +231,7 @@ data::perworker::array<std::mt19937> outset_rngs;  // random-number generators
 class outset {
 private:
   
-  using value_type = incounter_handle*;
+  using value_type = incounter_handle;
   
   static constexpr int branching_factor = 4;
   static constexpr int block_capacity = 4096;
@@ -438,14 +438,14 @@ public:
 class outset {
 public:
   
-  using value_type = incounter_handle*;
+  using value_type = incounter_handle;
   using node_type = int;
   using item_iterator = int*;
   
 private:
   
   using concurrent_list_type = struct concurrent_list_struct {
-    incounter_handle* h;
+    incounter_handle h;
     struct concurrent_list_struct* next;
   };
   
