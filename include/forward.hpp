@@ -9,6 +9,9 @@ namespace sched {
 class vertex;
 class incounter;
 class outset;
+struct vertex_split_struct;
+
+using vertex_split_type = struct vertex_split_struct;
   
 void schedule(vertex* v);
 void parallel_notify(bool, outset*);

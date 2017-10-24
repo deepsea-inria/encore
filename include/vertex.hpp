@@ -11,25 +11,6 @@
 
 namespace encore {
 namespace sched {
-
-class vertex;
-
-// invariant 1: each vertex is ready (incounter is zero)
-// invariant 2: vertices ordered by priority
-// invariant 3: vertex v0 may be the null pointer, but v1 and v2 must not
-using vertex_split_type = struct {
-  vertex* v0;
-  vertex* v1;
-  vertex* v2;
-};
-
-vertex_split_type make_vertex_split(vertex* v0, vertex* v1, vertex* v2) {
-  return {.v0 = v0, .v1 = v1, .v2 = v2};
-}
-
-vertex_split_type make_vertex_split(vertex* v1, vertex* v2) {
-  return make_vertex_split(nullptr, v1, v2);
-}
   
 class vertex {
 public:
@@ -113,6 +94,23 @@ void delete_future(outset* f) {
   if (f != nullptr) {
     delete f;
   }
+}
+
+// invariant 1: each vertex is ready (incounter is zero)
+// invariant 2: vertices ordered by priority
+// invariant 3: vertex v0 may be the null pointer, but v1 and v2 must not
+struct vertex_split_struct {
+  vertex* v0;
+  vertex* v1;
+  vertex* v2;
+};
+
+vertex_split_type make_vertex_split(vertex* v0, vertex* v1, vertex* v2) {
+  return {.v0 = v0, .v1 = v1, .v2 = v2};
+}
+
+vertex_split_type make_vertex_split(vertex* v1, vertex* v2) {
+  return make_vertex_split(nullptr, v1, v2);
 }
   
 } // end namespace
