@@ -23,14 +23,12 @@ private:
   
   incounter in;
 
-  outset* out_future = nullptr; // to use if is_future
-  std::unique_ptr<outset> out_dflt; // to use otherwise
+  outset out;
   
 public:
   
   vertex() : in(this) {
     release_handle = in.increment(this);
-    out_dflt.reset(new outset);
   }
   
   virtual
@@ -47,38 +45,19 @@ public:
     return ! in.is_nonzero();
   }
 #endif
-  
-  outset* get_outset() {
-    outset* r = nullptr;
-    if (is_future()) {
-      r = out_future;
-    } else {
-      r = out_dflt.get();
-    }
-    assert(r != nullptr);
-    return r;
-  }
-  
-  bool is_future() const {
-    if (out_future == nullptr) {
-      assert(out_dflt.get() != nullptr);
-      return false;
-    } else {
-      assert(out_dflt.get() == nullptr);
-      return true;
-    }
-  }
-  
-  void enable_future() {
-    assert(! is_future());
-    out_future = out_dflt.release();
-    assert(is_future());
-  }
 
   void make_ready() {
     in.make_ready(this);
   }
+
+  outset* get_outset() {
+    return &out;
+  }
   
+  bool is_future() const {
+    return out.tag == outset_tag_future;
+  }
+    
   virtual
   int nb_strands() = 0;
   
@@ -90,12 +69,6 @@ public:
   
 };
   
-void delete_future(outset* f) {
-  if (f != nullptr) {
-    delete f;
-  }
-}
-
 // invariant 1: each vertex is ready (incounter is zero)
 // invariant 2: vertices ordered by priority
 // invariant 3: vertex v0 may be the null pointer, but v1 and v2 must not

@@ -14,7 +14,7 @@ struct vertex_split_struct;
 using vertex_split_type = struct vertex_split_struct;
   
 void schedule(vertex* v);
-void parallel_notify(bool, outset*);
+void parallel_notify(outset*);
 void parallel_deallocate(outset*);
 void release(vertex* v);
 void suspend(vertex* v);

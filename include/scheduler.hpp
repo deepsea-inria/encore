@@ -187,7 +187,7 @@ void worker_loop(vertex* v) {
       my_ready.pop_back();
       f = run_vertex(v);
       if (v->nb_strands() == 0) {
-        parallel_notify(v->is_future(), v->get_outset());
+        parallel_notify(v->get_outset());
         delete v;
       }
     }
@@ -307,7 +307,7 @@ public:
       vertex* v = pop();
       f = run_vertex(v);
       if (v->nb_strands() == 0) {
-        parallel_notify(v->is_future(), v->get_outset());
+        parallel_notify(v->get_outset());
         delete v;
       }
     }
@@ -573,7 +573,7 @@ public:
       vertex* v = pop();
       f = run_vertex(v);
       if (v->nb_strands() == 0) {
-        parallel_notify(v->is_future(), v->get_outset());
+        parallel_notify(v->get_outset());
         delete v;
       }
     }
@@ -784,7 +784,7 @@ void schedule(vertex* v) {
     return;
   }
   if (v->nb_strands() == 0) {
-    parallel_notify(v->is_future(), v->get_outset());
+    parallel_notify(v->get_outset());
     delete v;
     return;
   }
@@ -907,13 +907,8 @@ public:
 };
   
 } // end namespace
-  
-/* note: parallel_notify() parallelizes itself only if the target outset
- * represents a future; otherwise, it's going to be serial; maybe later,
- * we will find a good reason to parallelize non futures...
- */
-  
-void parallel_notify(bool is_future, outset* out) {
+    
+void parallel_notify(outset* out) {
   using outset_tree_node_type = typename outset::node_type;
   using item_iterator = typename outset::item_iterator;
   outset_tree_node_type* root = out->notify_init([&] (incounter_handle h) {
@@ -935,16 +930,8 @@ void parallel_notify(bool is_future, outset* out) {
   if (is_finished()) {
     return;
   }
-  if (is_future) {
-    while (! is_finished()) {
-      out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle h) {
-        incounter::decrement(h);
-      });
-    }
-  } else {
-    auto v = new parallel_notify_future(out, lo, hi, todo);
-    release(v);
-  }
+  auto v = new parallel_notify_future(out, lo, hi, todo);
+  release(v);
 }
   
 namespace {

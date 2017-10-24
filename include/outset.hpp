@@ -1,10 +1,8 @@
 #include <deque>
 #include <random>
 
-#include "forward.hpp"
-#include "tagged.hpp"
+#include "incounter.hpp"
 #include "cycles.hpp"
-#include "atomic.hpp"
 #include "aligned.hpp"
 #include "perworker.hpp"
 
@@ -13,8 +11,6 @@
 
 namespace encore {
 namespace sched {
-  
-namespace {
   
 /*---------------------------------------------------------------------*/
 /* Growable, scalable bag, supporting push() and parallel_notify() */
@@ -228,14 +224,10 @@ public:
   
 data::perworker::array<std::mt19937> outset_rngs;  // random-number generators
   
-} // end namespace
-
 /*---------------------------------------------------------------------*/
-/* Outset */
+/* Tree-based outset for scalable, high outdegree vertices */
   
-#ifndef ENCORE_USE_SIMPLE_SYNCHRONIZATION
-  
-class outset {
+class tree_outset {
 private:
   
   using value_type = incounter_handle;
@@ -341,11 +333,11 @@ private:
   
 public:
   
-  outset() {
+  tree_outset() {
     shortcuts.store(nullptr);
   }
   
-  ~outset() {
+  ~tree_outset() {
     shortcuts_type* s = tagged::pointer_of(shortcuts.load());
     shortcuts.store(nullptr);
     if (s != nullptr) {
@@ -448,9 +440,10 @@ public:
   
 };
   
-#else
+/*---------------------------------------------------------------------*/
+/* Chain-based outset for fast, low outdegree vertices */
   
-class outset {
+class chain_outset {
 public:
   
   using value_type = incounter_handle;
@@ -466,11 +459,12 @@ private:
   
   std::atomic<concurrent_list_type*> head;
   
-  const int finished_tag = 1;
+  static constexpr
+  int finished_tag = 1;
   
 public:
   
-  outset()
+  chain_outset()
   : head(nullptr) { }
   
   node_type* get_root() {
@@ -498,7 +492,7 @@ public:
   }
   
   template <class Visit>
-  node_type* notify_init(const Visit& visit) {
+  void notify(const Visit& visit) {
     concurrent_list_type* todo = nullptr;
     while (true) {
       concurrent_list_type* orig = head.load();
@@ -515,26 +509,143 @@ public:
       delete todo;
       todo = next;
     }
-    return nullptr;
   }
-  
-  template <class Visit, class Deque>
-  static
-  void notify_nb(const std::size_t nb, item_iterator& lo,
-                        item_iterator& hi, Deque& todo,
-                        const Visit& visit) {
     
+};
+
+/*---------------------------------------------------------------------*/
+/* Outset */
+
+using outset_tag_type = enum {
+  outset_tag_unary,
+  outset_tag_chain,
+  outset_tag_tree,
+  outset_tag_future
+};
+
+class outset {
+public:
+
+  using value_type = incounter_handle;
+
+  outset_tag_type tag = outset_tag_chain;
+
+  union variants_union {
+    value_type unary;
+    chain_outset chain;
+    std::unique_ptr<tree_outset> tree;
+    tree_outset future;
+    variants_union() { }
+    ~variants_union() { }
+  } u;
+
+  outset() { }
+
+  ~outset() {
+    switch (tag) {
+      case outset_tag_unary: {
+        u.unary = nullptr;
+        break;
+      }
+      case outset_tag_chain: {
+        u.chain.~chain_outset();
+        break;
+      }
+      case outset_tag_tree: {
+        u.tree.~tree_outset();
+        break;
+      }
+      case outset_tag_future: {
+        break;
+      }
+    }
   }
   
-  static
-  void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
-    // todo
+  bool insert(value_type x) {
+    bool b = true;
+    switch (tag) {
+      case outset_tag_unary: {
+        assert(u.unary.h == nullptr);
+        u.unary = x;
+        break;
+      }
+      case outset_tag_chain: {
+        b = u.chain.insert(x);
+        break;
+      }
+      case outset_tag_tree: {
+        assert(u.tree);
+        b = u.tree->insert(x);
+        break;
+      }
+      case outset_tag_future: {
+        assert(u.future != nullptr);
+        b = u.future->insert(x);
+        break;
+      }
+    }
+    return b;
+  }
+
+  template <class Visit>
+  node_type* notify(const Visit& visit) {
+    node_type* n = nullptr;
+    switch (tag) {
+      case outset_tag_unary: {
+        incounter::decrement(u.unary);
+        u.unary = incounter_handle();
+        break;
+      }
+      case outset_tag_chain: {
+        u.chain.notify(visit);
+        break;
+      }
+      case outset_tag_tree: {
+        using outset_tree_node_type = typename tree_outset::node_type;
+        using item_iterator = typename tree_outset::item_iterator;
+        n = u.tree->notify_init(visit);        
+        std::deque<outset_tree_node_type*> todo;
+        todo.push_back(root);
+        item_iterator lo = nullptr;
+        item_iterator hi = nullptr;
+        auto is_finished = [&] {
+          return hi == lo && todo.empty();
+        };
+        while (! is_finished()) {
+          out->notify_nb(128, lo, hi, todo, [&] (incounter_handle h) {
+            incounter::decrement(h);
+          });
+        }
+        break;
+      }
+      case outset_tag_future: {
+        n = u.future->notify_init(visit);        
+        break;
+      }
+    }
+    return n;
+  }
+
+  void make_unary() {
+    assert(tag == outset_tag_chain);
+    tag = outset_tag_unary;
+    u.unary = incounter_handle();
+  }
+
+  void make_tree() {
+    assert(tag == outset_tag_chain);
+    tag = outset_tag_tree;
+    u.tree.reset(new tree_outset);
+  }
+
+  void make_future() {
+    assert(tag == outset_tag_chain);
+    tag = outset_tag_future;
+    u.future = new tree_outset;
   }
   
 };
   
-#endif
-
 } // end namespace
 } // end namespace
 
