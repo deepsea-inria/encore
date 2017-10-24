@@ -52,4 +52,4 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g $(LOGGING_PREFIX) -DENCO
 	g++ $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $<
 
 clean: pbench_clean
-	rm -f *.encore *.cilk *.dbg *.log
+	rm -f *.encore *.cilk *.dbg *.log *.cilk_elision
