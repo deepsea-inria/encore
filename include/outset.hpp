@@ -19,8 +19,11 @@ namespace {
 /*---------------------------------------------------------------------*/
 /* Growable, scalable bag, supporting push() and parallel_notify() */
   
-static constexpr int finished_tag = 1;
-static constexpr int creating_shortcuts_tag = 3;
+static constexpr
+int finished_tag = 1;
+  
+static constexpr
+int creating_shortcuts_tag = 3;
 
 template <class Item, int capacity, bool concurrent_inserts>
 class block {
@@ -31,9 +34,11 @@ public:
 private:
   
   cell_type start[capacity];
+  
   std::atomic<cell_type*> head;
   
-  static bool try_insert_item_at(cell_type& cell, Item x) {
+  static
+  bool try_insert_item_at(cell_type& cell, Item x) {
     assert(concurrent_inserts);
     while (true) {
       Item y = cell.load();
@@ -49,7 +54,8 @@ private:
     }
   }
   
-  static Item try_notify_item_at(cell_type& cell) {
+  static
+  Item try_notify_item_at(cell_type& cell) {
     assert(concurrent_inserts);
     while (true) {
       Item y = cell.load();
@@ -134,7 +140,8 @@ public:
   }
   
   template <class Visit>
-  static void notify_rng(cell_type* lo, cell_type* hi, const Visit& visit) {
+  static
+  void notify_rng(cell_type* lo, cell_type* hi, const Visit& visit) {
     for (cell_type* it = lo; it != hi; it++) {
       if (concurrent_inserts) {
         Item x = try_notify_item_at(*it);
@@ -233,12 +240,16 @@ private:
   
   using value_type = incounter_handle;
   
-  static constexpr int branching_factor = 4;
-  static constexpr int block_capacity = 4096;
+  static constexpr
+  int branching_factor = 4;
+  
+  static constexpr
+  int block_capacity = 4096;
   
 public:
   
-  static constexpr int max_nb_procs = 64;
+  static constexpr
+  int max_nb_procs = 64;
   
   using tree_type = tree<value_type, branching_factor, block_capacity>;
   using node_type = typename tree_type::node_type;
@@ -250,7 +261,9 @@ private:
   using block_type = typename node_type::block_type;
   using shortcuts_type = data::cache_aligned_fixed_capacity_array<block_type*, max_nb_procs>;
   
-  static constexpr int small_block_capacity = 16;
+  static constexpr
+  int small_block_capacity = 16;
+  
   using small_block_type = block<value_type, small_block_capacity, true>;
   
   small_block_type items;
@@ -380,7 +393,8 @@ public:
   }
   
   template <class Visit, class Deque>
-  static void notify_nb(const std::size_t nb, item_iterator& lo,
+  static
+  void notify_nb(const std::size_t nb, item_iterator& lo,
                         item_iterator& hi, Deque& todo,
                         const Visit& visit) {
     int k = 0;
@@ -415,7 +429,8 @@ public:
     }
   }
   
-  static void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
+  static
+  void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
     int k = 0;
     while ((k < nb) && (! todo.empty())) {
       node_type* current = todo.back();
@@ -504,13 +519,15 @@ public:
   }
   
   template <class Visit, class Deque>
-  static void notify_nb(const std::size_t nb, item_iterator& lo,
+  static
+  void notify_nb(const std::size_t nb, item_iterator& lo,
                         item_iterator& hi, Deque& todo,
                         const Visit& visit) {
     
   }
   
-  static void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
+  static
+  void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
     // todo
   }
   
