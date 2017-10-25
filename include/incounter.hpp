@@ -3,6 +3,7 @@
 #include <type_traits>
 #include <assert.h>
 #include <cstdlib>
+#include <memory>
 
 #include "forward.hpp"
 #include "tagged.hpp"
@@ -307,10 +308,9 @@ public:
 
   using gsnzi_tree_node_type = typename gsnzi_tree_type::node_type;
 
-  void* h;
-
-  incounter_handle()
-    : h(nullptr) { }
+  void* h = nullptr;
+  
+  incounter_handle() noexcept = default;
 
   void decrement() {
     assert(h != nullptr);

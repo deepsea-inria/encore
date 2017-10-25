@@ -1,5 +1,6 @@
 #include <deque>
 #include <random>
+#include <memory>
 
 #include "incounter.hpp"
 #include "cycles.hpp"
@@ -13,7 +14,11 @@ namespace encore {
 namespace sched {
   
 /*---------------------------------------------------------------------*/
-/* Growable, scalable bag, supporting push() and parallel_notify() */
+/* Growable, scalable, concurrent bag, for storing the outgoing
+ * edges on a vertex
+ */
+
+#if 0
   
 static constexpr
 int finished_tag = 1;
@@ -41,7 +46,7 @@ private:
       if (tagged::tag_of(y) == finished_tag) {
         return false;
       }
-      assert(y == nullptr);
+      assert(y.h == nullptr);
       Item orig = y;
       Item next = x;
       if (atomic::compare_exchange(cell, orig, next)) {
@@ -56,13 +61,13 @@ private:
     while (true) {
       Item y = cell.load();
       assert(tagged::tag_of(y) != finished_tag);
-      if (y != nullptr) {
+      if (y.h != nullptr) {
         return y;
       }
-      Item orig = nullptr;
-      Item next = tagged::tag_with((Item)nullptr, finished_tag);
+      Item orig;
+      Item next = tagged::tag_with(Item(), finished_tag);
       if (atomic::compare_exchange(cell, orig, next)) {
-        return nullptr;
+        return Item();
       }
     }
   }
@@ -74,7 +79,7 @@ public:
     head.store(start);
     if (concurrent_inserts) {
       for (int i = 0; i < capacity; i++) {
-        start[i].store(nullptr);
+        start[i].store(Item());
       }
     }
   }
@@ -89,7 +94,7 @@ public:
   };
   
   try_insert_result_type try_insert(Item x) {
-    assert(x != nullptr);
+    assert(x.h != nullptr);
     while (true) {
       cell_type* h = head.load();
       if (tagged::tag_of(h) == finished_tag) {
@@ -141,12 +146,12 @@ public:
     for (cell_type* it = lo; it != hi; it++) {
       if (concurrent_inserts) {
         Item x = try_notify_item_at(*it);
-        if (x != nullptr) {
+        if (x.h != nullptr) {
           visit(x);
         }
       } else {
         Item x = it->load();
-        assert(x != nullptr);
+        assert(x.h != nullptr);
         visit(x);
       }
     }
@@ -343,7 +348,7 @@ public:
     if (s != nullptr) {
       delete s;
     }
-    sched::parallel_deallocate(this);
+    assert(false); // todo: free memory held by tree nodes
   }
   
   bool insert(value_type x) {
@@ -439,6 +444,8 @@ public:
   }
   
 };
+
+#endif
   
 /*---------------------------------------------------------------------*/
 /* Chain-based outset for fast, low outdegree vertices */
@@ -512,6 +519,116 @@ public:
   }
     
 };
+  
+/*---------------------------------------------------------------------*/
+/* Parallel futures */
+
+using future_tag_type = enum {
+  future_tag_chain,
+  future_tag_tree
+};
+
+class future {
+public:
+
+  future_tag_type tag = future_tag_chain;
+
+  struct {
+    std::shared_ptr<chain_outset> chain;
+    //    std::shared_ptr<tree_outset> tree;
+  } u;
+
+  future() { }
+
+  future(chain_outset* p) {
+    tag = future_tag_chain;
+    u.chain.reset(p);
+  }
+  /*
+  future(tree_outset* p) {
+    tag = future_tag_tree;
+    u.tree.reset(p);
+    } */
+
+  explicit operator bool() const noexcept {
+    bool b = false;
+    switch (tag) {
+      case future_tag_chain: {
+        if (u.chain) {
+          b = true;
+        }
+        break;
+      }
+      case future_tag_tree: {
+        /*        if (u.tree) {
+          b = true;
+          } */
+        break;
+      }
+    }
+    return b;
+  }
+  
+  bool insert(incounter_handle h) {
+    bool b;
+    switch (tag) {
+      case future_tag_chain: {
+        b = u.chain->insert(h);
+        break;
+      }
+      case future_tag_tree: {
+        //        b = u.tree->insert(h);
+        break;
+      }
+    }
+    return b;
+  }
+
+  template <class Visit>
+  void notify(const Visit& visit) {
+    switch (tag) {
+      case future_tag_chain: {
+        u.chain->notify(visit);
+        break;
+      }
+      case future_tag_tree: { /*
+        using outset_tree_node_type = typename tree_outset::node_type;
+        using item_iterator = typename tree_outset::item_iterator;
+        auto n = u.tree->notify_init(visit);        
+        std::deque<outset_tree_node_type*> todo;
+        todo.push_back(n);
+        item_iterator lo = nullptr;
+        item_iterator hi = nullptr;
+        auto is_finished = [&] {
+          return hi == lo && todo.empty();
+        };
+        while (! is_finished()) {
+          u.tree->notify_nb(128, lo, hi, todo, [&] (incounter_handle h) {
+            incounter::decrement(h);
+          });
+          } */
+        break;
+      }
+    }
+  }
+  
+  void* get_pointer() {
+    void* p;
+    switch (tag) {
+      case future_tag_chain: {
+        p = u.chain.get();
+        break;
+      }
+      case future_tag_tree: {
+        //        p = u.tree.get();
+        break;
+      }
+    }
+    return p;
+  }
+
+};
+
 
 /*---------------------------------------------------------------------*/
 /* Outset */
@@ -519,7 +636,6 @@ public:
 using outset_tag_type = enum {
   outset_tag_unary,
   outset_tag_chain,
-  outset_tag_tree,
   outset_tag_future
 };
 
@@ -533,29 +649,27 @@ public:
   union variants_union {
     value_type unary;
     chain_outset chain;
-    std::unique_ptr<tree_outset> tree;
-    tree_outset future;
+    future fut;
     variants_union() { }
     ~variants_union() { }
   } u;
 
-  outset() { }
+  outset() {
+    new (&u.chain) chain_outset;
+  }
 
   ~outset() {
     switch (tag) {
       case outset_tag_unary: {
-        u.unary = nullptr;
+        new (&u.unary) value_type;
         break;
       }
       case outset_tag_chain: {
         u.chain.~chain_outset();
         break;
       }
-      case outset_tag_tree: {
-        u.tree.~tree_outset();
-        break;
-      }
       case outset_tag_future: {
+        u.fut.~future();
         break;
       }
     }
@@ -573,14 +687,8 @@ public:
         b = u.chain.insert(x);
         break;
       }
-      case outset_tag_tree: {
-        assert(u.tree);
-        b = u.tree->insert(x);
-        break;
-      }
       case outset_tag_future: {
-        assert(u.future != nullptr);
-        b = u.future->insert(x);
+        b = u.fut.insert(x);
         break;
       }
     }
@@ -588,8 +696,7 @@ public:
   }
 
   template <class Visit>
-  node_type* notify(const Visit& visit) {
-    node_type* n = nullptr;
+  void notify(const Visit& visit) {
     switch (tag) {
       case outset_tag_unary: {
         incounter::decrement(u.unary);
@@ -600,30 +707,11 @@ public:
         u.chain.notify(visit);
         break;
       }
-      case outset_tag_tree: {
-        using outset_tree_node_type = typename tree_outset::node_type;
-        using item_iterator = typename tree_outset::item_iterator;
-        n = u.tree->notify_init(visit);        
-        std::deque<outset_tree_node_type*> todo;
-        todo.push_back(root);
-        item_iterator lo = nullptr;
-        item_iterator hi = nullptr;
-        auto is_finished = [&] {
-          return hi == lo && todo.empty();
-        };
-        while (! is_finished()) {
-          out->notify_nb(128, lo, hi, todo, [&] (incounter_handle h) {
-            incounter::decrement(h);
-          });
-        }
-        break;
-      }
       case outset_tag_future: {
-        n = u.future->notify_init(visit);        
+        u.fut.notify(visit);
         break;
       }
     }
-    return n;
   }
 
   void make_unary() {
@@ -632,16 +720,20 @@ public:
     u.unary = incounter_handle();
   }
 
-  void make_tree() {
-    assert(tag == outset_tag_chain);
-    tag = outset_tag_tree;
-    u.tree.reset(new tree_outset);
-  }
-
-  void make_future() {
+  future make_chain_future() {
     assert(tag == outset_tag_chain);
     tag = outset_tag_future;
-    u.future = new tree_outset;
+    new (&u.fut) future(new chain_outset);
+    return u.fut;
+  }
+
+  future make_tree_future() {
+    assert(false);
+    /*
+    assert(tag == outset_tag_chain);
+    tag = outset_tag_future;
+    new (&u.fut) future(new tree_outset); */
+    return u.fut;
   }
   
 };

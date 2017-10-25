@@ -60,7 +60,7 @@ public:
   using conditional_jump_code_type = std::function<basic_block_label_type(sar_type&, par_type&)>;
   using procedure_call_code_type = std::function<stack_type(sar_type&, par_type&, cactus::parent_link_type, stack_type)>;
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
-  using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
+  using future_getter_code_type = std::function<sched::future*(sar_type&, par_type&)>;
   
   basic_block_tag_type tag;
   
@@ -96,11 +96,11 @@ public:
     } variant_spawn_minus;
     struct {
       procedure_call_code_type code;
-      outset_getter_code_type getter;
+      future_getter_code_type getter;
       basic_block_label_type next;
     } variant_spawn_plus;
     struct {
-      outset_getter_code_type getter;
+      future_getter_code_type getter;
       basic_block_label_type next;
     } variant_join_minus;
   };
@@ -149,12 +149,12 @@ private:
       }
       case tag_spawn_plus: {
         new (&variant_spawn_plus.code) procedure_call_code_type(other.variant_spawn_plus.code);
-        new (&variant_spawn_plus.getter) outset_getter_code_type(other.variant_spawn_plus.getter);
+        new (&variant_spawn_plus.getter) future_getter_code_type(other.variant_spawn_plus.getter);
         variant_spawn_plus.next = other.variant_spawn_plus.next;
         break;
       }
       case tag_join_minus: {
-        new (&variant_join_minus.getter) outset_getter_code_type(other.variant_join_minus.getter);
+        new (&variant_join_minus.getter) future_getter_code_type(other.variant_join_minus.getter);
         variant_join_minus.next = other.variant_join_minus.next;
         break;
       }
@@ -214,7 +214,7 @@ private:
       case tag_spawn_minus: {
         new (&variant_spawn_minus.code) procedure_call_code_type;
         variant_spawn_minus.code = std::move(other.variant_spawn_minus.code);
-        new (&variant_spawn_minus.getter) outset_getter_code_type;
+        new (&variant_spawn_minus.getter) future_getter_code_type;
         variant_spawn_minus.getter = std::move(other.variant_spawn_minus.getter);
         variant_spawn_minus.next = std::move(other.variant_spawn_minus.next);
         break;
@@ -222,13 +222,13 @@ private:
       case tag_spawn_plus: {
         new (&variant_spawn_plus.code) procedure_call_code_type;
         variant_spawn_plus.code = std::move(other.variant_spawn_plus.code);
-        new (&variant_spawn_plus.getter) outset_getter_code_type;
+        new (&variant_spawn_plus.getter) future_getter_code_type;
         variant_spawn_plus.getter = std::move(other.variant_spawn_plus.getter);
         variant_spawn_plus.next = std::move(other.variant_spawn_plus.next);
         break;
       }
       case tag_join_minus: {
-        new (&variant_join_minus.getter) outset_getter_code_type;
+        new (&variant_join_minus.getter) future_getter_code_type;
         variant_join_minus.getter = std::move(other.variant_join_minus.getter);
         variant_join_minus.next = std::move(other.variant_join_minus.next);
         break;
@@ -278,12 +278,12 @@ public:
         break;
       }
       case tag_spawn_plus: {
-        variant_spawn_plus.getter.~outset_getter_code_type();
+        variant_spawn_plus.getter.~future_getter_code_type();
         variant_spawn_plus.code.~procedure_call_code_type();
         break;
       }
       case tag_join_minus: {
-        variant_join_minus.getter.~outset_getter_code_type();
+        variant_join_minus.getter.~future_getter_code_type();
         break;
       }
       default:
@@ -375,22 +375,22 @@ public:
   
   static
   basic_block_type spawn_plus(procedure_call_code_type code,
-                              outset_getter_code_type getter,
+                              future_getter_code_type getter,
                               basic_block_label_type next) {
     basic_block_type b;
     b.tag = tag_spawn_plus;
     new (&b.variant_spawn_plus.code) procedure_call_code_type(code);
-    new (&b.variant_spawn_plus.getter) outset_getter_code_type(getter);
+    new (&b.variant_spawn_plus.getter) future_getter_code_type(getter);
     b.variant_spawn_plus.next = next;
     return b;
   }
   
   static
-  basic_block_type join_minus(outset_getter_code_type getter,
+  basic_block_type join_minus(future_getter_code_type getter,
                               basic_block_label_type next) {
     basic_block_type b;
     b.tag = tag_join_minus;
-    new (&b.variant_join_minus.getter) outset_getter_code_type(getter);
+    new (&b.variant_join_minus.getter) future_getter_code_type(getter);
     b.variant_join_minus.next = next;
     return b;
   }
@@ -407,7 +407,7 @@ public:
   
   int nb = 0;
   
-  using future_type = std::pair<sched::outset*, private_activation_record*>;
+  using future_type = std::pair<sched::future, private_activation_record*>;
   
   std::vector<future_type> futures;
   

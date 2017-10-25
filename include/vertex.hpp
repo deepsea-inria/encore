@@ -52,11 +52,7 @@ public:
 
   outset* get_outset() {
     return &out;
-  }
-  
-  bool is_future() const {
-    return out.tag == outset_tag_future;
-  }
+  }  
     
   virtual
   int nb_strands() = 0;

@@ -1,5 +1,4 @@
 
-
 #include <vector>
 #include <deque>
 #include <thread>
@@ -796,6 +795,19 @@ void schedule(vertex* v) {
     steal_one_work_stealing::deques.mine().push_back(v);
   }
 }
+
+void new_edge(future& source_future, incounter* destination_incounter) {
+  auto future_pointer = source_future.get_pointer();
+  incounter_handle h = destination_incounter->increment(future_pointer);
+  bool success = source_future.insert(h);
+  if (! success) {
+    incounter::decrement(h);
+  }
+}
+
+void new_edge(future& source_future, vertex* destination) {
+  new_edge(source_future, destination->get_incounter());
+}
   
 void new_edge(outset* source_outset, incounter* destination_incounter) {
   incounter_handle h = destination_incounter->increment(source_outset);
@@ -827,186 +839,12 @@ void suspend(vertex* v) {
   suspended.mine().push_back(v);
 }
   
-namespace {
-
-class parallel_notify_future : public vertex {
-public:
-  
-  using outset_tree_node_type = typename outset::node_type;
-  using item_iterator = typename outset::item_iterator;
-  
-  outset* out;
-  item_iterator lo, hi;
-  std::deque<outset_tree_node_type*> todo;
-  
-  enum { entry, header };
-  
-  int trampoline = entry;
-  
-  void continue_with(int target) {
-    trampoline = target;
-    schedule(this);
-  }
-  
-  parallel_notify_future(outset* out,
-                         item_iterator lo,
-                         item_iterator hi,
-                         std::deque<outset_tree_node_type*>& _todo)
-  : out(out), lo(lo), hi(hi) {
-    todo = _todo;
-  }
-  
-  int nb_strands() {
-    if (todo.empty()) {
-      return (int)(hi - lo);
-    } else {
-      return std::min((int)todo.size(), 2);
-    }
-  }
-  
-  fuel::check_type run() {
-    switch (trampoline) {
-      case entry: {
-        continue_with(header);
-        out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle h) {
-          incounter::decrement(h);
-        });
-        break;
-      }
-      case header: {
-        if (! todo.empty() || (hi - lo) > 0) {
-          continue_with(entry);
-        }
-        break;
-      }
-      default:
-        assert(false);
-    }
-    return fuel::check_no_promote;
-  }
-  
-  vertex_split_type split(int nb) {
-    vertex* v = nullptr;
-    std::deque<outset_tree_node_type*> todo2;
-    if (todo.empty()) {
-      int n = (int)(hi - lo);
-      assert(nb <= (int)n);
-      item_iterator hi2 = lo + nb;
-      v = new parallel_notify_future(out, hi2, hi, todo2);
-      hi = hi2;
-    } else {
-      assert(nb == 1);
-      auto n = todo.front();
-      todo.pop_front();
-      todo2.push_back(n);
-      v = new parallel_notify_future(out, nullptr, nullptr, todo2);
-    }
-    return make_vertex_split(this, v);
-  }
-  
-};
-  
-} // end namespace
-    
 void parallel_notify(outset* out) {
-  using outset_tree_node_type = typename outset::node_type;
-  using item_iterator = typename outset::item_iterator;
-  outset_tree_node_type* root = out->notify_init([&] (incounter_handle h) {
+  out->notify([&] (incounter_handle h) {
     incounter::decrement(h);
   });
-  if (root == nullptr) {
-    return;
-  }
-  std::deque<outset_tree_node_type*> todo;
-  todo.push_back(root);
-  item_iterator lo = nullptr;
-  item_iterator hi = nullptr;
-  out->notify_nb(notify_threshold, lo, hi, todo, [&] (incounter_handle h) {
-    incounter::decrement(h);
-  });
-  auto is_finished = [&] {
-    return hi == lo && todo.empty();
-  };
-  if (is_finished()) {
-    return;
-  }
-  auto v = new parallel_notify_future(out, lo, hi, todo);
-  release(v);
 }
-  
-namespace {
-  
-class parallel_deallocate_heavy : public vertex {
-public:
-  
-  using outset_tree_node_type = typename outset::node_type;
-  
-  std::deque<outset_tree_node_type*> todo;
-  
-  enum { entry, header };
-  int trampoline = entry;
-  
-  void continue_with(int target) {
-    trampoline = target;
-    schedule(this);
-  }
-  
-  int nb_strands() {
-    return std::max((int)todo.size(), 2);
-  }
-  
-  fuel::check_type run() {
-    switch (trampoline) {
-      case entry: {
-        // continue_with() first so that the outset deallocator
-        // gets lower priority than any vertices that are
-        // unblocked by the call to deallocate_nb()
-        continue_with(header);
-        outset::deallocate_nb(notify_threshold, todo);
-        break;
-      }
-      case header: {
-        if (! todo.empty()) {
-          continue_with(entry);
-        }
-        break;
-      }
-      default:
-        assert(false);
-    }
-    return fuel::check_no_promote;
-  }
-  
-  vertex_split_type split(int nb) {
-    assert(todo.size() >= 2);
-    assert(nb == 1);
-    auto n = todo.front();
-    todo.pop_front();
-    auto v = new parallel_deallocate_heavy;
-    v->todo.push_back(n);
-    return make_vertex_split(this, v);
-  }
-  
-};
-  
-} // end namespace
-
-void parallel_deallocate(outset* out) {
-  using outset_tree_node_type = typename outset::node_type;
-  outset_tree_node_type* root = out->get_root();
-  if (root == nullptr) {
-    return;
-  }
-  std::deque<outset_tree_node_type*> todo;
-  todo.push_back(root);
-  outset::deallocate_nb(notify_threshold, todo);
-  if (! todo.empty()) {
-    auto v = new parallel_deallocate_heavy;
-    todo.swap(v->todo);
-    release(v);
-  }
-}
-  
+    
 } // end namespace
 } // end namespace
 

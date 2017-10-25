@@ -52,7 +52,7 @@ public:
   using predicate_code_type = std::function<bool(sar_type&, par_type&)>;
   using procedure_call_code_type = std::function<pcfg::stack_type(sar_type&, par_type&, pcfg::cactus::parent_link_type, pcfg::stack_type)>;
   using incounter_getter_code_type = std::function<sched::incounter**(sar_type&, par_type&)>;
-  using outset_getter_code_type = std::function<sched::outset**(sar_type&, par_type&)>;
+  using future_getter_code_type = std::function<sched::future*(sar_type&, par_type&)>;
   using conds_type = std::vector<std::pair<predicate_code_type, stmt_type>>;
   using parallel_loop_range_getter_type = std::function<std::pair<int*, int*>(par_type&)>;
   using parallel_loop_combine_initializer_type = std::function<void(sar_type&, par_type&)>;
@@ -114,10 +114,10 @@ public:
     } variant_spawn_minus;
     struct {
       procedure_call_code_type code;
-      outset_getter_code_type getter;
+      future_getter_code_type getter;
     } variant_spawn_plus;
     struct {
-      outset_getter_code_type getter;
+      future_getter_code_type getter;
     } variant_join_minus;
     struct {
       profile_prefix_getter_type getter;
@@ -202,11 +202,11 @@ private:
       }
       case tag_spawn_plus: {
         new (&variant_spawn_plus.code) procedure_call_code_type(other.variant_spawn_plus.code);
-        new (&variant_spawn_plus.getter) outset_getter_code_type(other.variant_spawn_plus.getter);
+        new (&variant_spawn_plus.getter) future_getter_code_type(other.variant_spawn_plus.getter);
         break;
       }
       case tag_join_minus: {
-        new (&variant_join_minus.getter) outset_getter_code_type(other.variant_join_minus.getter);
+        new (&variant_join_minus.getter) future_getter_code_type(other.variant_join_minus.getter);
         break;
       }
       case tag_profile_statement: {
@@ -316,12 +316,12 @@ private:
       case tag_spawn_plus: {
         new (&variant_spawn_plus.code) procedure_call_code_type;
         variant_spawn_plus.code = std::move(other.variant_spawn_plus.code);
-        new (&variant_spawn_plus.getter) outset_getter_code_type;
+        new (&variant_spawn_plus.getter) future_getter_code_type;
         variant_spawn_plus.getter = std::move(other.variant_spawn_plus.getter);
         break;
       }
       case tag_join_minus: {
-        new (&variant_join_minus.getter) outset_getter_code_type;
+        new (&variant_join_minus.getter) future_getter_code_type;
         variant_join_minus.getter = std::move(other.variant_join_minus.getter);
         break;
       }
@@ -414,11 +414,11 @@ public:
       }
       case tag_spawn_plus: {
         variant_spawn_plus.code.~procedure_call_code_type();
-        variant_spawn_plus.getter.~outset_getter_code_type();
+        variant_spawn_plus.getter.~future_getter_code_type();
         break;
       }
       case tag_join_minus: {
-        variant_join_minus.getter.~outset_getter_code_type();
+        variant_join_minus.getter.~future_getter_code_type();
         break;
       }
       case tag_profile_statement: { 
@@ -554,19 +554,19 @@ public:
   }
   
   static
-  stmt_type spawn_plus(procedure_call_code_type code, outset_getter_code_type getter) {
+  stmt_type spawn_plus(procedure_call_code_type code, future_getter_code_type getter) {
     stmt_type s;
     s.tag = tag_spawn_plus;
     new (&s.variant_spawn_plus.code) procedure_call_code_type(code);
-    new (&s.variant_spawn_plus.getter) outset_getter_code_type(getter);
+    new (&s.variant_spawn_plus.getter) future_getter_code_type(getter);
     return s;
   }
   
   static
-  stmt_type join_minus(outset_getter_code_type getter) {
+  stmt_type join_minus(future_getter_code_type getter) {
     stmt_type s;
     s.tag = tag_join_minus;
-    new (&s.variant_join_minus.getter) outset_getter_code_type(getter);
+    new (&s.variant_join_minus.getter) future_getter_code_type(getter);
     return s;
   }
 

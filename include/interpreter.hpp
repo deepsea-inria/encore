@@ -34,7 +34,7 @@ public:
   void promote_mark(interpreter*, private_activation_record*) = 0;
   
   virtual
-  sched::outset* get_dependency_of_join_minus(stack_type stack) = 0;
+  sched::future get_dependency_of_join_minus(stack_type stack) = 0;
   
   virtual
   const char* get_name() {
@@ -562,14 +562,14 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
       break;
     }
     case tag_spawn_plus: {
-      *block.variant_spawn_plus.getter(sar, par) = nullptr;
+      *block.variant_spawn_plus.getter(sar, par) = sched::future();
       stack = block.variant_spawn_plus.code(sar, par, cactus::Parent_link_async, stack);
       succ = block.variant_spawn_plus.next;
       break;
     }
     case tag_join_minus: {
-      sched::outset* outset = *block.variant_join_minus.getter(sar, par);
-      if (outset != nullptr) {
+      auto future = *block.variant_join_minus.getter(sar, par);
+      if (future) {
         f = fuel::check_suspend;
       }
       succ = block.variant_join_minus.next;
@@ -609,6 +609,8 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       join->stack = stacks.first;
       interpreter* branch1 = new interpreter(stacks.second);
       interpreter* branch2 = new interpreter;
+      branch1->get_outset()->make_unary();
+      branch2->get_outset()->make_unary();
       basic_block_label_type pred = par->trampoline.succ;
       auto& spawn_join_block = cfg.basic_blocks[pred];
       assert(spawn_join_block.tag == tag_spawn_join);
@@ -629,6 +631,7 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       });
       continuation->stack = stacks.first;
       interpreter* branch = new interpreter(stacks.second);
+      branch->get_outset()->make_unary();
       sched::incounter* incounter = *block.variant_spawn_minus.getter(*sar, *par);
       assert(incounter != nullptr);
       sched::new_edge(branch, incounter);
@@ -644,9 +647,10 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       });
       continuation->stack = stacks.first;
       interpreter* branch = new interpreter(stacks.second);
-      branch->enable_future();
-      assert(*block.variant_spawn_plus.getter(*sar, *par) == nullptr);
-      *block.variant_spawn_plus.getter(*sar, *par) = branch->get_outset();
+      auto branch_out = branch->get_outset();
+      auto future = branch_out->make_chain_future();
+      assert(! *block.variant_spawn_plus.getter(*sar, *par));
+      *block.variant_spawn_plus.getter(*sar, *par) = future;
       schedule(continuation);
       release(branch);
       logging::push_promote_spawn_plus(sar->get_name());
@@ -675,14 +679,14 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
 }
   
 template <class Shared_activation_record>
-sched::outset* get_dependency_of_join_minus(cfg_type<Shared_activation_record>& cfg, stack_type stack) {
+sched::future get_dependency_of_join_minus(cfg_type<Shared_activation_record>& cfg, stack_type stack) {
   using private_activation_record = private_activation_record_of<Shared_activation_record>;
   auto& sar = peek_newest_shared_frame<Shared_activation_record>(stack);
   auto& par = peek_newest_private_frame<private_activation_record>(stack);
   auto& block = cfg.basic_blocks.at(par.trampoline.pred);
   assert(block.tag == tag_join_minus);
-  sched::outset* r = *block.variant_join_minus.getter(sar, par);
-  assert(r != nullptr);
+  auto r = *block.variant_join_minus.getter(sar, par);
+  assert(r);
   return r;
 }
   
@@ -788,11 +792,13 @@ public:
       auto stacks = split_stack(interp0->stack);
       interp0->stack = stacks.first;
       interpreter* interp01 = new interpreter(create_stack(sar0, par0));
+      interp01->get_outset()->make_unary();
       par_type* par01 = &peek_newest_private_frame<par_type>(interp01->stack);
       par01->initialize_descriptors();
       auto lpar01 = par01->loop_activation_record_of(id);
       lpar0->split(lpar01, lpar0->nb_strands());
       interp1 = new interpreter(create_stack(sar0, par01));
+      interp1->get_outset()->make_unary();
       par1 = &peek_newest_private_frame<par_type>(interp1->stack);
       par1->initialize_descriptors();
       auto lpar1 = par1->loop_activation_record_of(id);
@@ -819,6 +825,7 @@ public:
         interp00 = interp01;
       } else {
         interp00 = new interpreter(stacks.second);
+        interp00->get_outset()->make_unary();
         sched::new_edge(interp00, interp01);
         release(interp01);
       }
@@ -828,6 +835,7 @@ public:
       interp1 = interp0;
     }
     interp2 = new interpreter(create_stack(sar0, par1));
+    interp2->get_outset()->make_unary();
     par_type* par2 = &peek_newest_private_frame<par_type>(interp2->stack);
     par2->initialize_descriptors();
     auto lpar2 = par2->loop_activation_record_of(id);
@@ -855,7 +863,8 @@ public:
     sar_type* sar1 = sar0;
     auto lpar1 = par1->loop_activation_record_of(id);
     interp2 = new interpreter(create_stack(sar1, par1));
-    interp2->enable_future();
+    auto interp2_out = interp2->get_outset();
+    auto interp2_future = interp2_out->make_chain_future();
     par_type* par2 = &peek_newest_private_frame<par_type>(interp2->stack);
     par2->initialize_descriptors();
     auto lpar2 = par2->loop_activation_record_of(id);
@@ -866,7 +875,7 @@ public:
       children.reset(new children_record);
     }
     private_activation_record* destination = new par_type;
-    children->futures.push_back(std::make_pair(interp2->get_outset(), destination));
+    children->futures.push_back(std::make_pair(interp2_future, destination));
     lpar2->get_destination() = destination;
     interp1->stack = cactus::update_mark_stack(interp1->stack, [&] (char* _ar) {
       return pcfg::is_splittable(_ar);
