@@ -26,7 +26,7 @@ using parray = pasl::pctl::parray<Item>;
 
 template <class Item>
 void encore_bench(parray<Item>& x) {
-  std::string lib_type = deepsea::cmdline::parse_or_default_string("lib_type", "pctl");
+  std::string lib_type = deepsea::cmdline::parse_or_default_string("algorithm", "encore");
   if (lib_type == "pbbs") {
     encorebench::run_and_report_elapsed_time([&] {
         pbbs::_seq<Item> res = pbbs::removeDuplicates(pbbs::_seq<Item>(&x[0], x.size()));

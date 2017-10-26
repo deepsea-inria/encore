@@ -298,7 +298,7 @@ public:
   eType empty;
 
   Table_removeDuplicates(_seq<ET> S, HASH hashF, _seq<ET>* dst)
-    : S(S), m(S.n), hashF(hashF), T(S.n, hashF), dst(dst) { }
+    : S(S), m(S.n), hashF(hashF), T(S.n, hashF), empty(hashF.empty()), dst(dst) { }
 
   encore_private_activation_record_begin(encore::edsl, Table_removeDuplicates, 1)
     int lo; int hi;
