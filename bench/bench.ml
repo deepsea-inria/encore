@@ -281,8 +281,8 @@ let mk_samplesort_infiles = mk_infiles "type" input_descriptor_samplesort
 let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_int_random_large.bin", string "int", "random";    
   "array_int_exponential_large.bin", string "int", "exponential";
-  "array_pair_int_int_random_256_large.bin", string "pair_int_int", "random int int pair 256";
-  "array_pair_int_int_random_100000000_large.bin", string "pair_int_int", "random int in pair 10ˆ8";
+  "array_pair_int_int_random_256_large.bin", string "pair_int_int", "random int pair 256";
+  "array_pair_int_int_random_100000000_large.bin", string "pair_int_int", "random int pair 10m";
 ]
 
 let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
@@ -348,6 +348,18 @@ let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infi
 let mk_nearestneighbors_infiles = mk_infiles "type" input_descriptor_nearestneighbors
 
 (*****************)
+(* Remove duplicates *)
+
+let input_descriptor_removeduplicates = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "array_int_random_large.bin", string "array_int", "random";
+  "array_int_random_bounded_100000_large.bin", string "array_int", "bounded random";
+  "array_int_exponential_large.bin", string "array_int", "exponential";
+  "array_string_trigrams_large.bin", string "array_string", "string trigrams";
+]
+
+let mk_removeduplicates_infiles = mk_infiles "type" input_descriptor_removeduplicates
+
+(*****************)
 (* All benchmarks *)
 
 let benchmarks' : benchmark_descriptor list = [
@@ -382,6 +394,10 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "nearestneighbors";
     bd_infiles = mk_nearestneighbors_infiles;
     bd_input_descr = input_descriptor_nearestneighbors;
+  };
+  { bd_name = "removeduplicates";
+    bd_infiles = mk_removeduplicates_infiles;
+    bd_input_descr = input_descriptor_removeduplicates;
   };
 ]
 
