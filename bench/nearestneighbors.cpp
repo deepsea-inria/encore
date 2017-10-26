@@ -20,12 +20,14 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include <math.h>
+#include <functional>
+#include <stdlib.h>
+
 #include "encorebench.hpp"
 #include "nearestneighbors.hpp"
-#include "nearestNeighbors.h"
-#undef blocked_for
-#undef parallel_for
 #include "loaders.hpp"
+#include "nearestNeighbors.h"
 
 namespace pasl {
 namespace pctl {
@@ -51,23 +53,26 @@ void benchmark(parray<Item1>& x, int k) {
   std::string algorithm = deepsea::cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
   std::pair<intT*, intT*> res;
-  int n = x.size();
-  intT* result = malloc_array<intT>(k * n);
+  intT* result;
+  intT** resultp = &result;
   d.add("encore", [&] {
-    encore::launch_interpreter<encorebench::findNearestNeighbors<K, Item1>>(x.begin(), n, k, result);
+    encore::launch_interpreter_via_lambda([=] (encore::edsl::pcfg::stack_type st) {
+      auto pt = encore::edsl::pcfg::cactus::Parent_link_sync;
+      return encorebench::findNearestNeighbors3<K, Item1>(st, pt, x.begin(), (int)x.size(), k, resultp);
+    });
   });
   d.add("pbbs", [&] {
     parray<Item2> y = to_pbbs(x);
     encorebench::run_and_report_elapsed_time([&] {
-      pbbs::findNearestNeighbors<K, Item2>(&y[0], n, k, result);
+      pbbs::findNearestNeighbors<K, Item2>(&y[0], (int)y.size(), k);
     });
   });
   d.dispatch("algorithm");
   if (deepsea::cmdline::parse_or_default_bool("check", false)) {
     parray<Item2> y = to_pbbs(x);
-    intT* result2 = malloc_array<intT>(k * n);
-    pbbs::findNearestNeighbors<K, Item2>(&y[0], n, k, result2);
-    for (auto i = 0; i < (k * n); i++) {
+    intT* result2 = malloc_array<intT>(k * x.size());
+    pbbs::findNearestNeighbors<K, Item2>(&y[0], x.size(), k, result2);
+    for (auto i = 0; i < (k * x.size()); i++) {
       auto x = result[i];
       auto y = result2[i];
       if (x != y) {
@@ -92,6 +97,7 @@ void benchmark(std::string infile) {
     benchmark<_point3d<double>, pbbs::_point3d<double>, 10>(x, k);
   });                                                                           
   d.dispatch("type");
+  encorebench::fnn1.reportTotal();
 }
 
 } // end namespace

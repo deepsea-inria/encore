@@ -69,7 +69,7 @@ void initialize_runtime(int argc, char** argv) {
   atomic::init_print_lock();
   machine::initialize_hwloc();
   machine::initialize_cpuinfo();
-  auto scheduler = cmdline::parse_or_default_string("scheduler", "encore_work_stealing");
+  auto scheduler = cmdline::parse_or_default_string("scheduler", "steal_half_work_stealing");
   if (scheduler == "steal_half_work_stealing") {
     sched::scheduler = sched::steal_half_work_stealing_tag;
   } else if (scheduler == "encore_work_stealing") {
@@ -80,7 +80,7 @@ void initialize_runtime(int argc, char** argv) {
     atomic::die("bogus scheduler\n");
   }
   edsl::pcfg::never_promote = cmdline::parse_or_default_bool("never_promote", edsl::pcfg::never_promote);
-  double promotion_threshold_usec = 25.0;
+  double promotion_threshold_usec = 30.0;
   if (edsl::pcfg::never_promote) {
     promotion_threshold_usec = 10000000.0;
   }

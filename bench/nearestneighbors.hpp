@@ -35,6 +35,7 @@
 #include "utils.h"
 #include "encore.hpp"
 #include "octtree.hpp"
+#include "gettime.h"
 
 #ifndef _ENCORE_NEARESTNEIGHBORS_H_
 #define _ENCORE_NEARESTNEIGHBORS_H_
@@ -200,6 +201,8 @@ struct vertexNN {
   vertexNN* ngh[KK];    // the list of neighbors
   vertexNN(pointT p, int id) : pt(p), identifier(id) {}
 };
+
+  	pbbs::timer fnn1;
   
 template <int maxK, class pointT>
 class findNearestNeighbors : public encore::edsl::pcfg::shared_activation_record {
@@ -223,6 +226,7 @@ public:
       dc::stmt([] (sar& s, par& p) {
         s.v = malloc_array<vertex*>(s.n);
         s.vv = malloc_array<vertex>(s.n);
+	fnn1.start();
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
                             [] (par& p) { return std::make_pair(&p.s, &p.e); },
@@ -235,6 +239,7 @@ public:
         }
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+	  fnn1.stop();
         return encore_call<ANN<maxK, vertex>>(st, pt, s.v, s.n, s.k);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.s = 0; p.e = s.n; },
@@ -258,6 +263,13 @@ public:
 template <int maxK, class pointT>
 typename findNearestNeighbors<maxK,pointT>::cfg_type findNearestNeighbors<maxK,pointT>::cfg = findNearestNeighbors<maxK,pointT>::get_cfg();
 
+template <int maxK, class pointT>
+stack_type findNearestNeighbors3(stack_type st, plt_type pt, pointT* p, int n, int k, intT** result) {
+  *result = malloc_array<intT>(k * n);
+  return sequence::encore_call<findNearestNeighbors<maxK,pointT>>(st, pt, p, n, k, *result);
+}
+
+  
 } // end namespace
 
 #endif
