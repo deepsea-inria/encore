@@ -1083,7 +1083,8 @@ public:
                             [] (sar& s, par& p, int lo, int hi) {
         auto lo2 = s.lo + lo;
         auto hi2 = s.lo + hi;
-        std::fill(lo2, hi2, *(s.dst));
+        auto v = *s.dst;
+        std::fill(lo2, hi2, v);
       });
   }
   
