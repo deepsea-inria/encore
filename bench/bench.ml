@@ -200,8 +200,9 @@ let name = "compare"
 let all_benchmarks =
   match arg_benchmarks with
   | ["all"] -> [
-    "convexhull"; "samplesort"; "radixsort"; "pbfs"; "mis"; "nearestneighbors";
-    "suffixarray";
+    "convexhull"; "samplesort"; "radixsort"; "nearestneighbors";
+    "suffixarray"; "removeduplicates"; "mis"; "mst"; "matching";
+     (* "pbfs"; *)
     ]
   | _ -> arg_benchmarks
     
