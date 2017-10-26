@@ -362,7 +362,7 @@ void benchmark(std::string infile) {
     });
   });
   d.dispatch("algorithm");
-    if (deepsea::cmdline::parse_or_default_bool("check", false)) {
+  if (deepsea::cmdline::parse_or_default_bool("check", false)) {
     auto result2 = mst(edges2);
     assert(result.second == result2.second);
     auto n = result2.second;
