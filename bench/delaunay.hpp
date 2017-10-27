@@ -332,7 +332,7 @@ public:
           s.vv = s.v+s.top-s.cnt;
 
         }),
-        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.cnt;},
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
           auto& knn = s.knn;
@@ -345,7 +345,7 @@ public:
             reserveForInsert(vv[j],t[j],qs[j]);
           }
         }),
-        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.cnt;},
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
           auto flags = s.flags;
@@ -362,7 +362,7 @@ public:
         dc::stmt([] (sar& s, par& p) {
           s.k = s.tmp.n;
         }),
-        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.cnt;},
+        dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
           auto flags = s.flags;
@@ -465,7 +465,7 @@ public:
         s.numTriangles = 2 * s.n + (s.boundarySize - 2);
         s.Triangs = malloc_array<tri>(s.numTriangles); 
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.n;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto v = s.v;
@@ -490,7 +490,7 @@ public:
         // original coordinates
         s.M = malloc_array<intT>(s.numVertices);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.n;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto M = s.M;
@@ -499,7 +499,7 @@ public:
           M[i] = hash.get(i);
         }
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.numVertices;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numVertices;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto M = s.M;
@@ -507,7 +507,7 @@ public:
           M[i] = i;
         }
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.numVertices;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numVertices;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto M = s.M;
@@ -525,7 +525,7 @@ public:
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return sequence::copy3(st, pt, s.P, s.P + s.n, s.rp);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.numVertices;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numVertices;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto rp = s.rp;
