@@ -413,8 +413,8 @@ let input_descriptors =
 
 let pretty_input_name n =
   match List.find_all (fun (m, _, _) -> m = n) input_descriptors with
-  | [(m, _, p)] -> p
-  | _ -> failwith ("pretty name: " ^ n)
+  | (m, _, p) :: _ -> p
+  | [] -> failwith ("pretty name: " ^ n)
                   
 let make() =
   build "." all_progs arg_virtual_build
