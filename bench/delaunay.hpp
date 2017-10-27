@@ -449,7 +449,7 @@ public:
         s.vv = malloc_array<vertex>(s.numVertices);
       }),
       // The points are psuedorandomly permuted 
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.lo = s.n;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto v = s.v;
