@@ -200,12 +200,9 @@ public:
         s.boundaryP = malloc_array<point2d>(s.bCount);
       }),
       // Generate the bounding points on a circle far outside the bounding box
-      dc::sequential_loop([] (sar& s, par&) {
-        s.lo = 0;
-        s.hi = s.bCount;
-      }, [] (sar& s, par&) {
-        return std::make_pair(&s.lo, &s.hi);
-      }, [] (sar& s, par&, int lo, int hi) {
+      dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.bCount; },
+                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                          [] (sar& s, par&, int lo, int hi) {
         double pi = 3.14159;
         auto radius = s.radius;
         auto bCount = s.bCount;
@@ -221,22 +218,22 @@ public:
         }
       }),
       dc::stmt([] (sar& s, par& p) {        
-        s.s = simplex(&s.v[0], &s.v[1], &s.v[2], s.t);
+        s.s = simplex(&(s.v[0]), &(s.v[1]), &(s.v[2]), s.t);
       }),
       // Fill with simplices (bCount - 2  total simplices)
-      dc::sequential_loop([] (sar& s, par&) {
-        s.lo = 3;
-        s.hi = s.bCount;
-      }, [] (sar& s, par&) {
-        return std::make_pair(&s.lo, &s.hi);
-      }, [] (sar& s, par&, int lo, int hi) {
+      dc::sequential_loop([] (sar& s, par&) { s.lo = 3; s.hi = s.bCount; },
+                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                          [] (sar& s, par&, int lo, int hi) {
         auto v = s.v;
         auto t = s.t;
         auto _s = s.s;
         for (auto i = lo; i != hi; i++) {
           _s = _s.extend(&v[i], t+i-2);
         }
-        *s.dst = _s;
+        s.s = _s;
+      }),
+      dc::stmt([] (sar& s, par& p) {        
+        *s.dst = s.s;
       })
     });
   }
@@ -264,7 +261,7 @@ public:
   incrementallyAddPoints(vertex** v, intT n, vertex* start)
     : v(v), n(n), start(start) { }
 
-  encore_private_activation_record_begin(encore::edsl, incrementallyAddPoints, 4)
+  encore_private_activation_record_begin(encore::edsl, incrementallyAddPoints, 3)
     int lo; int hi;
   encore_private_activation_record_end(encore::edsl, incrementallyAddPoints, sar, par, dc, get_dc)
   
@@ -277,12 +274,9 @@ public:
         s.qqs = malloc_array<Qs>(s.maxR);
         s.qs = malloc_array<Qs*>(s.maxR);
       }),
-      dc::sequential_loop([] (sar& s, par&) {
-        s.lo = 0;
-        s.hi = s.maxR;
-      }, [] (sar& s, par&) {
-        return std::make_pair(&s.lo, &s.hi);
-      }, [] (sar& s, par&, int lo, int hi) {
+      dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.maxR; },
+                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                          [] (sar& s, par&, int lo, int hi) {
         auto qs = s.qs;
         auto qqs = s.qqs;
         for (auto i = lo; i != hi; i++) {
@@ -330,8 +324,9 @@ public:
           s.cnt = (s.cnt > s.maxR) ? s.maxR : s.cnt;
           s.cnt = (s.cnt > s.top) ? s.top : s.cnt;
           s.vv = s.v+s.top-s.cnt;
-
         }),
+        // for trial vertices find containing triangle, determine cavity 
+        // and reserve vertices on boundary of cavity
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
@@ -345,6 +340,8 @@ public:
             reserveForInsert(vv[j],t[j],qs[j]);
           }
         }),
+        // Pack failed vertices back onto Q and successful
+        // ones up above (needed for point location structure)
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.cnt;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
@@ -435,7 +432,7 @@ public:
   delaunay(point2d* P, intT n, triangles<point2d>* dst)
     : P(P), n(n), dst(dst), hash(n) { }
 
-  encore_private_activation_record_begin(encore::edsl, delaunay, 4)
+  encore_private_activation_record_begin(encore::edsl, delaunay, 6)
     int lo; int hi;
   encore_private_activation_record_end(encore::edsl, delaunay, sar, par, dc, get_dc)
   
