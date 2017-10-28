@@ -202,7 +202,7 @@ let all_benchmarks =
   | ["all"] -> [
     "convexhull"; "samplesort"; "radixsort"; "nearestneighbors";
     "suffixarray"; "removeduplicates"; "mis"; "mst"; "matching";
-     (* "pbfs"; *)
+    "delaunay"; (* "pbfs"; *)
     ]
   | _ -> arg_benchmarks
     
@@ -349,6 +349,16 @@ let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infi
 let mk_nearestneighbors_infiles = mk_infiles "type" input_descriptor_nearestneighbors
 
 (*****************)
+(* Delaunay *)
+
+let input_descriptor_delaunay = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "array_point2d_in_square_delaunay_large.bin", string "array_point2d", "in square";
+  "array_point2d_kuzmin_delaunay_large.bin", string "array_point2d", "kuzmin";
+]
+
+let mk_delaunay_infiles = mk_infiles "type" input_descriptor_delaunay
+
+(*****************)
 (* Remove duplicates *)
 
 let input_descriptor_removeduplicates = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
@@ -395,6 +405,10 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "nearestneighbors";
     bd_infiles = mk_nearestneighbors_infiles;
     bd_input_descr = input_descriptor_nearestneighbors;
+  };
+  { bd_name = "delaunay";
+    bd_infiles = mk_delaunay_infiles;
+    bd_input_descr = input_descriptor_delaunay;
   };
   { bd_name = "removeduplicates";
     bd_infiles = mk_removeduplicates_infiles;
