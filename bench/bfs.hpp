@@ -41,6 +41,8 @@ namespace encorebench {
 
 struct nonNegF{bool operator() (intT a) {return (a>=0);}};
 
+int zero = 0;
+
 class bfs : public encore::edsl::pcfg::shared_activation_record {
 public:
 
@@ -54,7 +56,7 @@ public:
   bfs(intT start, pbbs::graph::graph<intT> GA, std::pair<intT,intT>* result) :
     start(start), GA(GA), result(result) { }
 
-  encore_private_activation_record_begin(encore::edsl, bfs, 3)
+  encore_private_activation_record_begin(encore::edsl, bfs, 2)
     int s1; int e1;
     int s2; int e2;
     int s3; int e3;
@@ -72,10 +74,8 @@ public:
          s.FrontierNext = malloc_array<intT>(s.numEdges);
          s.Counts = malloc_array<intT>(s.numVertices);
        }),
-       dc::parallel_for_loop([] (sar& s, par& p) { p.s1 = 0; p.e1 = s.numVertices; },
-                             [] (par& p) { return std::make_pair(&p.s1, &p.e1); },
-                             [] (sar& s, par& p, int lo, int hi) {
-         std::fill(s.Visited + lo, s.Visited + hi, 0);
+       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+         return sequence::fill3(st, pt, s.Visited, s.Visited + s.numVertices, &zero);
        }),
        dc::stmt([] (sar& s, par& p) {
          s.Frontier[0] = s.start;
