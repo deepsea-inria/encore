@@ -202,7 +202,7 @@ let all_benchmarks =
   | ["all"] -> [
     "convexhull"; "samplesort"; "radixsort"; "nearestneighbors";
     "suffixarray"; "removeduplicates"; "mis"; "mst"; "matching";
-    "delaunay"; (* "pbfs"; *)
+    "delaunay"; "bfs"; (*"pbfs";*)
     ]
   | _ -> arg_benchmarks
     
@@ -287,10 +287,21 @@ let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t
 ]
 
 let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
-    
+
 (*****************)
 (* BFS *)
-(*
+      
+let input_descriptor_bfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "cube_large.bin", int 0, "cube";
+  "rmat24_large.bin", int 0, "rMat24";
+  "rmat27_large.bin", int 0, "rMat27";
+]
+
+let mk_bfs_infiles = mk_infiles "source" input_descriptor_bfs
+    
+(*****************)
+(* PBFS *)
+
 let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
   "rmat24_large.bin", int 0, "rMat24";
@@ -298,7 +309,7 @@ let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 ]
 
 let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
-*)
+
 (*****************)
 (* MIS *)
 
@@ -386,6 +397,14 @@ let benchmarks' : benchmark_descriptor list = [
     bd_infiles = mk_radixsort_infiles;
     bd_input_descr = input_descriptor_radixsort;
   };
+  { bd_name = "bfs";
+    bd_infiles = mk_bfs_infiles;
+    bd_input_descr = input_descriptor_bfs;
+  }; 
+  { bd_name = "pbfs";
+    bd_infiles = mk_pbfs_infiles;
+    bd_input_descr = input_descriptor_pbfs;
+  }; 
   { bd_name = "mis";
     bd_infiles = mk_mis_infiles;
     bd_input_descr = input_descriptor_mis;
