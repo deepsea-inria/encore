@@ -250,6 +250,11 @@ struct hashEdges {
 typedef Table<hashEdges,intT> EdgeTable;
   //EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
 
+template <class point>
+using triangles = pasl::pctl::triangles<point>;
+
+using triangle = pasl::pctl::triangle;
+  
 class topologyFromTriangles : public encore::edsl::pcfg::shared_activation_record {
 public:
 

@@ -23,6 +23,7 @@
 #include <iostream>
 #include <vector>
 
+#include "atomic.hpp"
 #include "sequence.hpp"
 #include "utils.h"
 #include "logging.hpp"
@@ -36,6 +37,8 @@ namespace encorebench {
 
 using namespace std;
 
+using vect2d = pasl::pctl::vect2d;
+
 // *************************************************************
 //   PARALLEL HASH TABLE TO STORE WORK QUEUE OF SKINNY TRIANGLES
 // *************************************************************
@@ -45,7 +48,7 @@ struct hashTriangles {
   typedef tri* kType;
   eType empty() {return NULL;}
   kType getKey(eType v) { return v;}
-  uintT hash(kType s) { return utils::hash(s->id); }
+  uintT hash(kType s) { return pbbs::utils::hash(s->id); }
   int cmp(kType s, kType s2) {
     return (s->id > s2->id) ? 1 : ((s->id == s2->id) ? 0 : -1);
   }
@@ -106,7 +109,7 @@ void reserveForInsert(vertex *v, simplex t, Qs *q) {
   // the maximum id new vertex that tries to reserve a boundary vertex 
   // will have its id written.  reserve starts out as -1
   for (intT i = 0; i < q->vertexQ.size(); i++)
-    utils::writeMax(&((q->vertexQ)[i]->reserve), v->id);
+    pbbs::utils::writeMax(&((q->vertexQ)[i]->reserve), v->id);
 }
 
 // *************************************************************
@@ -230,18 +233,18 @@ public:
   intT cnt; vertex** vv; intT k; _seq<vertex*> tmp;
  
   intT top; intT failed;  intT size;
-
+  
+  addRefiningVertices(vertex** v, intT n, intT nTotal, TriangleTable TT, intT* dest)
+  : v(v), n(n), nTotal(nTotal), TT(TT), dest(dest) { }
+  
   encore_private_activation_record_begin(encore::edsl, addRefiningVertices, 2)
     int lo; int hi;
   encore_private_activation_record_end(encore::edsl, addRefiningVertices, sar, par, dc, get_dc)
 
-  addRefiningVertices(vertex** v, intT n, intT nTotal, TriangleTable TT, intT* dest)
-  : v(v), n(n), nTotal(nTotal), TT(TT), dest(dest) { }
-
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
+      dc::stmt([] (sar& s, par& p) { 
         auto maxR = s.maxR = (intT) (s.nTotal/500) + 1; // maximum number to try in parallel
         auto qqs = s.qqs = malloc_array<Qs>(maxR);
         auto qs = s.qs = malloc_array<Qs*>(maxR);
@@ -252,7 +255,7 @@ public:
         s.flags = malloc_array<bool>(maxR);
         s.h = malloc_array<vertex*>(maxR);
  
-        s.top = n; s.failed = 0;
+        s.top = s.n; s.failed = 0;
         s.size = maxR;
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.top > 0; }, dc::stmts({
@@ -301,7 +304,7 @@ public:
         free(s.qqs); free(s.qs); free(s.t);
         free(s.flags); free(s.h); 
         *s.dest = s.failed;
-      })
+      }) 
     });
   }
 
@@ -319,8 +322,9 @@ public:
   triangles<point2d> Tri; triangles<point2d>* dest;
   int expandFactor = 4;
   intT n; intT m; intT extraVertices; intT totalVertices; intT totalTriangles;
-  intT numBad; intT numTriangs; intT numPoints;
-  bool* flag; _seq<intT> I; point2d* rp; triangle* rt;
+  intT numBad; intT num_triangs; intT num_points;
+  bool* flags; _seq<intT> I; point2d* rp; triangle* rt;
+  intT nO; intT* II;
 
   vertex** v; vertex* vv; tri* Triangs;
   TriangleTable workQ; _seq<tri*> badTT; _seq<tri*> badT;
@@ -328,18 +332,18 @@ public:
   eType empty; intT tmpi;
 
   refine(triangles<point2d> Tri, triangles<point2d>* dest)
-    : Tri(Tri), dest(dest), empty
+    : Tri(Tri), dest(dest) { }
 
-  encore_private_activation_record_begin(encore::edsl, refine, 2)
+  encore_private_activation_record_begin(encore::edsl, refine, 10)
     int lo; int hi;
   encore_private_activation_record_end(encore::edsl, refine, sar, par, dc, get_dc)
 
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) {
-        s.n = s.Tri.numPoints;
-        s.m = s.Tri.numTriangles;
+      dc::stmt([] (sar& s, par& p) { /*
+        s.n = s.Tri.num_points;
+        s.m = s.Tri.num_triangles;
         s.extraVertices = s.expandFactor*s.n;
         s.totalVertices = s.n + s.extraVertices;
         s.totalTriangles = s.m + 2 * s.extraVertices;
@@ -347,13 +351,13 @@ public:
         s.v = malloc_array<vertex*>(s.extraVertices);
         s.vv = malloc_array<vertex>(s.totalVertices);
         s.Triangs = malloc_array<tri>(s.totalTriangles);
-        new (&s.empty) eType(hashTriangles.empty());
-      }),
+        new (&s.empty) eType(hashTriangles().empty()); */
+        }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return encore_call<topologyFromTriangles>(s.Tri, &s.vv, &s.Triangs);
+        return encore_call<topologyFromTriangles>(st, pt, s.Tri, &s.vv, &s.Triangs);
       }),
       //  set up extra triangles
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = m; p.hi = s.totalTriangles;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = s.m; p.hi = s.totalTriangles;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto Triangs = s.Triangs;
@@ -370,6 +374,7 @@ public:
         auto vv = s.vv;
         auto n = s.n;
         auto m = s.m;
+        auto v = s.v;
         for (auto i = lo; i != hi; i++) {
           v[i] = new (&vv[i+n]) vertex(point2d(0,0), i+n);
           // give each one a pointer to two triangles to use
@@ -378,14 +383,14 @@ public:
       }),
       dc::stmt([] (sar& s, par& p) {
         // these will increase as more are added
-        s.numTriangs = s.m;
-        s.numPoints = s.n;
-        s.workQ = TriangleTable(s.numTriangs, hashTriangles());
+        s.num_triangs = s.m;
+        s.num_points = s.n;
+        s.workQ = TriangleTable(s.num_triangs, hashTriangles());
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.numTriangs, &s.empty);
+        return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.num_triangs, &s.empty);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numTriangs;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.num_triangs;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto Triangs = s.Triangs;
@@ -399,35 +404,39 @@ public:
       }),
       // Each iteration processes all bad triangles from the workQ while
       // adding new bad triangles to a new queue
-      dc::sequential_loop([] (sar& s, par&) { return s.top > 0; }, dc::stmts({
+      dc::sequential_loop([] (sar& s, par&) { return true; }, dc::stmts({
+        dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+            using hash_type = hashTriangles;
+          return encore_call<Table_entries<hash_type, intT>>(st, pt, &s.workQ, &s.badTT);
+        }),
         dc::stmt([] (sar& s, par& p) {
-          s.badTT = s.workQ.entries();
+            //          s.badTT = s.workQ.entries();
           s.workQ.del();
           // packs out triangles that are no longer bad
-          s.flag = malloc_array<bool>(s.badTT.n);
+          s.flags = malloc_array<bool>(s.badTT.n);
         }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.badTT.n;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                               [] (sar& s, par& p, int lo, int hi) {
-          auto flag = s.flag;
+          auto flags = s.flags;
           auto& badTT = s.badTT;
           for (auto i = lo; i != hi; i++) {
-            flag[i] = badTT.A[i]->bad;
+            flags[i] = badTT.A[i]->bad;
           }
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-          return sequence::pack5(st, pt, s.badTT.A, s.flag, s.badTT.n, &s.badT);
+          return sequence::pack4(st, pt, s.badTT.A, s.flags, s.badTT.n, &s.badT);
         }),
         dc::stmt([] (sar& s, par& p) {
-          free(s.flag);
+          free(s.flags);
           s.badTT.del();
           s.numBad = s.badT.n;
         }),
         dc::mk_if([] (sar& s, par& p) { return s.numBad == 0; },
           dc::exit_loop()),
-        dc::mk_if([] (sar& s, par& p) { return s.numPoints + s.numBad > s.totalVertices; },
+        dc::mk_if([] (sar& s, par& p) { return s.num_points + s.numBad > s.totalVertices; },
           dc::stmt([] (sar& s, par& p) {
-              atomic::die("ran out of vertices");
+              encore::atomic::die("ran out of vertices");
           })),
         // allocate 1 vertex per bad triangle and assign triangle to it
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numBad;},
@@ -436,10 +445,10 @@ public:
           auto& badT = s.badT;
           auto v = s.v;
           auto n = s.n;
-          auto numPoints = s.numPoints;
+          auto num_points = s.num_points;
           for (auto i = lo; i != hi; i++) {
             badT.A[i]->bad = 2; // used to detect whether touched
-            v[i + numPoints - n]->badT = badT.A[i];
+            v[i + num_points - n]->badT = badT.A[i];
           }
         }),
         dc::stmt([] (sar& s, par& p) {
@@ -450,7 +459,7 @@ public:
           return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.numBad, &s.empty);
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-          return encore_call<addRefiningVertices>(st, pt, s.v + s.numPoints - s.n, s.numBad, s.numPoints, s.workQ, &s.tmpi);
+          return encore_call<addRefiningVertices>(st, pt, s.v + s.num_points - s.n, s.numBad, s.num_points, s.workQ, &s.tmpi);
         }),
         dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numBad;},
                               [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -463,32 +472,32 @@ public:
         }),
         dc::stmt([] (sar& s, par& p) {
           s.badT.del();
-          s.numPoints += s.numBad;
-          s.numTriangs += 2*s.numBad;            
+          s.num_points += s.numBad;
+          s.num_triangs += 2*s.numBad;            
         })
-      }),
+      })),
       dc::stmt([] (sar& s, par& p) {
         // Extract Vertices for result
-        s.flag = malloc_array<bool>(s.numTriangs);
+        s.flags = malloc_array<bool>(s.num_triangs);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = m; p.hi = s.numPoints;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.num_points;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
-        auto flag = s.flag;
+        auto flags = s.flags;
         auto vv = s.vv;
         for (auto i = lo; i != hi; i++) {
-          flag[i] = (vv[i].badT == NULL);
+          flags[i] = (vv[i].badT == NULL);
         }
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::packIndex(st, pt, s.flag, s.numPoints, &s.I);
+        return sequence::packIndex(st, pt, s.flags, s.num_points, &s.I);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.nO = s.I.n;
         s.II = s.I.A;
         s.rp = malloc_array<point2d>(s.nO);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = m; p.hi = s.n0;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.nO;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto vv = s.vv;
@@ -503,22 +512,22 @@ public:
         s.I.del();
       }),
       // Extract Triangles for result
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = m; p.hi = s.numTriangs;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.num_triangs;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
-        auto flag = s.flag;
+        auto flags = s.flags;
         auto Triangs = s.Triangs;
         for (auto i = lo; i != hi; i++) {
-          flag[i] = Triangs[i].initialized;
+          flags[i] = Triangs[i].initialized;
         }
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::packIndex(st, pt, s.flag, s.numTriangs, &s.I);
+        return sequence::packIndex(st, pt, s.flags, s.num_triangs, &s.I);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.rt = malloc_array<triangle>(s.I.n);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = m; p.hi = s.I.n;},
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.I.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto Triangs = s.Triangs;
@@ -530,11 +539,12 @@ public:
         }
       }),
       dc::stmt([] (sar& s, par& p) {
-        s.I.del();  free(s.flag);  free(s.Triangs);  free(s.v);  free(s.vv);
+        s.I.del();  free(s.flags);  free(s.Triangs);  free(s.v);  free(s.vv);
         *s.dest = triangles<point2d>(s.nO, s.I.n, s.rp, s.rt);
       })
     });
   }
+  
   
 };
 

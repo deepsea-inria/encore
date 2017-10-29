@@ -1,13 +1,8 @@
 
-#include <math.h>
-#include <functional>
-#include <stdlib.h>
-
 #include "encorebench.hpp"
 #include "geometryio.hpp"
-#include "loaders.hpp"
 #include "refine.hpp"
-#undef blocked_for
+#include "loaders.hpp"
 #include "refine.h"
 
 namespace pasl {
@@ -33,14 +28,14 @@ void benchmark() {
   auto x = pasl::pctl::io::load<pasl::pctl::triangles<pasl::pctl::_point2d<double>>>(infile);
   std::string algorithm = deepsea::cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
-  encorebench::triangles<_point2d<double>> res;
+  //  encorebench::triangles<_point2d<double>> res;
   d.add("encore", [&] {
-    encore::launch_interpreter<encorebench::refine>(x, &res);
+      //    encore::launch_interpreter<encorebench::refine>(x, &res);
   });
   d.add("pbbs", [&] {
     auto y = to_pbbs(x);
     encorebench::run_and_report_elapsed_time([&] {
-      pbbs::refine(y);
+        //      pbbs::refine(y);
     });
   });
   d.dispatch("algorithm");
