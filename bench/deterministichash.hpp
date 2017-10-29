@@ -67,6 +67,7 @@ public:
 
 
  public:
+  Table() { }
   // Size is the maximum number of values the hash table will hold.
   // Overfilling the table could put it into an infinite loop.
   Table(intT size, HASH hashF) :

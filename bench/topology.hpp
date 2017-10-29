@@ -248,52 +248,106 @@ struct hashEdges {
 };
 
 typedef Table<hashEdges,intT> EdgeTable;
-EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
+  //EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
 
-// this might or might not be needed
-  /*
-void topologyFromTriangles(triangles<point2d> Tri, vertex** vr, tri** tr) {
-  intT n = Tri.numPoints;
-  point2d* P = Tri.P;
+class topologyFromTriangles : public encore::edsl::pcfg::shared_activation_record {
+public:
 
-  intT m = Tri.numTriangles;
-  triangle* T = Tri.T;
+  triangles<point2d> Tri; vertex** vr; tri** tr;
+  intT n; point2d* P; intT m; triangle* T; vertex* v;
+  tri* Triangs; edge* E; EdgeTable ET; 
+  typedef typename hashEdges::eType eType;
+  eType empty;
 
-  if (*vr == NULL) *vr = newA(vertex,n);
-  vertex* v = *vr;
-  cilk_for (intT i=0; i < n; i++)
-    v[i] = vertex(P[i],i);
+  topologyFromTriangles(triangles<point2d> Tri, vertex** vr, tri** tr)
+    : Tri(Tri), vr(vr), tr(tr) { }
+  
+  encore_private_activation_record_begin(encore::edsl, topologyFromTriangles, 3)
+    int lo; int hi;
+  encore_private_activation_record_end(encore::edsl, topologyFromTriangles, sar, par, dc, get_dc)
 
-  if (*tr == NULL) *tr = newA(tri,m);
-  tri* Triangs = *tr;
-  edge* E = newA(edge, m*3);
-  EdgeTable ET = makeEdgeTable(m*6);
-  cilk_for (intT i=0; i < m; i++) {
-    Triangs[i] = tri();
-    for (int j=0; j<3; j++) {
-      E[i*3 + j] = edge(pairInt(T[i].C[j], T[i].C[(j+1)%3]), &Triangs[i]);
-      ET.insert(&E[i*3+j]);
-      Triangs[i].vtx[(j+2)%3] = &v[T[i].C[j]];
-    }
-  }
-  cilk_for (intT i=0; i < m; i++) {
-    Triangs[i].id = i;
-    Triangs[i].initialized = 1;
-    Triangs[i].bad = 0;
-    for (int j=0; j<3; j++) {
-      pairInt key = pairInt(T[i].C[(j+1)%3], T[i].C[j]);
-      edge *Ed = ET.find(key);
-      if (Ed != NULL) Triangs[i].ngh[j] = Ed->second;
-      else { Triangs[i].ngh[j] = NULL;
-      }
-    }
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.n = s.Tri.num_points;
+        s.P = s.Tri.p;
+
+        s.m = s.Tri.num_triangles;
+        s.T = s.Tri.t;
+
+        if (*s.vr == NULL) {
+          *s.vr = malloc_array<vertex>(s.n);
+        }
+        s.v = *s.vr;
+        new (&s.empty) eType(hashEdges().empty());
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n;},
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto v = s.v;
+        auto P = s.P;
+        for (auto i = lo; i != hi; i++) {
+          v[i] = vertex(P[i],i);
+        }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        if (*s.tr == NULL) *s.tr = malloc_array<tri>(s.m);
+        s.Triangs = *s.tr;
+        s.E = malloc_array<edge>(s.m*3);
+        new (&s.ET) EdgeTable(s.m * 6, hashEdges());
+      }),
+      dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
+        return sequence::fill3(st, pt, s.ET.TA, s.ET.TA + (s.m * 6), &s.empty);
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.m;},
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto Triangs = s.Triangs;
+        auto E = s.E;
+        auto T = s.T;
+        auto v = s.v;
+        auto& ET = s.ET;
+        for (auto i = lo; i != hi; i++) {
+          Triangs[i] = tri();
+          for (int j=0; j<3; j++) {
+            E[i*3 + j] = edge(pairInt(T[i].vertices[j], T[i].vertices[(j+1)%3]), &Triangs[i]);
+            ET.insert(&E[i*3+j]);
+            Triangs[i].vtx[(j+2)%3] = &v[T[i].vertices[j]];
+          }
+        }
+      }),
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.m;},
+                            [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
+                            [] (sar& s, par& p, int lo, int hi) {
+        auto Triangs = s.Triangs;
+        auto E = s.E;
+        auto T = s.T;
+        auto v = s.v;
+        auto& ET = s.ET;
+        for (auto i = lo; i != hi; i++) {
+          Triangs[i].id = i;
+          Triangs[i].initialized = 1;
+          Triangs[i].bad = 0;
+          for (int j=0; j<3; j++) {
+            pairInt key = pairInt(T[i].vertices[(j+1)%3], T[i].vertices[j]);
+            edge *Ed = ET.find(key);
+            if (Ed != NULL) Triangs[i].ngh[j] = Ed->second;
+            else { Triangs[i].ngh[j] = NULL;
+            }
+          }
+        }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        s.ET.del();
+        free(s.E);
+      })
+    });
   }
   
-  ET.del();
-  free(E);
+};
 
-}
-  */
+encore_pcfg_allocate(topologyFromTriangles, get_cfg)
     
 } // end namespace
 #endif // _TOPOLOGY_INCLUDED
