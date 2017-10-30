@@ -341,7 +341,7 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::stmt([] (sar& s, par& p) { /*
+      dc::stmt([] (sar& s, par& p) {
         s.n = s.Tri.num_points;
         s.m = s.Tri.num_triangles;
         s.extraVertices = s.expandFactor*s.n;
@@ -351,7 +351,7 @@ public:
         s.v = malloc_array<vertex*>(s.extraVertices);
         s.vv = malloc_array<vertex>(s.totalVertices);
         s.Triangs = malloc_array<tri>(s.totalTriangles);
-        new (&s.empty) eType(hashTriangles().empty()); */
+        new (&s.empty) eType(hashTriangles().empty()); 
         }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return encore_call<topologyFromTriangles>(st, pt, s.Tri, &s.vv, &s.Triangs);
@@ -410,7 +410,6 @@ public:
           return encore_call<Table_entries<hash_type, intT>>(st, pt, &s.workQ, &s.badTT);
         }),
         dc::stmt([] (sar& s, par& p) {
-            //          s.badTT = s.workQ.entries();
           s.workQ.del();
           // packs out triangles that are no longer bad
           s.flags = malloc_array<bool>(s.badTT.n);
@@ -425,7 +424,7 @@ public:
           }
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-          return sequence::pack4(st, pt, s.badTT.A, s.flags, s.badTT.n, &s.badT);
+          return sequence::pack4(st, pt, s.badTT.A, s.flags, (intT)s.badTT.n, &s.badT);
         }),
         dc::stmt([] (sar& s, par& p) {
           free(s.flags);
