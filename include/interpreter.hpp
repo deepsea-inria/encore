@@ -259,7 +259,7 @@ std::pair<stack_type, stack_type> fork_stack(stack_type s) {
   });
 }
 
-#ifndef NDEBUG
+#ifdef DEBUG_ENCORE_STACK
   
 using frame_summary_type = struct {
   cactus_stack::plus::frame_header_type* fp;
@@ -374,15 +374,16 @@ std::vector<frame_summary_type> summarize_stack_marks(stack_type s) {
   return result;
 }
 
-std::vector<frame_summary_type> summarize_mark_stack(stack_type s) {
+std::vector<frame_summary_type> summarize_mark_stack(stack_type s, bool& broke_invar) {
   std::vector<frame_summary_type> result;
   auto start = s.begin_mark();
   for (auto it = start; it != s.end_mark(); it++) {
     auto& fh = *it;
     frame_summary_type fs = summarize_frame(&fh);
     if (! is_mark(fs)) {
-      assert(fh.ext.llt == cactus_stack::plus::Loop_link_child);
-      continue;
+      if (fh.ext.llt != cactus_stack::plus::Loop_link_child) {
+        broke_invar = true;
+      }
     }
     result.push_back(fs);
   }
@@ -392,8 +393,9 @@ std::vector<frame_summary_type> summarize_mark_stack(stack_type s) {
 void check_stack(stack_type s) {
   std::vector<frame_summary_type> vfs = summarize_stack(s);
   std::vector<frame_summary_type> vfs_marks = summarize_stack_marks(s);
-  std::vector<frame_summary_type> mark_vfs = summarize_mark_stack(s);
-  if (vfs_marks != mark_vfs) {    
+  bool broke_invar = false;
+  std::vector<frame_summary_type> mark_vfs = summarize_mark_stack(s, broke_invar);
+  if (broke_invar || (vfs_marks != mark_vfs)) {    
     printf("-------------------\n");
     printf("stack (size=%lld)\n", vfs.size());
     print_frame_summaries(vfs);
@@ -406,6 +408,7 @@ void check_stack(stack_type s) {
     printf("\n");
     printf("-------------------\n");
     printf("\n");
+    assert(false);
   }
 }
 
@@ -448,6 +451,9 @@ public:
         return pcfg::is_splittable(_ar);
       });
     }
+#ifdef DEBUG_ENCORE_STACK
+    check_stack(stack);
+#endif
     if (nb_strands() == 0) {
       assert(! is_suspended);
       assert(f != fuel::check_suspend);
@@ -517,6 +523,9 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
   basic_block_label_type succ;
   if (pred == exit_block_label) {
     stack = pop_call<Shared_activation_record>(stack);
+#ifdef DEBUG_ENCORE_STACK
+    check_stack(stack);
+#endif
     return std::make_pair(stack, f);
   }
   auto start_time = cycles::now();
@@ -589,7 +598,13 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
     stack = cactus::update_mark_stack_just_for_loops(stack, [&] (char* _ar) {
               return pcfg::is_splittable(_ar);
             });
+#ifdef DEBUG_ENCORE_STACK
+    check_stack(stack);
+#endif
   }
+#ifdef DEBUG_ENCORE_STACK
+  check_stack(stack);
+#endif
   return std::make_pair(stack, f);
 }
 
@@ -617,6 +632,10 @@ void promote_mark(cfg_type<Shared_activation_record>& cfg, interpreter* interp,
       par->trampoline.pred = pred;
       par->trampoline.succ = spawn_join_block.variant_spawn_join.next;
       branch2->stack = spawn_join_block.variant_spawn_join.code(*sar, *par, cactus::Parent_link_sync, branch2->stack);
+#ifdef DEBUG_ENCORE_STACK
+    check_stack(branch1->stack);
+    check_stack(branch2->stack);
+#endif
       sched::new_edge(branch2, join);
       sched::new_edge(branch1, join);
       release(branch2);
@@ -711,7 +730,7 @@ public:
   }
   
   parallel_loop_id_type get_id_of_current_parallel_loop() {
-    return sar_type::cfg.loop_of[trampoline.pred];
+    return sar_type::cfg.loop_of.at(trampoline.pred);
   }
 
 #ifndef NDEBUG
@@ -851,6 +870,10 @@ public:
     sched::new_edge(interp2, join);
     interp2->make_ready();
     logging::push_promote_loop_split_join_trivial(sar0->get_name());
+#ifdef DEBUG_ENCORE_STACK
+    check_stack(interp1->stack);
+    check_stack(interp2->stack);
+#endif
     return sched::make_vertex_split(interp00, interp1, interp2);
   }
   
@@ -884,6 +907,10 @@ public:
       return pcfg::is_splittable(_ar);
     });
     interp2->make_ready();
+#ifdef DEBUG_ENCORE_STACK
+    check_stack(interp1->stack);
+    check_stack(interp2->stack);
+#endif
     logging::push_promote_loop_split_join_associative_combine(sar0->get_name());
     return sched::make_vertex_split(interp1, interp2);
   }

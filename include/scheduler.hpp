@@ -190,6 +190,17 @@ void worker_loop(vertex* v) {
         delete v;
       }
     }
+#ifdef ENCORE_RANDOMIZE_SCHEDULE
+    auto N = (int)my_ready.size();
+    if (N > 1) {
+      std::uniform_int_distribution<int> distribution(0, 2*N);
+      int i = distribution(rngs[my_id]) % (N - 1);
+      if (i >= 0) {
+        i++;
+      }
+      std::swap(my_ready[0], my_ready[i]);
+    }    
+#endif    
     return f;
   };
   
