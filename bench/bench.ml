@@ -499,20 +499,19 @@ let plot() =
                  ]
                  ))
     in
-    let nb_columns = nb_proc * 2 + 2 in
+    let nb_columns = nb_proc * 4 + 2 in
     Mk_table.build_table tex_file pdf_file (fun add ->
       let hdr =
         let ls = String.concat "|" (XList.init nb_columns (fun _ -> "c")) in
-        Printf.sprintf "p{1cm}l|%s" ls
+        Printf.sprintf "|p{1cm}l|%s" ls
       in
       add (Latex.tabular_begin hdr);
-      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol 2 "l|" "Application/input");
+      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol 2 "|l|" "Application/input");
       ~~ List.iteri arg_proc (fun i proc ->
         let last = i + 1 = nb_proc in
         let label = Printf.sprintf "Nb. Cores %d" proc in
-        let str = if last then "c" else "c|" in
-        let nbcol = if proc = 1 then 4 else 2 in
-        let label = Latex.tabular_multicol nbcol str label in
+        let nbcol = if proc = 1 then 4 else 4 in
+        let label = Latex.tabular_multicol nbcol "c|" label in
         Mk_table.cell ~escape:false ~last:last add label);
       add Latex.tabular_newline;
 
@@ -527,10 +526,11 @@ let plot() =
           Mk_table.cell add (Latex.tabular_multicol 2 "c|" encore_str))
         else (
           Mk_table.cell ~escape:true ~last:false add pbbs_str;
-          Mk_table.cell ~escape:true ~last:last add encore_str)));
+          Mk_table.cell ~escape:true ~last:last add (Latex.tabular_multicol 3 "c|" encore_str)
+         )));
       add Latex.tabular_newline;
 
-      Mk_table.cell add (Latex.tabular_multicol 2 "l|" "");
+      Mk_table.cell add (Latex.tabular_multicol 2 "|l|" "");
       ~~ List.iteri arg_proc (fun i proc ->
         let last = i + 1 = nb_proc in
         if proc = 1 then (
@@ -539,13 +539,15 @@ let plot() =
           Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\PBBS\\end{tabular}";
           Mk_table.cell ~escape:true ~last:last add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\elision\\end{tabular}")
         else (
-          Mk_table.cell ~escape:true ~last:false add "";
-          Mk_table.cell ~escape:true ~last:last add ""));
+          Mk_table.cell ~escape:true ~last:false add "Time (s)";
+          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\PBBS\\end{tabular}";
+          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Nb.\\\\Promotions\\end{tabular}";
+          Mk_table.cell ~escape:true ~last:last add "Utilization"));
       add Latex.tabular_newline;
 
       ~~ List.iteri benchmarks (fun benchmark_i benchmark ->
-        Mk_table.cell add (Latex.tabular_multicol 2 "l|" (sprintf "\\textbf{%s}" (Latex.escape benchmark.bd_name)));
-        for i = 1 to nb_columns - 2 do
+        Mk_table.cell add (Latex.tabular_multicol 2 "|l|" (sprintf "\\textbf{%s}" (Latex.escape benchmark.bd_name)));
+        for i = 1 to nb_columns - 3 do
           let last = i = nb_columns in
           Mk_table.cell ~escape:true ~last:last add "";
         done;
@@ -596,7 +598,7 @@ let plot() =
               Mk_table.cell ~escape:false ~last:false add elision_str)
             else (
               Mk_table.cell ~escape:false ~last:false add pbbs_str)); 
-            let (encore_str, never_promote_str) = 
+            let (encore_str, never_promote_str, utilization_str, nb_promotions_str) = 
               let [col] = ((mk_encore_prog benchmark.bd_name) & mk_procs) env in
               let results = Results.filter col results in
               let v = Results.get_mean_of "exectime" results in
@@ -611,13 +613,19 @@ let plot() =
                 else
                   ""
               in
-              (encore_str, never_promote_str)
+              let utilization = Results.get_mean_of "utilization" results in
+              let utilization_str = Printf.sprintf "%s%s" (string_of_percentage_value utilization) "\\%" in
+              let nb_promotions = Results.get_mean_of "nb_promotions" results in
+              let nb_promotions_str = string_of_millions ~munit:true nb_promotions in
+              (encore_str, never_promote_str, utilization_str, nb_promotions_str)
             in
             if proc = 1 then (
               Mk_table.cell ~escape:false ~last:false add encore_str;
               Mk_table.cell ~escape:false ~last:last add never_promote_str)
-            else
-              Mk_table.cell ~escape:false ~last:last add encore_str);
+            else (
+              Mk_table.cell ~escape:false ~last:false add encore_str;
+              Mk_table.cell ~escape:false ~last:false add nb_promotions_str;
+              Mk_table.cell ~escape:false ~last:last add utilization_str));
           add Latex.tabular_newline);
       );
       add Latex.tabular_end;
