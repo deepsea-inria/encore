@@ -264,6 +264,7 @@ std::pair<stack_type, stack_type> fork_stack(stack_type s) {
 using frame_summary_type = struct {
   cactus_stack::plus::frame_header_type* fp;
   cactus_stack::plus::call_link_type link_type;
+  cactus_stack::plus::loop_link_type loop_link_type;
   std::vector<std::pair<int,int>> loops;
 };
 
@@ -299,6 +300,9 @@ bool operator==(frame_summary_type fs1, frame_summary_type fs2) {
   if (fs1.loops != fs2.loops) {
     return false;
   }
+  if (fs1.loop_link_type != fs2.loop_link_type) {
+    return false;
+  }
   return true;
 }
 
@@ -313,6 +317,11 @@ void print_frame_summary(frame_summary_type fs) {
   } else {
     printf("fs.link_type = sync \t");
   }
+  if (fs.loop_link_type == cactus_stack::plus::Loop_link_child) {
+    printf("fs.loop_link_type = child \t");
+  } else {
+    printf("fs.loop_link_type = none \t");
+  }  
   printf("|fs.loops|=%lld", fs.loops.size());
 }
 
@@ -327,6 +336,7 @@ frame_summary_type summarize_frame(cactus_stack::plus::frame_header_type* fp) {
   frame_summary_type result;
   result.fp = fp;
   result.link_type = fp->ext.clt;
+  result.loop_link_type = fp->ext.llt;
   char* ar = frame_data(fp);
   private_activation_record* par = get_private_frame_pointer<private_activation_record>(ar);
   result.loops = par->loop_activation_records();
@@ -383,6 +393,8 @@ std::vector<frame_summary_type> summarize_mark_stack(stack_type s, bool& broke_i
     if (! is_mark(fs)) {
       if (fh.ext.llt != cactus_stack::plus::Loop_link_child) {
         broke_invar = true;
+      } else {
+        continue;
       }
     }
     result.push_back(fs);
@@ -541,6 +553,7 @@ std::pair<stack_type, fuel::check_type> step(cfg_type<Shared_activation_record>&
     }
     case tag_conditional_jump: {
       succ = block.variant_conditional_jump.code(sar, par);
+      possibly_updated_parallel_loop_range = true;      
       break;
     }
     case tag_spawn_join: {
