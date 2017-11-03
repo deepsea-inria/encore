@@ -116,22 +116,9 @@ void worker_loop(vertex* v) {
     if (j == no_request) {
       return;
     }
-    auto sz = my_ready.size();
-    if (sz > 1) {
-      assert(sz >= 1);
+    if (! my_ready.empty()) {
       vertex* v = my_ready.front();
-      auto n = v->nb_strands();
-      if (n >= 2) {
-        my_ready.pop_front();
-        auto vs = v->split(n / 2);
-        my_ready.push_front(vs.v1);
-        if (vs.v0 != nullptr) {
-          my_ready.push_front(vs.v0);
-        }
-        v = vs.v2;
-      } else {
-        my_ready.pop_front();
-      }
+      my_ready.pop_front();
       transfer[j].store(v);
     } else {
       transfer[j].store(nullptr); // reject query
