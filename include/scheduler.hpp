@@ -40,7 +40,23 @@ fuel::check_type run_vertex(vertex* v) {
   
 bool should_exit = false;
 
-int notify_threshold = 128;
+perworker_array<std::mt19937> schedule_random_number_generators;  // random-number generators
+  
+perworker_array<std::mt19937> random_number_generators;  // random-number generators
+
+int random_other_worker(int my_id) {
+  int nb_workers = data::perworker::get_nb_workers();
+  assert(nb_workers != 1);
+  std::uniform_int_distribution<int> distribution(0, nb_workers - 2);
+  int i = distribution(random_number_generators[my_id]);
+  if (i >= my_id) {
+    i++;
+  }
+  assert(i >= 0);
+  assert(i < nb_workers);
+  assert(i != my_id);
+  return i;  
+}
   
 /*---------------------------------------------------------------------*/
 /* Steal-one, work-stealing scheduler */
@@ -54,8 +70,6 @@ perworker_array<std::atomic<bool>> status;
 static constexpr int no_request = -1;
 
 perworker_array<std::atomic<int>> request;
-
-perworker_array<std::mt19937> rngs;  // random-number generators
 
 perworker_array<std::deque<vertex*>> deques;
   
@@ -80,18 +94,7 @@ void worker_loop(vertex* v) {
   auto is_finished = [&] {
     return should_exit && my_ready.empty();
   };
-  
-  auto random_other_worker = [&] {
-    int P = data::perworker::get_nb_workers();
-    assert(P != 1);
-    std::uniform_int_distribution<int> distribution(0, 2*P);
-    int i = distribution(rngs[my_id]) % (P - 1);
-    if (i >= my_id) {
-      i++;
-    }
-    return i;
-  };
-  
+    
   // update the status flag
   auto update_status = [&] {
     bool b = false;
@@ -145,7 +148,7 @@ void worker_loop(vertex* v) {
     logging::push_event(logging::enter_wait);
     while (! is_finished()) {
       transfer[my_id].store(no_response);
-      int k = random_other_worker();
+      int k = random_other_worker(my_id);
       int orig = no_request;
       if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
@@ -194,7 +197,7 @@ void worker_loop(vertex* v) {
     auto N = (int)my_ready.size();
     if (N > 1) {
       std::uniform_int_distribution<int> distribution(0, 2*N);
-      int i = distribution(rngs[my_id]) % (N - 1);
+      int i = distribution(schedule_random_number_generators[my_id]) % (N - 1);
       if (i >= 0) {
         i++;
       }
@@ -366,8 +369,6 @@ frontier* no_response = tagged::tag_with((frontier*)nullptr, 1);
   
 perworker_array<std::atomic<frontier*>> transfer;
   
-perworker_array<std::mt19937> rngs;  // random-number generators
-  
 perworker_array<frontier> frontiers;
   
 // one instance of this function is to be run by each
@@ -387,18 +388,7 @@ void worker_loop(vertex* v) {
   auto is_finished = [&] {
     return should_exit && my_ready.empty();
   };
-  
-  auto random_other_worker = [&] {
-    int P = data::perworker::get_nb_workers();
-    assert(P != 1);
-    std::uniform_int_distribution<int> distribution(0, 2*P);
-    int i = distribution(rngs[my_id]) % (P - 1);
-    if (i >= my_id) {
-      i++;
-    }
-    return i;
-  };
-  
+    
   // update the status flag
   auto update_status = [&] {
     bool b = (my_ready.nb_strands() >= 2);
@@ -435,7 +425,7 @@ void worker_loop(vertex* v) {
     logging::push_event(logging::enter_wait);
     while (! is_finished()) {
       transfer[my_id].store(no_response);
-      int k = random_other_worker();
+      int k = random_other_worker(my_id);
       int orig = no_request;
       if (status[k].load() && atomic::compare_exchange(request[k], orig, my_id)) {
         while (transfer[my_id].load() == no_response) {
@@ -624,8 +614,6 @@ std::atomic<int> nb_running_workers;
   
 perworker_array<std::atomic<frontier*>> transfers;
   
-perworker_array<std::mt19937> rngs;  // random-number generators
-  
 perworker_array<frontier> frontiers;
   
 // one instance of this function is to be run by each
@@ -655,18 +643,7 @@ void worker_loop(vertex* v) {
   auto is_finished = [&] {
     return should_exit && is_my_ready_empty();
   };
-  
-  auto random_other_worker = [&] {
-    int P = data::perworker::get_nb_workers();
-    assert(P != 1);
-    std::uniform_int_distribution<int> distribution(0, 2*P);
-    int i = distribution(rngs[my_id]) % (P - 1);
-    if (i >= my_id) {
-      i++;
-    }
-    return i;
-  };
-    
+      
   // check for an incoming steal request
   auto communicate = [&] {
     if (data::perworker::get_nb_workers() == 1) {
@@ -705,7 +682,7 @@ void worker_loop(vertex* v) {
     assert(is_my_ready_empty());
     logging::push_event(logging::enter_wait);
     while (! is_finished()) {
-      int k = random_other_worker();
+      int k = random_other_worker(my_id);
       std::atomic<frontier*>& transfer_k = transfers[k];
       frontier* orig = transfer_k.load();
       if (orig == nullptr) {
