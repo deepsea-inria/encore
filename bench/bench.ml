@@ -37,7 +37,7 @@ let arg_proc =
   in
   XCmd.parse_or_default_list_int "proc" default
 let arg_print_err = XCmd.parse_or_default_bool "print_error" false
-let arg_scheduler = XCmd.parse_or_default_string "scheduler" "steal_half_work_stealing"
+let arg_scheduler = XCmd.parse_or_default_string "scheduler" ""
     
 let run_modes =
   Mk_runs.([
@@ -240,10 +240,14 @@ let input_descriptor_hull = List.map (fun (p, t, n) -> (path_to_infile p, t, n))
 let mk_hull_infiles = mk_infiles "type" input_descriptor_hull
                                  
 let mk_encore_prog n =
+  let a =
     (mk string "prog" (encore_prog_of n))
-  & (mk string "algorithm" "encore")
-(*  & (mk string "scheduler" arg_scheduler)        *)
-(*  & (mk int "sharing_threshold" 0)*)
+      & (mk string "algorithm" "encore")
+  in
+  if arg_scheduler = "" then
+    a
+  else
+    a & (mk string "scheduler" arg_scheduler)
 
 let mk_pbbs_lib =
   mk string "algorithm" "pbbs"
