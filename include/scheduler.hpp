@@ -21,7 +21,8 @@ namespace sched {
 using scheduler_tag = enum {
   steal_half_work_stealing_tag,
   encore_work_stealing_tag,
-  steal_one_work_stealing_tag
+  steal_one_work_stealing_tag,
+  work_stealing_tag
 };
   
 scheduler_tag scheduler = steal_half_work_stealing_tag;
@@ -40,9 +41,9 @@ fuel::check_type run_vertex(vertex* v) {
   
 bool should_exit = false;
 
-perworker_array<std::mt19937> schedule_random_number_generators;  // random-number generators
+perworker_array<std::mt19937> schedule_random_number_generators;
   
-perworker_array<std::mt19937> random_number_generators;  // random-number generators
+perworker_array<std::mt19937> random_number_generators;
 
 int random_other_worker(int my_id) {
   int nb_workers = data::perworker::get_nb_workers();
@@ -58,6 +59,149 @@ int random_other_worker(int my_id) {
   return i;  
 }
   
+/*---------------------------------------------------------------------*/
+/* Work-stealing scheduler */
+
+namespace work_stealing {
+
+std::atomic<int> nb_running_workers;
+
+perworker_array<std::deque<vertex*>> deques;
+  
+perworker_array<std::atomic<vertex*>> transfer;
+  
+// one instance of this function is to be run by each
+// participating worker thread
+void worker_loop(vertex* v) {
+  int my_id = data::perworker::get_my_id();
+  std::deque<vertex*>& my_ready = deques[my_id];
+  std::deque<vertex*>& my_suspended = suspended[my_id];
+  std::atomic<vertex*>& my_transfer = transfer[my_id];
+  fuel::initialize_worker();
+  
+  if (v != nullptr) {
+    // this worker is the leader
+    release(v);
+    v = nullptr;
+  }
+  
+  auto is_finished = [&] {
+    return should_exit && my_ready.empty() && (my_transfer.load() == nullptr);
+  };
+      
+  // check for an incoming steal request
+  auto communicate = [&] {
+    logging::push_event(logging::worker_communicate);
+    if ((my_transfer.load() != nullptr) || (my_ready.size() <= 1)) {
+      return;
+    }
+    vertex* v = my_ready.front();
+    my_ready.pop_front();
+    my_transfer.store(v);
+  };
+  
+  // called by workers when running out of work
+  auto acquire = [&] {
+    if (data::perworker::get_nb_workers() == 1) {
+      return;
+    }
+    assert(my_ready.empty() && my_suspended.empty() && (my_transfer.load() == nullptr));
+    logging::push_event(logging::enter_wait);
+    while (! is_finished()) {
+      int k = random_other_worker(my_id);
+      vertex* orig = transfer[k].load();
+      if (orig == nullptr) {
+        continue;
+      }
+      if (atomic::compare_exchange(transfer[k], orig, (vertex*)nullptr)) {
+        assert(orig != nullptr);
+        my_ready.push_back(orig);
+        logging::push_event(logging::exit_wait);
+        logging::push_frontier_acquire(k);
+        stats::on_steal();
+        return;
+      }
+    }
+    logging::push_event(logging::exit_wait);
+  };
+
+  auto unblock = [&] {
+    if (my_suspended.empty()) {
+      return;
+    }
+    vertex* v = my_suspended.front();
+    my_suspended.pop_front();
+    run_vertex(v);
+  };
+  
+  auto run = [&] () {
+    fuel::check_type f = fuel::check_no_promote;
+    while ((f == fuel::check_no_promote) && (! my_ready.empty())) {
+      vertex* v = my_ready.back();
+      my_ready.pop_back();
+      f = run_vertex(v);
+      if (v->nb_strands() == 0) {
+        parallel_notify(v->get_outset());
+        delete v;
+      }
+    }
+#ifdef ENCORE_RANDOMIZE_SCHEDULE
+    auto N = (int)my_ready.size();
+    if (N > 1) {
+      std::uniform_int_distribution<int> distribution(0, 2*N);
+      int i = distribution(schedule_random_number_generators[my_id]) % (N - 1);
+      if (i >= 0) {
+        i++;
+      }
+      std::swap(my_ready[0], my_ready[i]);
+    }    
+#endif    
+    return f;
+  };
+
+  vertex* tmp;
+  while (! is_finished()) {
+    if (! my_ready.empty()) {
+      run();
+    } else if ((tmp = my_transfer.load()) != nullptr) {
+      if (atomic::compare_exchange(my_transfer, tmp, (vertex*)nullptr)) {
+        my_ready.push_back(tmp);
+      }
+    } else if (data::perworker::get_nb_workers() == 1) {
+      break;
+    } else {
+      auto s = stats::on_enter_acquire();
+      acquire();
+      stats::on_exit_acquire(s);
+    }
+    communicate();
+    unblock();
+  }
+  
+  assert(my_ready.empty());
+  assert(my_suspended.empty());
+  nb_running_workers--;
+}
+  
+void launch(int nb_workers, vertex* v) {
+  transfer.for_each([&] (int, std::atomic<vertex*>& t) {
+    t.store(nullptr);
+  });
+  nb_running_workers.store(nb_workers);
+  for (int i = 1; i < nb_workers; i++) {
+    auto t = std::thread([] {
+      worker_loop(nullptr);
+    });
+    t.detach();
+  }
+  logging::push_event(logging::enter_algo);
+  worker_loop(v);
+  while (nb_running_workers.load() > 0);
+  logging::push_event(logging::exit_algo);
+}
+  
+} // end namespace
+ 
 /*---------------------------------------------------------------------*/
 /* Steal-one, work-stealing scheduler */
 
@@ -242,7 +386,7 @@ void launch(int nb_workers, vertex* v) {
 }
   
 } // end namespace
- 
+
 /*---------------------------------------------------------------------*/
 /* Steal-half, work-stealing scheduler */
   
@@ -741,6 +885,8 @@ void launch_scheduler(int nb_workers, vertex* v) {
     encore_work_stealing::launch(nb_workers, v);
   } else if (scheduler == steal_one_work_stealing_tag) {
     steal_one_work_stealing::launch(nb_workers, v);
+  } else if (scheduler == work_stealing_tag) {
+    work_stealing::launch(nb_workers, v);
   }
 }
   
@@ -768,6 +914,8 @@ void schedule(vertex* v) {
     encore_work_stealing::frontiers.mine().push(v);
   } else if (scheduler == steal_one_work_stealing_tag) {
     steal_one_work_stealing::deques.mine().push_back(v);
+  } else if (scheduler == work_stealing_tag) {
+    work_stealing::deques.mine().push_back(v);
   }
 }
 
