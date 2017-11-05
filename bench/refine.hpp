@@ -351,8 +351,8 @@ public:
         s.v = malloc_array<vertex*>(s.extraVertices);
         s.vv = malloc_array<vertex>(s.totalVertices);
         s.Triangs = malloc_array<tri>(s.totalTriangles);
-        new (&s.empty) eType(hashTriangles().empty()); 
-        }),
+        new (&s.empty) eType(hashTriangles().empty());
+      }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return encore_call<topologyFromTriangles>(st, pt, s.Tri, &s.vv, &s.Triangs);
       }),
@@ -388,7 +388,7 @@ public:
         s.workQ = TriangleTable(s.num_triangs, hashTriangles());
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.num_triangs, &s.empty);
+        return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.workQ.m, &s.empty);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.num_triangs;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -455,7 +455,7 @@ public:
           s.workQ = TriangleTable(s.numBad, hashTriangles());
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-          return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.numBad, &s.empty);
+          return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.workQ.m, &s.empty);
         }),
         dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
           return encore_call<addRefiningVertices>(st, pt, s.v + s.num_points - s.n, s.numBad, s.num_points, s.workQ, &s.tmpi);

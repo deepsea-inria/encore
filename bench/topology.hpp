@@ -248,7 +248,7 @@ struct hashEdges {
 };
 
 typedef Table<hashEdges,intT> EdgeTable;
-  //EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
+EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
 
 template <class point>
 using triangles = pasl::pctl::triangles<point>;
@@ -285,7 +285,6 @@ public:
           *s.vr = malloc_array<vertex>(s.n);
         }
         s.v = *s.vr;
-        new (&s.empty) eType(hashEdges().empty());
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -297,13 +296,15 @@ public:
         }
       }),
       dc::stmt([] (sar& s, par& p) {
-        if (*s.tr == NULL) *s.tr = malloc_array<tri>(s.m);
+        if (*s.tr == NULL) {
+          *s.tr = malloc_array<tri>(s.m);
+        }
         s.Triangs = *s.tr;
         s.E = malloc_array<edge>(s.m*3);
         new (&s.ET) EdgeTable(s.m * 6, hashEdges());
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
-        return sequence::fill3(st, pt, s.ET.TA, s.ET.TA + (s.m * 6), &s.empty);
+        return sequence::fill3(st, pt, s.ET.TA, s.ET.TA + s.ET.m, &(s.ET.empty));
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.m;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
