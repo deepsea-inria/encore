@@ -78,6 +78,8 @@ void initialize_runtime(int argc, char** argv) {
     sched::scheduler = sched::steal_one_work_stealing_tag;
   } else if (scheduler == "work_stealing") {
     sched::scheduler = sched::work_stealing_tag;
+  } else if (scheduler == "concurrent_deques_work_stealing") {
+    sched::scheduler = sched::concurrent_deques_work_stealing_tag;
   } else {
     atomic::die("bogus scheduler\n");
   }

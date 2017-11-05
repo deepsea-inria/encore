@@ -8,6 +8,7 @@
 #include "chunkedseq.hpp"
 #include "logging.hpp"
 #include "stats.hpp"
+#include "chaselev.hpp"
 
 #ifndef _ENCORE_SCHEDULER_H_
 #define _ENCORE_SCHEDULER_H_
@@ -22,7 +23,8 @@ using scheduler_tag = enum {
   steal_half_work_stealing_tag,
   encore_work_stealing_tag,
   steal_one_work_stealing_tag,
-  work_stealing_tag
+  work_stealing_tag,
+  concurrent_deques_work_stealing_tag
 };
   
 scheduler_tag scheduler = steal_half_work_stealing_tag;
@@ -59,6 +61,135 @@ int random_other_worker(int my_id) {
   return i;  
 }
   
+/*---------------------------------------------------------------------*/
+/* Concurrent-deques, work-stealing scheduler */
+
+namespace concurrent_deques_work_stealing {
+
+std::atomic<int> nb_running_workers;
+
+perworker_array<chase_lev_deque*> deques;
+  
+// one instance of this function is to be run by each
+// participating worker thread
+void worker_loop(vertex* v) {
+  int my_id = data::perworker::get_my_id();
+  chase_lev_deque& my_ready = *deques[my_id];
+  std::deque<vertex*>& my_suspended = suspended[my_id];
+  fuel::initialize_worker();
+  
+  if (v != nullptr) {
+    // this worker is the leader
+    release(v);
+    v = nullptr;
+  }
+  
+  auto is_finished = [&] {
+    return should_exit && my_ready.empty();
+  };
+        
+  // called by workers when running out of work
+  auto acquire = [&] {
+    if (data::perworker::get_nb_workers() == 1) {
+      return;
+    }
+    assert(my_ready.empty() && my_suspended.empty());
+    logging::push_event(logging::enter_wait);
+    while (! is_finished()) {
+      int k = random_other_worker(my_id);
+      chase_lev_deque& deque_k = *deques[k];
+      vertex* v = deque_k.pop_front();
+      if (v == STEAL_RES_EMPTY) {
+        // later: log
+      } else if (v == STEAL_RES_ABORT) {
+        // later: log
+      } else {
+        assert(v != nullptr);
+        my_ready.push_back(v);
+        logging::push_event(logging::exit_wait);
+        logging::push_frontier_acquire(k);
+        stats::on_steal();
+        return;
+      }
+    }
+    logging::push_event(logging::exit_wait);
+  };
+
+  auto unblock = [&] {
+    if (my_suspended.empty()) {
+      return;
+    }
+    vertex* v = my_suspended.front();
+    my_suspended.pop_front();
+    run_vertex(v);
+  };
+  
+  auto run = [&] () {
+    fuel::check_type f = fuel::check_no_promote;
+    while ((f == fuel::check_no_promote) && (! my_ready.empty())) {
+      vertex* v = my_ready.pop_back();
+      if (v == nullptr) {
+        break;
+      }
+      f = run_vertex(v);
+      if (v->nb_strands() == 0) {
+        parallel_notify(v->get_outset());
+        delete v;
+      }
+    }
+    return f;
+  };
+
+  while (! is_finished()) {
+    if (! my_ready.empty()) {
+      run();
+    } else if (data::perworker::get_nb_workers() == 1) {
+      break;
+    } else {
+      auto s = stats::on_enter_acquire();
+      acquire();
+      stats::on_exit_acquire(s);
+    }
+    unblock();
+  }
+  
+  assert(my_ready.empty());
+  assert(my_suspended.empty());
+  nb_running_workers--;
+}
+  
+void launch(int nb_workers, vertex* v) {
+  static constexpr
+  int chase_lev_capacity = 1024;
+  chase_lev_deque cls[nb_workers];
+  for (auto i = 0; i < nb_workers; i++) {
+    cls[i].init(chase_lev_capacity);
+  }
+  deques.for_each([&] (int i, chase_lev_deque*& d) {
+    if (i < nb_workers) {
+      d = &cls[i];
+    } else {
+      d = nullptr;
+    }
+  });
+  nb_running_workers.store(nb_workers);
+  for (int i = 1; i < nb_workers; i++) {
+    auto t = std::thread([] {
+      worker_loop(nullptr);
+    });
+    t.detach();
+  }
+  logging::push_event(logging::enter_algo);
+  worker_loop(v);
+  while (nb_running_workers.load() > 0);
+  logging::push_event(logging::exit_algo);
+  for (auto i = 0; i < nb_workers; i++) {
+    cls[i].destroy();
+  }
+}
+  
+} // end namespace
+
 /*---------------------------------------------------------------------*/
 /* Work-stealing scheduler */
 
@@ -887,6 +1018,8 @@ void launch_scheduler(int nb_workers, vertex* v) {
     steal_one_work_stealing::launch(nb_workers, v);
   } else if (scheduler == work_stealing_tag) {
     work_stealing::launch(nb_workers, v);
+  } else if (scheduler == concurrent_deques_work_stealing_tag) {
+    concurrent_deques_work_stealing::launch(nb_workers, v);
   }
 }
   
@@ -916,6 +1049,8 @@ void schedule(vertex* v) {
     steal_one_work_stealing::deques.mine().push_back(v);
   } else if (scheduler == work_stealing_tag) {
     work_stealing::deques.mine().push_back(v);
+  } else if (scheduler == concurrent_deques_work_stealing_tag) {
+    concurrent_deques_work_stealing::deques.mine()->push_back(v);
   }
 }
 
