@@ -69,7 +69,7 @@ void initialize_runtime(int argc, char** argv) {
   atomic::init_print_lock();
   machine::initialize_hwloc();
   machine::initialize_cpuinfo();
-  auto scheduler = cmdline::parse_or_default_string("scheduler", "steal_half_work_stealing");
+  auto scheduler = cmdline::parse_or_default_string("scheduler", "work_stealing");
   if (scheduler == "steal_half_work_stealing") {
     sched::scheduler = sched::steal_half_work_stealing_tag;
   } else if (scheduler == "encore_work_stealing") {
