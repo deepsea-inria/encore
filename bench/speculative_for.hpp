@@ -78,7 +78,7 @@ public:
       dc::mk_if([] (sar& s, par&) { return s.hasState; },
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           s.state = malloc_array<S>(s.maxRoundSize);
-          return encore_call<sequence::fill<S*, S>>(st, pt, s.state, s.state + s.maxRoundSize, &(s.step));
+          return sequence::fill3(st, pt, s.state, s.state + s.maxRoundSize, &(s.step));
       })),
       dc::stmt([] (sar& s, par& p) {
         s.round = 0;
@@ -118,7 +118,7 @@ public:
             auto I = s.I;
             auto numberDone = s.numberDone;
             auto keep = s.keep;
-            S& step = s.step;
+            S step = s.step;
             for (auto i = lo; i != hi; i++) {
               if (i >= numberKeep) {
                 I[i] = numberDone + i;
@@ -144,7 +144,7 @@ public:
                                 [] (sar& s, par& p, int lo, int hi) {
             auto I = s.I;
             auto keep = s.keep;
-            S& step = s.step;
+            S step = s.step;
             for (auto i = lo; i != hi; i++) {
               if (keep[i]) {
                 keep[i] = !step.commit(I[i]);

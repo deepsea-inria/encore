@@ -70,6 +70,7 @@ struct matchStep {
 
 intT imax = (intT) INT_T_MAX;
 intT zero = 0;
+int granularity = 150;
 
 struct notMax { bool operator() (intT i) {return i < INT_T_MAX;}};
     
@@ -104,7 +105,7 @@ public:
         new (&s.mStep) matchStep(s.G.E, s.R, s.matched);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return speculative_for5(st, pt, s.mStep, 0, s.m, 150, 0, -1, &s.foo);
+        return speculative_for5(st, pt, s.mStep, 0, s.m, granularity, 0, -1, &s.foo);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return sequence::filter4(st, pt, s.R, s.n, notMax(), &s.matchingIdx);
@@ -142,6 +143,7 @@ pbbs::graph::edgeArray<int> to_pbbs(pasl::pctl::graph::edgeArray<int>& g) {
 }
   
 void benchmark(std::string infile) {
+  encorebench::granularity = deepsea::cmdline::parse_or_default_bool("speculative_for_grain", encorebench::granularity);
   pasl::pctl::graph::graph<int> x = pasl::pctl::io::load<pasl::pctl::graph::graph<int>>(infile);
   pasl::pctl::graph::edgeArray<int> edges = pasl::pctl::graph::to_edge_array(x);
   auto edges2 = to_pbbs(edges);

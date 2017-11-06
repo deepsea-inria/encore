@@ -112,16 +112,19 @@ encore_pcfg_allocate(maximalIndependentSet, get_cfg)
 
 namespace pbbs {
 
+int granularity = 20;
+
 char* maximalIndependentSet(pbbs::graph::graph<intT> GS) {
   intT n = GS.n;
   graph::vertex<intT>* G = GS.V;
   char* Flags = newArray(n, (char) 0);
   encorebench::MISstep mis(Flags, G);
-  speculative_for(mis,0,n,20);
+  speculative_for(mis,0,n,granularity);
   return Flags;
 }
   
 void benchmark(std::string infile) {
+  granularity = deepsea::cmdline::parse_or_default_bool("speculative_for_grain", granularity);
   graph::graph<int> g = read_from_file<graph::graph<int>>(infile);
   char* flags = nullptr;
   deepsea::cmdline::dispatcher d;
