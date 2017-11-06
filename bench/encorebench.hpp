@@ -15,6 +15,10 @@ void cilk_set_nb_cores(int proc) {
 }
 
 void cilk_report_stats() {
+  /* recall: if using the custom cilk runtime, need to set the
+   * environment variable as such:
+   *   export LD_LIBRARY_PATH=/home/rainey/cilk-plus-rts/lib:$LD_LIBRARY_PATH
+   */
 #ifdef CUSTOM_CILK_PLUS_RUNTIME
   __cilkrts_report_encorebench_stats();
 #endif
