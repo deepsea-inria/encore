@@ -69,31 +69,41 @@ namespace concurrent_deques_work_stealing {
 std::atomic<int> nb_running_workers;
 
 perworker_array<chase_lev_deque*> deques;
+
+perworker_array<std::deque<vertex*>> buffer;
   
 // one instance of this function is to be run by each
 // participating worker thread
 void worker_loop(vertex* v) {
   int my_id = data::perworker::get_my_id();
   chase_lev_deque& my_ready = *deques[my_id];
+  std::deque<vertex*>& my_buffer = buffer[my_id];
   std::deque<vertex*>& my_suspended = suspended[my_id];
   fuel::initialize_worker();
   
   if (v != nullptr) {
     // this worker is the leader
     release(v);
+    assert(! my_buffer.empty());
     v = nullptr;
   }
   
   auto is_finished = [&] {
-    return should_exit && my_ready.empty();
+    return should_exit && my_ready.empty() && my_buffer.empty();
+  };
+
+  auto flush = [&] {
+    while (! my_buffer.empty()) {
+      vertex* v = my_buffer.front();
+      my_buffer.pop_front();
+      my_ready.push_back(v);
+    }
   };
         
   // called by workers when running out of work
   auto acquire = [&] {
-    if (data::perworker::get_nb_workers() == 1) {
-      return;
-    }
-    assert(my_ready.empty() && my_suspended.empty());
+    assert(my_ready.empty() && my_suspended.empty() && my_buffer.empty());
+    assert(data::perworker::get_nb_workers() >= 2);
     logging::push_event(logging::enter_wait);
     while (! is_finished()) {
       int k = random_other_worker(my_id);
@@ -124,7 +134,7 @@ void worker_loop(vertex* v) {
     run_vertex(v);
   };
   
-  auto run = [&] () {
+  auto run = [&] {
     fuel::check_type f = fuel::check_no_promote;
     while ((f == fuel::check_no_promote) && (! my_ready.empty())) {
       vertex* v = my_ready.pop_back();
@@ -140,6 +150,8 @@ void worker_loop(vertex* v) {
     return f;
   };
 
+  flush();
+
   while (! is_finished()) {
     if (! my_ready.empty()) {
       run();
@@ -150,11 +162,11 @@ void worker_loop(vertex* v) {
       acquire();
       stats::on_exit_acquire(s);
     }
+    flush();
     unblock();
   }
   
-  assert(my_ready.empty());
-  assert(my_suspended.empty());
+  assert(my_ready.empty() && my_buffer.empty() && my_suspended.empty());
   nb_running_workers--;
 }
   
@@ -265,7 +277,7 @@ void worker_loop(vertex* v) {
     run_vertex(v);
   };
   
-  auto run = [&] () {
+  auto run = [&] {
     fuel::check_type f = fuel::check_no_promote;
     while ((f == fuel::check_no_promote) && (! my_ready.empty())) {
       vertex* v = my_ready.back();
@@ -444,7 +456,7 @@ void worker_loop(vertex* v) {
     run_vertex(v);
   };
   
-  auto run = [&] () {
+  auto run = [&] {
     fuel::check_type f = fuel::check_no_promote;
     while ((f == fuel::check_no_promote) && (! my_ready.empty())) {
       vertex* v = my_ready.back();
@@ -1050,7 +1062,7 @@ void schedule(vertex* v) {
   } else if (scheduler == work_stealing_tag) {
     work_stealing::deques.mine().push_back(v);
   } else if (scheduler == concurrent_deques_work_stealing_tag) {
-    concurrent_deques_work_stealing::deques.mine()->push_back(v);
+    concurrent_deques_work_stealing::buffer.mine().push_back(v);
   }
 }
 
