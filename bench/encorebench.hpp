@@ -12,7 +12,13 @@ void cilk_set_nb_cores(int proc) {
 #ifdef USE_CILK_PLUS
   __cilkrts_set_param("nworkers", std::to_string(proc).c_str());
 #endif
-} 
+}
+
+void cilk_report_stats() {
+#ifdef CUSTOM_CILK_PLUS_RUNTIME
+  __cilkrts_report_encorebench_stats();
+#endif
+}
 
 namespace encorebench {
 
@@ -30,6 +36,7 @@ void run_and_report_elapsed_time(const Function& f) {
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<float> diff = end - start;
   printf ("exectime %.3lf\n", diff.count());
+  cilk_report_stats();
 }
 
 } // end namespace
