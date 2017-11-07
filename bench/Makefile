@@ -48,8 +48,11 @@ DEBUG_PREFIX= -fpermissive -pthread -O0 -std=gnu++11 -g $(LOGGING_PREFIX) -DTARG
 %.cilk: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_HOME)
 	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $<
 
+%.cilk_debug: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_HOME)
+	g++ $(CILK_PLUS) $(DEBUG_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $<
+
 %.cilk_elision: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_HOME)
 	g++ $(COMMON_PREFIX) $(TCMALLOC) $(INCLUDE_DIRECTIVES) -o $@ $<
 
 clean: pbench_clean
-	rm -f *.encore *.cilk *.dbg *.log *.cilk_elision
+	rm -f *.encore *.cilk *.dbg *.log *.cilk_elision *.cilk_debug

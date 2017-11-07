@@ -14,16 +14,6 @@ void cilk_set_nb_cores(int proc) {
 #endif
 }
 
-void cilk_report_stats() {
-  /* recall: if using the custom cilk runtime, need to set the
-   * environment variable as such:
-   *   export LD_LIBRARY_PATH=/home/rainey/cilk-plus-rts/lib:$LD_LIBRARY_PATH
-   */
-#ifdef CUSTOM_CILK_PLUS_RUNTIME
-  __cilkrts_report_encorebench_stats();
-#endif
-}
-
 namespace encorebench {
 
 namespace cmdline = deepsea::cmdline;
@@ -32,15 +22,30 @@ void initialize(int argc, char** argv) {
   encore::initialize_runtime(argc, argv);
   cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
 }
-  
+
+void foo() {
+  printf("");
+}
+
 template <class Function>
 void run_and_report_elapsed_time(const Function& f) {
+#ifdef CUSTOM_CILK_PLUS_RUNTIME
+  cilk_spawn foo();
+  cilk_sync;
+  __cilkg_take_snapshot_for_stats();
+#endif
   auto start = std::chrono::system_clock::now();
   f();
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<float> diff = end - start;
   printf ("exectime %.3lf\n", diff.count());
-  cilk_report_stats();
+  /* recall: if using the custom cilk runtime, need to set the
+   * environment variable as such:
+   *   export LD_LIBRARY_PATH=/home/rainey/cilk-plus-rts/lib:$LD_LIBRARY_PATH
+   */
+#ifdef CUSTOM_CILK_PLUS_RUNTIME
+  __cilkg_dump_encore_stats_to_stderr();
+#endif
 }
 
 } // end namespace
