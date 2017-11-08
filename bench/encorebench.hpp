@@ -23,14 +23,14 @@ void initialize(int argc, char** argv) {
   cilk_set_nb_cores(cmdline::parse_or_default("proc", 1));
 }
 
-void foo() {
+void trigger_cilk() {
   printf("");
 }
 
 template <class Function>
 void run_and_report_elapsed_time(const Function& f) {
 #ifdef CUSTOM_CILK_PLUS_RUNTIME
-  cilk_spawn foo();
+  cilk_spawn trigger_cilk();
   cilk_sync;
   __cilkg_take_snapshot_for_stats();
 #endif
