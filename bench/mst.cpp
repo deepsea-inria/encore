@@ -16,39 +16,9 @@
 #include "speculative_for.hpp"
 #include "graph.h"
 #include "samplesort.hpp"
+#include "unionfind.hpp"
 
 namespace encorebench {
-
-struct unionFind {
-  int* parents;
-
-  unionFind() { }
-  // initialize with all roots marked with -1
-  unionFind(int n) {
-    parents = (int*) malloc(sizeof(int) * n);
-    //    cilk_for(int i = 0; i < n; i++) parents[i] = -1;
-  }
-
-  void del() {free(parents);}
-
-  intT find(intT i) {
-    if (parents[i] < 0) return i;
-    intT j = parents[i];     
-    if (parents[j] < 0) return j;
-    do j = parents[j]; 
-    while (parents[j] >= 0);
-    intT tmp;
-    while ((tmp = parents[i]) != j) { 
-      parents[i] = j;
-      i = tmp;
-    }
-    return j;
-  }
-
-  void link(intT u, intT v) { 
-    parents[u] = v;
-  }
-};
 
 struct indexedEdge {
   intT u;
@@ -118,10 +88,7 @@ public:
           T[i] = A[i*stride];
         }
         std::sort(T,T+ssize,s.f);
-      }), /*
-      dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return sampleSort3(st, pt, s.T, s.n, s.f);
-        }), */
+      }),
       dc::stmt([] (sar& s, par& p) {
         s.p = s.T[s.km];
         s.flags = malloc_array<bool>(s.n);

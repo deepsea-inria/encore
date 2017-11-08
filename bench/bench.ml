@@ -201,7 +201,7 @@ let all_benchmarks =
   match arg_benchmarks with
   | ["all"] -> [
     "convexhull"; "samplesort"; "radixsort"; "nearestneighbors";
-    "suffixarray"; "removeduplicates"; "mis"; "mst"; "matching";
+    "suffixarray"; "removeduplicates"; "mis"; "mst"; "matching"; "spanning";
     "delaunay"; "bfs"; "refine"; (*"pbfs";*)
     ]
   | _ -> arg_benchmarks
@@ -340,6 +340,13 @@ let input_descriptor_matching = input_descriptor_mis
 let mk_matching_infiles = mk_infiles "source" input_descriptor_matching
 
 (*****************)
+(* Spanning *)
+
+let input_descriptor_spanning = input_descriptor_mis
+
+let mk_spanning_infiles = mk_infiles "source" input_descriptor_spanning
+
+(*****************)
 (* Suffix array *)
 
 let input_descriptor_suffixarray = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
@@ -430,6 +437,10 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "matching";
     bd_infiles = mk_matching_infiles;
     bd_input_descr = input_descriptor_matching;
+  }; 
+  { bd_name = "spanning";
+    bd_infiles = mk_spanning_infiles;
+    bd_input_descr = input_descriptor_spanning;
   }; 
   { bd_name = "suffixarray";
     bd_infiles = mk_suffixarray_infiles;
