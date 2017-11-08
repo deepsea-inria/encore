@@ -2,6 +2,7 @@
 #include <float.h>
 #include "samplesort.hpp"
 #include "rayTriangleIntersect.h"
+#include "topology.h"
 
 namespace encorebench {
 // This code is part of the Problem Based Benchmark Suite (PBBS)
@@ -26,6 +27,8 @@ namespace encorebench {
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+using namespace std;
+  
 // Stores coordinate of event along with index to its triangle and type
 // Stores type of event (START or END) in lowest bit of index
 struct event {
@@ -50,9 +53,14 @@ struct range {
   range() {}
 };
 
+  /*
 typedef range* Boxes[3];
 typedef event* Events[3];
 typedef range BoundingBox[3];
+  */
+using Boxes = range**;
+using Events = event**;
+using BoundingBox = range*;
 
 static std::ostream& operator<<(std::ostream& os, const BoundingBox B) {
  return os << B[0].min << ":" << B[0].max << " + " 
@@ -129,9 +137,9 @@ public:
       dc::mk_if([] (sar& s, par&) { return s.T->isLeaf(); },
         dc::stmt([] (sar& s, par&) { free(s.T->triangleIndices); }),
         dc::spawn2_join(
-            [] (sar& s, par&, plt p, stt st) {
+            [] (sar& s, par&, plt pt, stt st) {
               return encore_call<treeNode_del>(st, pt, s.T->left); },
-            [] (sar& s, par&, plt p, stt st) {
+            [] (sar& s, par&, plt pt, stt st) {
               return encore_call<treeNode_del>(st, pt, s.T->right);
         })),
       dc::stmt([] (sar& s, par&) { free(s.T); })
@@ -141,8 +149,6 @@ public:
 };
 
 encore_pcfg_allocate(treeNode_del, get_cfg)
-
-using namespace std;
 
 int CHECK = 0;  // if set checks 10 rays against brute force method
 int STATS = 0;  // if set prints out some tree statistics
@@ -157,10 +163,10 @@ int maxRecursionDepth = 25;
 int minParallelSize = 500000;
 
 typedef double floatT;
-typedef _point3d<floatT> pointT;
-typedef _vect3d<floatT> vectT;
-typedef triangles<pointT> trianglesT;
-typedef ray<pointT> rayT;
+typedef pbbs::_point3d<floatT> pointT;
+typedef pbbs::_vect3d<floatT> vectT;
+typedef pbbs::triangles<pointT> trianglesT;
+typedef pbbs::ray<pointT> rayT;
 
 float boxSurfaceArea(BoundingBox B) {
   float r0 = B[0].max-B[0].min;
@@ -181,7 +187,7 @@ inline float inBox(pointT p, BoundingBox B) {
 	  p.z >= (B[2].min - epsilon) && p.z <= (B[2].max + epsilon));
 }
 
-timer cutTimer;
+  //timer cutTimer;
 // sequential version of best cut
 cutInfo bestCutSerial(event* E, range r, range r1, range r2, intT n) {
   if (r.max - r.min == 0.0) return cutInfo(FLT_MAX, r.min, n, n);
@@ -238,10 +244,10 @@ public:
   dc get_dc() {
     return dc::stmts({
       dc::mk_if([] (sar& s, par& p) { return s.n < minParallelSize; }, dc::stmts({
-          dc::stmt([] (sar& s, par& p) {
-            *s.dest = bestCutSerial(s.E, s.r, s.r1, s.r2, s.n)
-          }),
-          dc::exit_function();
+        dc::stmt([] (sar& s, par& p) {
+          *s.dest = bestCutSerial(s.E, s.r, s.r1, s.r2, s.n);
+        }),
+        dc::exit_function()
       })),
       dc::mk_if([] (sar& s, par& p) {
         return s.r.max - s.r.min == 0.0;
@@ -249,7 +255,7 @@ public:
           dc::stmt([] (sar& s, par& p) {
             *s.dest = cutInfo(FLT_MAX, s.r.min, s.n, s.n);
           }),
-          dc::exit_function();
+          dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         // area of two orthogonal faces
@@ -339,7 +345,6 @@ public:
 
   range* boxes; event* events; float cutOff; intT n; eventsPair* dest;
   bool* lower; bool* upper; _seq<event> L; _seq<event> R;
-
     
   splitEvents(range* boxes, event* events, float cutOff, intT n, eventsPair* dest)
     : boxes(boxes), events(events), cutOff(cutOff), n(n), dest(dest) { }
@@ -355,7 +360,7 @@ public:
         dc::stmt([] (sar& s, par& p) {
           *s.dest = splitEventsSerial(s.boxes, s.events, s.cutOff, s.n);
         }),
-        dc::exit_function();
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         s.lower = malloc_array<bool>(s.n);
@@ -365,7 +370,7 @@ public:
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto events = s.events;
-        auto boxes = s.events;
+        auto boxes = s.boxes;
         auto lower = s.lower;
         auto upper = s.upper;
         auto cutOff = s.cutOff;
@@ -404,9 +409,9 @@ public:
   event* rightEvents[3]; intT nr; event* leftEvents[3]; intT nl; eventsPair X[3];
   treeNode *L; treeNode *R;
   
-  treeNode* generateNode(Boxes boxes, Events events, BoundingBox B, 
-                         intT n, intT maxDepth, treeNode** dest)
-    : boxes(boxes), events(events), B(B), n(n), maxDepth(maxDepth), dest(dest) { }
+  generateNode(Boxes boxes, Events events, BoundingBox B, 
+               intT n, intT maxDepth, treeNode** dest)
+    : boxes(boxes), /*events(events), B(B),*/ n(n), maxDepth(maxDepth), dest(dest) { }
     
   encore_private_activation_record_begin(encore::edsl, generateNode, 2)
     int lo; int hi;
@@ -419,7 +424,7 @@ public:
         dc::stmt([] (sar& s, par& p) {
           *s.dest = new treeNode(s.events, s.n, s.B);
         }),
-        dc::exit_function();
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         p.lo = 0;
@@ -427,13 +432,13 @@ public:
       }),
       dc::parallel_for_loop([] (par& p) { return std::make_pair(&p.lo, &p.hi); }, dc::stmts({
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-          auto d = s.lo;
+          auto d = p.lo;
           return encore_call<bestCut>(st, pt, s.events[d], s.B[d], s.B[(d+1)%3], s.B[(d+2)%3], s.n, &s.cuts[d]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.lo++;
         })
-      }),
+      })),
       dc::stmt([] (sar& s, par& p) {
         s.cutDim = 0;
         for (int d = 1; d < 3; d++) 
@@ -441,15 +446,15 @@ public:
         s.cutDimRanges = s.boxes[s.cutDim];
         s.cutOff = s.cuts[s.cutDim].cutOff;
         s.area = boxSurfaceArea(s.B);
-        s.bestCost = s.CT + s.CL * s.cuts[s.cutDim].cost/s.area;
+        s.bestCost = CT + CL * s.cuts[s.cutDim].cost/s.area;
         s.origCost = (float) (s.n/2);
       }),
       dc::mk_if([] (sar& s, par&) { return s.bestCost >= s.origCost || 
-            s.cuts[s.cutDim].numLeft + s.cuts[s.cutDim].numRight > s.maxExpand * s.n/2; }, dc::stmts({
+            s.cuts[s.cutDim].numLeft + s.cuts[s.cutDim].numRight > maxExpand * s.n/2; }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
           *s.dest = new treeNode(s.events, s.n, s.B);
         }),
-        dc::exit_function();
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         // declare structures for recursive calls
@@ -459,10 +464,10 @@ public:
         for (int i=0; i < 3; i++) s.BBR[i] = s.B[i];
         s.BBR[s.cutDim] = range(s.cutOff, s.BBR[s.cutDim].max);
       }),
-      dc::parallel_for_loop([] (par& p) { return std::make_pair(&p.s3, &p.e3); }, dc::stmts({
+      dc::parallel_for_loop([] (par& p) { return std::make_pair(&p.lo, &p.hi); }, dc::stmts({
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
           auto d = p.lo;
-          return splitEvents(st, pt, s.cutDimRanges, s.events[d], s.cutOff, s.n, &s.X[d]);
+          return encore_call<splitEvents>(st, pt, s.cutDimRanges, s.events[d], s.cutOff, s.n, &s.X[d]);
         }),
         dc::stmt([] (sar& s, par& p) {
           p.lo++;
@@ -484,11 +489,11 @@ public:
         for (int i=0; i < 3; i++) free(s.events[i]);
       }),
       dc::spawn2_join(
-          [] (sar& s, par&, plt p, stt st) {
+          [] (sar& s, par&, plt pt, stt st) {
             return encore_call<generateNode>(st, pt, s.boxes, s.leftEvents, s.BBL, s.nl, s.maxDepth-1, &s.L); },
-          [] (sar& s, par&, plt p, stt st) {
+          [] (sar& s, par&, plt pt, stt st) {
             return encore_call<generateNode>(st, pt, s.boxes, s.rightEvents, s.BBR, s.nr, s.maxDepth-1, &s.R);
-      })),
+      }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = new treeNode(s.L, s.R, s.cutDim, s.cutOff, s.B);
       })
@@ -506,14 +511,14 @@ intT ccount = 0;
 // index of the first triangle the ray intersects inside the box.
 // The triangles are given by n indices I into the triangle array Tri.
 // -1 is returned if there is no intersection
-intT findRay(rayT r, intT* I, intT n, triangles<pointT> Tri, BoundingBox B) {
+intT findRay(rayT r, intT* I, intT n, pbbs::triangles<pointT> Tri, BoundingBox B) {
   if (STATS) { tcount += n; ccount += 1;}
   pointT* P = Tri.P;
   floatT tMin = FLT_MAX;
   intT k = -1;
   for (intT i = 0; i < n; i++) {
     intT j = I[i];
-    triangle* tr = Tri.T + j;
+    pbbs::triangle* tr = Tri.T + j;
     pointT m[3] = {P[tr->C[0]],  P[tr->C[1]],  P[tr->C[2]]};
     floatT t = rayTriangleIntersect(r, m);
     if (t > 0.0 && t < tMin && inBox(r.o + r.d*t, B)) {
@@ -523,6 +528,9 @@ intT findRay(rayT r, intT* I, intT n, triangles<pointT> Tri, BoundingBox B) {
   }
   return k;
 }
+
+using vect2d = pbbs::vect2d;
+using point2d = pbbs::point2d;
 
 // Given a ray and a tree node find the index of the first triangle the 
 // ray intersects inside the box represented by that node.
@@ -573,12 +581,18 @@ intT findRay(rayT r, treeNode* TN, trianglesT Tri) {
   }
 }
 
+template <class T>
+using triangles = pbbs::triangles<T>;
+
+template <class T>
+using ray = pbbs::ray<T>;
+
 class rayCast : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   triangles<pointT> Tri; ray<pointT>* rays; intT numRays; intT** dest;
   Boxes boxes; intT n; Events events; BoundingBox boundingBox;
-  pointT* P; intT recursionDepth; treeNode* R; intT* results; int d; treeNode* R;
+  pointT* P; intT recursionDepth; treeNode* R; intT* results; int d; 
   
   rayCast(triangles<pointT> Tri, ray<pointT>* rays, intT numRays, intT** dest)
     : Tri(Tri), rays(rays), numRays(numRays), dest(dest) { }
@@ -638,7 +652,7 @@ public:
         })
       })),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        intT recursionDepth = std::min(maxRecursionDepth, utils::log2Up(s.n)-1);
+        intT recursionDepth = std::min(maxRecursionDepth, pbbs::utils::log2Up(s.n)-1);
         return encore_call<generateNode>(st, pt, s.boxes, s.events, s.boundingBox, s.n*2,
                                          recursionDepth, &s.R);
       }),
