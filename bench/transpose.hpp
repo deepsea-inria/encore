@@ -20,6 +20,8 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include "sequence.hpp"
+
 #ifndef _ENCORE_A_TRANSPOSE_INCLUDED
 #define _ENCORE_A_TRANSPOSE_INCLUDED
 
@@ -120,6 +122,8 @@ public:
 template <class E, class intT>
 typename transpose<E,intT>::cfg_type transpose<E,intT>::cfg = transpose<E,intT>::get_cfg();
 
+using plt_type = encore::edsl::pcfg::cactus::parent_link_type;
+  
 using stack_type = encore::edsl::pcfg::stack_type;
 
 template <class E, class intT>
