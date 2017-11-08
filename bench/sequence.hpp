@@ -514,7 +514,7 @@ typename maxIndex<ET,intT,F,G>::cfg_type maxIndex<ET,intT,F,G>::cfg = maxIndex<E
 template <class ET, class intT, class F>
 stack_type maxIndex4(stack_type st, plt_type pt, ET* A, intT n, F f, intT* dest) {
   auto g = getA<ET,intT>(A);
-  return encore_call<maxIndex<ET,intT,F,typeof(g)>>(st, pt, (intT)0, n, f, g);
+  return encore_call<maxIndex<ET,intT,F,typeof(g)>>(st, pt, (intT)0, n, f, g, dest);
 }
   
 template <class ET, class intT, class F, class G>
