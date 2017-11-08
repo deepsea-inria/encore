@@ -37,26 +37,26 @@
 namespace encorebench {
 
 struct matchStep {
-  pbbs::graph::edge<int>* E;  
-  int* R;  
+  pbbs::graph::edge<intT>* E;  
+  intT* R;  
   bool* matched;
 
   matchStep() : E(NULL), R(NULL), matched(NULL) {}
 
-  matchStep(pbbs::graph::edge<int>* _E, int* _R, bool* m) : E(_E), R(_R), matched(m) {}
+  matchStep(pbbs::graph::edge<intT>* _E, intT* _R, bool* m) : E(_E), R(_R), matched(m) {}
 
-  bool reserve(int i) {
-    int u = E[i].u;
-    int v = E[i].v;
+  bool reserve(intT i) {
+    intT u = E[i].u;
+    intT v = E[i].v;
     if (matched[u] || matched[v] || (u == v)) return 0;
     reserveLoc(R[u], i);
     reserveLoc(R[v], i);
     return 1;
   }
 
-  bool commit(int i) {
-    int u = E[i].u;
-    int v = E[i].v;
+  bool commit(intT i) {
+    intT u = E[i].u;
+    intT v = E[i].v;
     if (R[v] == i) {
       R[v] = INT_T_MAX;
       if (R[u] == i) {
@@ -70,7 +70,6 @@ struct matchStep {
 
 intT imax = (intT) INT_T_MAX;
 intT zero = 0;
-int granularity = 150;
 
 struct notMax { bool operator() (intT i) {return i < INT_T_MAX;}};
     
@@ -79,10 +78,10 @@ public:
 
   pbbs::graph::edgeArray<int> G; std::pair<intT*,intT>* dest;
   intT n; intT m; intT *R; bool *matched;
-  matchStep mStep; _seq<intT> matchingIdx; intT foo;
+  matchStep mStep; _seq<intT> matchingIdx; intT foo; int grain;
 
-  maximalMatching(pbbs::graph::edgeArray<int> G, std::pair<intT*,intT>* dest)
-    : G(G), dest(dest) { }
+  maximalMatching(pbbs::graph::edgeArray<int> G, int grain, std::pair<intT*,intT>* dest)
+    : G(G), grain(grain), dest(dest) { }
   
   encore_dc_declare(encore::edsl, maximalMatching, sar, par, dc, get_dc)
   
@@ -93,10 +92,12 @@ public:
         s.n = std::max(s.G.numCols, s.G.numRows);
         s.m = s.G.nonZeros;
         s.R = malloc_array<intT>(s.n);
-        s.matched = malloc_array<bool>(s.n);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return sequence::fill3(st, pt, s.R, s.R + s.n, &imax);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        s.matched = malloc_array<bool>(s.n);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return sequence::fill3(st, pt, s.matched, s.matched + s.n, &zero);
@@ -105,7 +106,7 @@ public:
         new (&s.mStep) matchStep(s.G.E, s.R, s.matched);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
-        return speculative_for5(st, pt, s.mStep, 0, s.m, granularity, 0, -1, &s.foo);
+        return speculative_for5(st, pt, s.mStep, 0, s.m, s.grain, 0, -1, &s.foo);
       }),
       dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
         return sequence::filter4(st, pt, s.R, s.n, notMax(), &s.matchingIdx);
@@ -143,14 +144,14 @@ pbbs::graph::edgeArray<int> to_pbbs(pasl::pctl::graph::edgeArray<int>& g) {
 }
   
 void benchmark(std::string infile) {
-  encorebench::granularity = deepsea::cmdline::parse_or_default_bool("speculative_for_grain", encorebench::granularity);
+  int grain = deepsea::cmdline::parse_or_default_int("speculative_for_grain", 150);
   pasl::pctl::graph::graph<int> x = pasl::pctl::io::load<pasl::pctl::graph::graph<int>>(infile);
   pasl::pctl::graph::edgeArray<int> edges = pasl::pctl::graph::to_edge_array(x);
   auto edges2 = to_pbbs(edges);
   std::pair<intT*, intT> result;
   deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
-    encore::launch_interpreter<encorebench::maximalMatching>(edges2, &result);
+    encore::launch_interpreter<encorebench::maximalMatching>(edges2, grain, &result);
   });
   d.add("pbbs", [&] {
     encorebench::run_and_report_elapsed_time([&] {
