@@ -89,6 +89,14 @@ Example output:
    utilization 0.702188
 
 
+Another example
+
+   convexhull.cilk -algorithm pbbs -proc 40 -type 2d -infile _data/array_point2d_in_circle_large.bin 
+   
+   convexhull.encore -algorithm encore -proc 40 -type 2d -infile _data/array_point2d_in_circle_large.bin 
+
+
+
 For viewing the execution:
 
    cd ~/exp
@@ -139,6 +147,26 @@ Now, for running all experiments
    # then to execute it:
    ./bench.pbench compare -benchmark convexhull
 
+
+
+For further comparison using the instrumented version of cilk
+
+   cd ~/exp
+   git clone https://github.com/deepsea-inria/cilk-plus-rts-with-stats.git
+   cd ~/exp/cilk-plus-rts-with-stats
+   ./build.sh
+   # you might need to edit this script to replace the relative path "../cilk-plus-rts/"
+
+   # now, we need to overwrite default cilk with our own patched version, e.g.:
+   cd ~/exp/encore/bench
+   export LD_LIBRARY_PATH=../../cilk-plus-rts/lib:$LD_LIBRARY_PATH
+   echo "CUSTOM_CILKRTS_SETTINGS=-L ../../cilk-plus-rts/lib -I ../..//cilk-plus-rts/include -DCUSTOM_CILK_PLUS_RUNTIME" >> settings.sh
+
+   # testing (need to clear first, because "make" won't automatically detect changes
+   rm -f merge.cilk
+   make merge.cilk
+   ./merge.cilk -algorithm pbbs -n 10000000 -proc 40  &> output.txt
+   more output.txt
 
 
 
