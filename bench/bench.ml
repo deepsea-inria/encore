@@ -500,7 +500,7 @@ let file_results_pbbs_single_proc exp_name =
   file_results (exp_name ^ "_pbbs_single_proc")
 
 let nb_proc = List.length arg_proc
-let nb_multi_proc = nb_proc - 1
+let nb_multi_proc = List.length multi_proc
         
 let run() =
   List.iter (fun benchmark ->
