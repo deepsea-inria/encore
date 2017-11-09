@@ -45,6 +45,7 @@ let run_modes =
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
 
+let multi_proc = List.filter (fun p -> p <> 1) arg_proc
 
 (*****************************************************************************)
 (** Steps *)
@@ -215,8 +216,6 @@ let cilk_progs = List.map cilk_prog_of all_benchmarks
 let cilk_elision_progs = List.map cilk_elision_prog_of all_benchmarks
 let all_progs = List.concat [encore_progs; cilk_progs; cilk_elision_progs]
 
-let mk_proc = mk_list int "proc" arg_proc
-
 let path_to_infile n = "_data/" ^ n
 
 let mk_infiles ty descr = fun e ->
@@ -255,6 +254,10 @@ let mk_pbbs_lib =
 let mk_pbbs_prog n =
     (mk string "prog" (cilk_prog_of n))
   & mk_pbbs_lib
+
+let mk_single_proc = mk int "proc" 1
+
+let mk_multi_proc = mk_list int "proc" multi_proc
 
 let mk_pbbs_elision_prog n =
     (mk string "prog" (cilk_elision_prog_of n))
@@ -484,11 +487,17 @@ let make() =
 let mk_never_promote =
   mk int "never_promote" 1
 
-let file_results_never_promote exp_name =
+let file_results_encore_elision exp_name =
   file_results (exp_name ^ "_never_promote")
 
 let file_results_pbbs_elision exp_name =
   file_results (exp_name ^ "_cilk_elision")
+
+let file_results_encore_single_proc exp_name =
+  file_results (exp_name ^ "_encore_single_proc")
+
+let file_results_pbbs_single_proc exp_name =
+  file_results (exp_name ^ "_pbbs_single_proc")
         
 let run() =
   List.iter (fun benchmark ->
@@ -499,12 +508,15 @@ let run() =
         Args (mk_progs & benchmark.bd_infiles); ]))
     in
     let encore_prog = mk_encore_prog benchmark.bd_name in
+    let encore_elision_prog = encore_prog & mk_never_promote in
     let pbbs_prog = mk_pbbs_prog benchmark.bd_name in
     let pbbs_elision_prog = mk_pbbs_elision_prog benchmark.bd_name in
-    (r ((encore_prog ++ pbbs_prog) & mk_proc) (file_results benchmark.bd_name);
+    (r ((encore_prog ++ pbbs_prog) & mk_multi_proc) (file_results benchmark.bd_name);
      if List.exists (fun p -> p = 1) arg_proc then (
-       r ((encore_prog & mk_never_promote) & mk int "proc" 1) (file_results_never_promote benchmark.bd_name);
-       r (pbbs_elision_prog & mk int "proc" 1) (file_results_pbbs_elision benchmark.bd_name);
+       r (encore_prog & mk_single_proc) (file_results_encore_single_proc benchmark.bd_name);
+       r (pbbs_prog & mk_single_proc) (file_results_pbbs_single_proc benchmark.bd_name);
+       r (encore_elision_prog & mk_single_proc) (file_results_encore_elision benchmark.bd_name);
+       r (pbbs_elision_prog & mk_single_proc) (file_results_pbbs_elision benchmark.bd_name);
       )
      else
        ())
@@ -528,133 +540,162 @@ let plot() =
                  ]
                  ))
     in
-    let nb_columns = nb_proc * 4 + 2 in
+    let nb_multi_proc = nb_proc - 1 in
+    let nb_application_cols = 2 in
+    let nb_seq_elision_cols = 2 in
+    let nb_single_core_cols = 3 in
+    let nb_multi_core_cols = 4 in
+    let nb_cols = nb_application_cols + nb_seq_elision_cols + nb_single_core_cols + (nb_multi_proc * nb_multi_core_cols) in
+
     Mk_table.build_table tex_file pdf_file (fun add ->
       let hdr =
-        let ls = String.concat "|" (XList.init nb_columns (fun _ -> "c")) in
+        let ls = String.concat "|" (XList.init (nb_cols - 1) (fun _ -> "c")) in
         Printf.sprintf "|p{1cm}l|%s" ls
       in
       add (Latex.tabular_begin hdr);
-      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol 2 "|l|" "Application/input");
-      ~~ List.iteri arg_proc (fun i proc ->
-        let last = i + 1 = nb_proc in
-        let label = Printf.sprintf "Nb. Cores %d" proc in
-        let nbcol = if proc = 1 then 4 else 4 in
-        let label = Latex.tabular_multicol nbcol "c|" label in
-        Mk_table.cell ~escape:false ~last:last add label);
+
+      (* Emit first row, i.e., first-level column labels *)
+      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol nb_application_cols "|l|" "Application/input");
+      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol nb_seq_elision_cols "|l|" "Sequential elision");
+      Mk_table.cell ~escape:true ~last:false add (Latex.tabular_multicol nb_single_core_cols "|c|" "1-core execution");
+      ~~ List.iteri multi_proc (fun i proc ->
+        let last = i + 1 = nb_multi_proc in
+	let label = Printf.sprintf "%d-core execution" proc in
+        Mk_table.cell ~escape:false ~last:last add (Latex.tabular_multicol nb_multi_core_cols "c|" label));
       add Latex.tabular_newline;
 
-      let _ = Mk_table.cell ~escape:false ~last:false add "" in
-      let _ = Mk_table.cell ~escape:false ~last:false add "" in
-      ~~ List.iteri arg_proc (fun i proc ->
-        let last = i + 1 = nb_proc in
-        let pbbs_str = "PBBS" in
-        let encore_str = "Encore" in
-        (if proc = 1 then (
-          Mk_table.cell add (Latex.tabular_multicol 2 "c|" pbbs_str);
-          Mk_table.cell add (Latex.tabular_multicol 2 "c|" encore_str))
-        else (
-          Mk_table.cell ~escape:true ~last:false add pbbs_str;
-          Mk_table.cell ~escape:true ~last:last add (Latex.tabular_multicol 3 "c|" encore_str)
-         )));
+      (* Emit second row, i.e., second-level column labels *)
+      for i = 1 to nb_application_cols do
+        Mk_table.cell ~escape:false ~last:false add ""
+      done;
+      Mk_table.cell ~escape:false ~last:false add "PBBS";
+      Mk_table.cell ~escape:false ~last:false add "Encore";
+      Mk_table.cell ~escape:false ~last:false add "PBBS";
+      Mk_table.cell ~escape:false ~last:false add "Encore";
+      Mk_table.cell ~escape:false ~last:false add "Nb threads";
+      ~~ List.iteri multi_proc (fun i proc ->
+        let last = i + 1 = nb_multi_proc in
+	Mk_table.cell ~escape:false ~last:false add "PBBS";
+	Mk_table.cell ~escape:false ~last:false add "Encore";
+	Mk_table.cell ~escape:false ~last:false add "PBBS";
+	Mk_table.cell ~escape:false ~last:last add "Encore");
       add Latex.tabular_newline;
 
-      Mk_table.cell add (Latex.tabular_multicol 2 "|l|" "");
-      ~~ List.iteri arg_proc (fun i proc ->
-        let last = i + 1 = nb_proc in
-        if proc = 1 then (
-          Mk_table.cell ~escape:true ~last:false add "Time (s)";
-          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\elision\\end{tabular}";
-          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\PBBS\\end{tabular}";
-          Mk_table.cell ~escape:true ~last:last add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\elision\\end{tabular}")
-        else (
-          Mk_table.cell ~escape:true ~last:false add "Time (s)";
-          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Rel.\\\\PBBS\\end{tabular}";
-          Mk_table.cell ~escape:true ~last:false add "\\begin{tabular}[x]{@{}c@{}}Nb.\\\\Promotions\\end{tabular}";
-          Mk_table.cell ~escape:true ~last:last add "Utilization"));
+      (* Emit third row, i.e., third-level column labels *)
+      for i = 1 to nb_application_cols do
+        Mk_table.cell ~escape:false ~last:false add ""
+      done;
+      Mk_table.cell ~escape:false ~last:false add "(s)";
+      Mk_table.cell ~escape:false ~last:false add "";
+      Mk_table.cell add (Latex.tabular_multicol 2 "|l|" "(relative to elision)");
+      Mk_table.cell ~escape:false ~last:false add "Enc./PBBS";
+      ~~ List.iteri multi_proc (fun i proc ->
+        let last = i + 1 = nb_multi_proc in
+	Mk_table.cell ~escape:false ~last:false add "(s)";
+	Mk_table.cell ~escape:false ~last:false add "";
+	Mk_table.cell ~escape:false ~last:last add (Latex.tabular_multicol 2 "|l|" "Utilization"));
       add Latex.tabular_newline;
 
+      (* Emit two rows for each benchmark *)
       ~~ List.iteri benchmarks (fun benchmark_i benchmark ->
-        Mk_table.cell add (Latex.tabular_multicol 2 "|l|" (sprintf "\\textbf{%s}" (Latex.escape benchmark.bd_name)));
-        for i = 1 to nb_columns - 3 do
-          let last = i = nb_columns in
+        Mk_table.cell add (Latex.tabular_multicol nb_application_cols "|l|" (sprintf "\\textbf{%s}" (Latex.escape benchmark.bd_name)));
+	let nbc = nb_cols - nb_application_cols in
+        for i = 1 to nbc do
+          let last = i = nbc in
           Mk_table.cell ~escape:true ~last:last add "";
         done;
         add Latex.tabular_newline;
-        let results_file = file_results benchmark.bd_name in
-        let all_results = Results.from_file results_file in
-        let results = all_results in
-        let env = Env.empty in
-        let mk_rows = benchmark.bd_infiles in
-        let env_rows = mk_rows env in
-        let results_file_never_promote = file_results_never_promote benchmark.bd_name in
-        let results_never_promote = Results.from_file results_file_never_promote in
         let results_file_pbbs_elision = file_results_pbbs_elision benchmark.bd_name in
         let results_pbbs_elision = Results.from_file results_file_pbbs_elision in
+        let results_file_encore_elision = file_results_encore_elision benchmark.bd_name in
+        let results_encore_elision = Results.from_file results_file_encore_elision in
+        let results_file_pbbs_single_proc = file_results_pbbs_single_proc benchmark.bd_name in
+        let results_pbbs_single_proc = Results.from_file results_file_pbbs_single_proc in
+        let results_file_encore_single_proc = file_results_encore_single_proc benchmark.bd_name in
+        let results_encore_single_proc = Results.from_file results_file_encore_single_proc in
+	let results_file = file_results benchmark.bd_name in
+	let all_results = Results.from_file results_file in
+	let results = all_results in
+	let env = Env.empty in
+	let mk_rows = benchmark.bd_infiles in
+	let env_rows = mk_rows env in
         ~~ List.iter env_rows (fun env_rows ->  (* loop over each input for current benchmark *)
           let results = Results.filter env_rows results in
-          let results_never_promote = Results.filter env_rows results_never_promote in
-          let results_pbbs_elision = Results.filter env_rows results_pbbs_elision in          
+          let results_pbbs_single_proc = Results.filter env_rows results_pbbs_single_proc in
+          let results_encore_single_proc = Results.filter env_rows results_encore_single_proc in
           let env = Env.append env env_rows in
-          let row_title = main_formatter env_rows in
+          let input_name = main_formatter env_rows in
           let _ = Mk_table.cell ~escape:true ~last:false add "" in
-          let _ = Mk_table.cell ~escape:true ~last:false add row_title in
-          ~~ List.iteri arg_proc (fun proc_i proc ->
-            let last = proc_i + 1 = nb_proc in
+          let _ = Mk_table.cell ~escape:true ~last:false add input_name in
+	  let pbbs_elision_sec =
+            let results_pbbs_elision = Results.filter env_rows results_pbbs_elision in
+	    let [col] = ((mk_pbbs_elision_prog benchmark.bd_name) & mk_single_proc) env in
+	    let results = Results.filter col results_pbbs_elision in
+	    Results.get_mean_of "exectime" results
+	  in
+	  let encore_elision_sec =
+            let [col] = (mk_encore_prog benchmark.bd_name & mk_never_promote & mk_single_proc) env in
+	    let results = Results.filter col results_encore_elision in
+	    Results.get_mean_of "exectime" results
+	  in
+	  let encore_elision_rel_pbbs_elision = string_of_percentage_change pbbs_elision_sec encore_elision_sec in
+	  let _ = (
+            Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" pbbs_elision_sec);
+            Mk_table.cell ~escape:false ~last:false add encore_elision_rel_pbbs_elision)
+	  in
+	  let (pbbs_single_proc_sec, pbbs_single_proc_nb_threads) =
+            let results_pbbs = Results.filter env_rows results_pbbs_single_proc in
+	    let [col] = ((mk_pbbs_prog benchmark.bd_name) & mk_single_proc) env in
+	    let results = Results.filter col results_pbbs in
+	    let sec = Results.get_mean_of "exectime" results in
+	    let nb_threads = Results.get_mean_of "nb_threads_alloc" results in
+	    let nb_threads = if nb_threads = 0. then 1. else nb_threads in
+	    (sec, nb_threads)
+	  in
+	  let (encore_single_proc_sec, encore_single_proc_nb_threads) =
+            let results_encore = Results.filter env_rows results_encore_single_proc in
+	    let [col] = ((mk_encore_prog benchmark.bd_name) & mk_single_proc) env in
+	    let results = Results.filter col results_encore in
+	    let sec = Results.get_mean_of "exectime" results in
+	    let nb_threads = Results.get_mean_of "nb_promotions" results in
+	    (sec, nb_threads)
+	  in
+	  let pbbs_single_proc_rel_pbbs_elision = string_of_percentage_change pbbs_elision_sec pbbs_single_proc_sec in
+	  let encore_single_proc_rel_encore_elision = string_of_percentage_change encore_elision_sec encore_single_proc_sec in
+	  let nb_threads_enc_by_pbbs = encore_single_proc_nb_threads /. pbbs_single_proc_nb_threads in
+	  let _ = (
+            Mk_table.cell ~escape:false ~last:false add pbbs_single_proc_rel_pbbs_elision;
+            Mk_table.cell ~escape:false ~last:false add encore_single_proc_rel_encore_elision;
+	    Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" nb_threads_enc_by_pbbs))
+	  in
+          ~~ List.iteri multi_proc (fun proc_i proc ->
+            let last = proc_i + 1 = nb_multi_proc in
             let mk_procs = mk int "proc" proc in
-            let (pbbs_str, b, elision_str) =
-              let [col_elision] = ((mk_pbbs_elision_prog benchmark.bd_name) & mk_procs) env in
-              let env_elision = Env.append env col_elision in
+	    let (pbbs_sec, pbbs_utilization) =
               let [col] = ((mk_pbbs_prog benchmark.bd_name) & mk_procs) env in
               let env = Env.append env col in
               let results = Results.filter col results in
-              let v = eval_exectime env all_results results in
-              let e = eval_exectime_stddev env all_results results in
-              let err =  if arg_print_err then Printf.sprintf "(%.2f%s)"  e "$\\sigma$" else "" in
-              let elision_str =
-                if proc = 1 then
-                  let results = Results.filter col_elision results_pbbs_elision in
-                  let v' = Results.get_mean_of "exectime" results_pbbs_elision in
-                  let vs = string_of_percentage_change v v' in
-                  vs
-                else
-                  ""
-              in
-              (Printf.sprintf "%.3f %s" v err, v, elision_str)
+              let sec = eval_exectime env all_results results in
+	      let util = Results.get_mean_of "utilization" results
+	      in
+  	        (sec, util)
             in
-            (if proc = 1 then (
-              Mk_table.cell ~escape:false ~last:false add pbbs_str;
-              Mk_table.cell ~escape:false ~last:false add elision_str)
-            else (
-              Mk_table.cell ~escape:false ~last:false add pbbs_str)); 
-            let (encore_str, never_promote_str, utilization_str, nb_promotions_str) = 
+	    let (encore_sec, encore_utilization) =
               let [col] = ((mk_encore_prog benchmark.bd_name) & mk_procs) env in
+              let env = Env.append env col in
               let results = Results.filter col results in
-              let v = Results.get_mean_of "exectime" results in
-              let encore_str = string_of_percentage_change b v in
-              let never_promote_str =
-                if proc = 1 then
-                  let [col] = (mk_encore_prog benchmark.bd_name & mk_never_promote & (mk int "proc" 1)) env in
-                  let results = Results.filter col results_never_promote in
-                  let v' = Results.get_mean_of "exectime" results_never_promote in
-                  let vs = string_of_percentage_change v v' in
-                  vs
-                else
-                  ""
-              in
-              let utilization = Results.get_mean_of "utilization" results in
-              let utilization_str = Printf.sprintf "%s%s" (string_of_percentage_value utilization) "\\%" in
-              let nb_promotions = Results.get_mean_of "nb_promotions" results in
-              let nb_promotions_str = string_of_millions ~munit:true nb_promotions in
-              (encore_str, never_promote_str, utilization_str, nb_promotions_str)
+              let sec = eval_exectime env all_results results in
+	      let util = Results.get_mean_of "utilization" results
+	      in
+  	        (sec, util)
             in
-            if proc = 1 then (
-              Mk_table.cell ~escape:false ~last:false add encore_str;
-              Mk_table.cell ~escape:false ~last:last add never_promote_str)
-            else (
-              Mk_table.cell ~escape:false ~last:false add encore_str;
-              Mk_table.cell ~escape:false ~last:false add nb_promotions_str;
-              Mk_table.cell ~escape:false ~last:last add utilization_str));
+	    let encore_rel_pbbs = string_of_percentage_change pbbs_sec encore_sec in
+	    let pbbs_utilization_str = string_of_percentage_value pbbs_utilization in
+	    let encore_utilization_str = string_of_percentage_value encore_utilization in
+	    Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" pbbs_sec);
+	    Mk_table.cell ~escape:false ~last:false add encore_rel_pbbs;
+	    Mk_table.cell ~escape:false ~last:false add pbbs_utilization_str;
+	    Mk_table.cell ~escape:last ~last:last add encore_utilization_str);
           add Latex.tabular_newline);
       );
       add Latex.tabular_end;
