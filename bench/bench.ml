@@ -498,6 +498,9 @@ let file_results_encore_single_proc exp_name =
 
 let file_results_pbbs_single_proc exp_name =
   file_results (exp_name ^ "_pbbs_single_proc")
+
+let nb_proc = List.length arg_proc
+let nb_multi_proc = nb_proc - 1
         
 let run() =
   List.iter (fun benchmark ->
@@ -511,13 +514,15 @@ let run() =
     let encore_elision_prog = encore_prog & mk_never_promote in
     let pbbs_prog = mk_pbbs_prog benchmark.bd_name in
     let pbbs_elision_prog = mk_pbbs_elision_prog benchmark.bd_name in
-    (r ((encore_prog ++ pbbs_prog) & mk_multi_proc) (file_results benchmark.bd_name);
-     if List.exists (fun p -> p = 1) arg_proc then (
-       r (encore_prog & mk_single_proc) (file_results_encore_single_proc benchmark.bd_name);
-       r (pbbs_prog & mk_single_proc) (file_results_pbbs_single_proc benchmark.bd_name);
-       r (encore_elision_prog & mk_single_proc) (file_results_encore_elision benchmark.bd_name);
-       r (pbbs_elision_prog & mk_single_proc) (file_results_pbbs_elision benchmark.bd_name);
-      )
+    (if nb_multi_proc > 0 then (
+      r ((encore_prog ++ pbbs_prog) & mk_multi_proc) (file_results benchmark.bd_name))
+     else
+       ());
+    (if List.exists (fun p -> p = 1) arg_proc then (
+      r (encore_prog & mk_single_proc) (file_results_encore_single_proc benchmark.bd_name);
+      r (pbbs_prog & mk_single_proc) (file_results_pbbs_single_proc benchmark.bd_name);
+      r (encore_elision_prog & mk_single_proc) (file_results_encore_elision benchmark.bd_name);
+      r (pbbs_elision_prog & mk_single_proc) (file_results_pbbs_elision benchmark.bd_name))
      else
        ())
   ) benchmarks
@@ -527,7 +532,7 @@ let check = nothing  (* do something here *)
 let plot() =
     let tex_file = file_tables_src name in
     let pdf_file = file_tables name in
-    let nb_proc = List.length arg_proc in
+
     let main_formatter =
       Env.format (Env.(
                   [
@@ -540,7 +545,6 @@ let plot() =
                  ]
                  ))
     in
-    let nb_multi_proc = nb_proc - 1 in
     let nb_application_cols = 2 in
     let nb_seq_elision_cols = 2 in
     let nb_single_core_cols = 3 in
