@@ -365,8 +365,8 @@ let mk_suffixarray_infiles = mk_infiles "type" input_descriptor_suffixarray
 
 let input_descriptor_nearestneighbors = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "array_point2d_kuzmin_medium.bin", string "array_point2d", "kuzmin";
-  "array_point3d_on_sphere_medium.bin", string "array_point3d", "on sphere";
-  "array_point3d_plummer_medium.bin", string "array_point3d", "plummer";
+(*  "array_point3d_on_sphere_medium.bin", string "array_point3d", "on sphere";*)
+  "array_point3d_plummer_medium.bin", string "array_point3d", "plummer"; 
   (*  "array_point2d_in_square_medium.bin", string "array_point2d", "in square";*)
 (*  "array_point3d_in_cube_medium.bin", string "array_point3d", "in cube"; *)
 ]
@@ -597,7 +597,7 @@ let plot() =
         let last = i + 1 = nb_multi_proc in
 	Mk_table.cell ~escape:false ~last:false add "(s)";
 	Mk_table.cell ~escape:false ~last:false add "";
-	Mk_table.cell ~escape:false ~last:last add (Latex.tabular_multicol 2 "|l|" "Utilization"));
+	Mk_table.cell ~escape:false ~last:last add (Latex.tabular_multicol 2 "|c|" "Utilization"));
       add Latex.tabular_newline;
 
       (* Emit two rows for each benchmark *)
