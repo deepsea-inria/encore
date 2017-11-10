@@ -81,7 +81,7 @@ cutInfo(float _cost, float _cutOff, intT nl, intT nr)
 struct treeNode {
   treeNode *left;
   treeNode *right;
-  BoundingBox box;
+  /*BoundingBox*/ range box[3];
   int cutDim;
   float cutOff;
   intT* triangleIndices;
@@ -141,7 +141,7 @@ public:
               return encore_call<treeNode_del>(st, pt, s.T->left); },
             [] (sar& s, par&, plt pt, stt st) {
               return encore_call<treeNode_del>(st, pt, s.T->right);
-        })),
+      })),
       dc::stmt([] (sar& s, par&) { free(s.T); })
     });
   }
@@ -249,13 +249,11 @@ public:
         }),
         dc::exit_function()
       })),
-      dc::mk_if([] (sar& s, par& p) {
-        return s.r.max - s.r.min == 0.0;
-      }, dc::stmts({
-          dc::stmt([] (sar& s, par& p) {
-            *s.dest = cutInfo(FLT_MAX, s.r.min, s.n, s.n);
-          }),
-          dc::exit_function()
+      dc::mk_if([] (sar& s, par& p) { return s.r.max - s.r.min == 0.0; }, dc::stmts({
+        dc::stmt([] (sar& s, par& p) {
+          *s.dest = cutInfo(FLT_MAX, s.r.min, s.n, s.n);
+        }),
+        dc::exit_function()
       })),
       dc::stmt([] (sar& s, par& p) {
         // area of two orthogonal faces
@@ -405,13 +403,13 @@ public:
   Boxes boxes; Events events; BoundingBox B; intT n; intT maxDepth; treeNode** dest;
   cutInfo cuts[3]; int cutDim;
   range* cutDimRanges; float cutOff; float area; float bestCost; float origCost;
-  BoundingBox BBL; BoundingBox BBR;
+  /*BoundingBox*/ range BBL[3]; /*BoundingBox*/ range BBR[3];
   event* rightEvents[3]; intT nr; event* leftEvents[3]; intT nl; eventsPair X[3];
   treeNode *L; treeNode *R;
   
   generateNode(Boxes boxes, Events events, BoundingBox B, 
                intT n, intT maxDepth, treeNode** dest)
-    : boxes(boxes), /*events(events), B(B),*/ n(n), maxDepth(maxDepth), dest(dest) { }
+    : boxes(boxes), events(events), B(B), n(n), maxDepth(maxDepth), dest(dest) { }
     
   encore_private_activation_record_begin(encore::edsl, generateNode, 2)
     int lo; int hi;
@@ -463,6 +461,8 @@ public:
 
         for (int i=0; i < 3; i++) s.BBR[i] = s.B[i];
         s.BBR[s.cutDim] = range(s.cutOff, s.BBR[s.cutDim].max);
+        p.lo = 0;
+        p.hi = 3;
       }),
       dc::parallel_for_loop([] (par& p) { return std::make_pair(&p.lo, &p.hi); }, dc::stmts({
         dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
@@ -489,10 +489,10 @@ public:
         for (int i=0; i < 3; i++) free(s.events[i]);
       }),
       dc::spawn2_join(
-          [] (sar& s, par&, plt pt, stt st) {
-            return encore_call<generateNode>(st, pt, s.boxes, s.leftEvents, s.BBL, s.nl, s.maxDepth-1, &s.L); },
-          [] (sar& s, par&, plt pt, stt st) {
-            return encore_call<generateNode>(st, pt, s.boxes, s.rightEvents, s.BBR, s.nr, s.maxDepth-1, &s.R);
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<generateNode>(st, pt, s.boxes, s.leftEvents, s.BBL, s.nl, s.maxDepth-1, &s.L); },
+        [] (sar& s, par&, plt pt, stt st) {
+          return encore_call<generateNode>(st, pt, s.boxes, s.rightEvents, s.BBR, s.nr, s.maxDepth-1, &s.R);
       }),
       dc::stmt([] (sar& s, par& p) {
         *s.dest = new treeNode(s.L, s.R, s.cutDim, s.cutOff, s.B);
@@ -591,7 +591,8 @@ class rayCast : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   triangles<pointT> Tri; ray<pointT>* rays; intT numRays; intT** dest;
-  Boxes boxes; intT n; Events events; BoundingBox boundingBox;
+  /*Boxes*/ range* boxes[3]; intT n; /*Events*/ event* events[3];
+  /*BoundingBox*/ range boundingBox[3];
   pointT* P; intT recursionDepth; treeNode* R; intT* results; int d; 
   
   rayCast(triangles<pointT> Tri, ray<pointT>* rays, intT numRays, intT** dest)
@@ -647,6 +648,7 @@ public:
           return sampleSort3(st, pt, s.events[s.d], s.n*2, cmpVal());
         }),
         dc::stmt([] (sar& s, par& p) {
+            printf("s.d=%d\n",s.d);
           s.boundingBox[s.d] = range(s.events[s.d][0].v, s.events[s.d][2*s.n-1].v);
           s.d++;
         })
@@ -659,7 +661,7 @@ public:
       dc::stmt([] (sar& s, par& p) {
         for (int d = 0; d < 3; d++) free(s.boxes[d]);
       }),
-      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.n; },
+      dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numRays; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
         auto results = s.results;
