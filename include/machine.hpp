@@ -29,7 +29,7 @@ void initialize_hwloc(int nb_workers) {
 #ifdef HAVE_HWLOC
   hwloc_topology_init(&topology);
   hwloc_topology_load(topology);
-  bool numa_alloc_interleaved = (nb_workers == 0) ? false : true;
+  bool numa_alloc_interleaved = (nb_workers == 1) ? false : true;
   numa_alloc_interleaved = cmdline::parse_or_default("numa_alloc_interleaved", numa_alloc_interleaved);
   if (numa_alloc_interleaved) {
     hwloc_cpuset_t all_cpus =
