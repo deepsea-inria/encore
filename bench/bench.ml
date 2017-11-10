@@ -290,7 +290,7 @@ let input_descriptor_radixsort = List.map (fun (p, t, n) -> (path_to_infile p, t
   "array_int_random_large.bin", string "int", "random";    
   "array_int_exponential_large.bin", string "int", "exponential";
   "array_pair_int_int_random_256_large.bin", string "pair_int_int", "random int pair 256";
-  "array_pair_int_int_random_100000000_large.bin", string "pair_int_int", "random int pair 10m";
+(*  "array_pair_int_int_random_100000000_large.bin", string "pair_int_int", "random int pair 10m";*)
 ]
 
 let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
@@ -301,7 +301,7 @@ let mk_radixsort_infiles = mk_infiles "type" input_descriptor_radixsort
 let input_descriptor_bfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
   "rmat24_large.bin", int 0, "rMat24";
-  "rmat27_large.bin", int 0, "rMat27";
+(*  "rmat27_large.bin", int 0, "rMat27";*)
 ]
 
 let mk_bfs_infiles = mk_infiles "source" input_descriptor_bfs
@@ -312,7 +312,7 @@ let mk_bfs_infiles = mk_infiles "source" input_descriptor_bfs
 let input_descriptor_pbfs = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
   "rmat24_large.bin", int 0, "rMat24";
-  "rmat27_large.bin", int 0, "rMat27";
+(*  "rmat27_large.bin", int 0, "rMat27";*)
 ]
 
 let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
@@ -323,7 +323,7 @@ let mk_pbfs_infiles = mk_infiles "source" input_descriptor_pbfs
 let input_descriptor_mis = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
   "cube_large.bin", int 0, "cube";
   "rmat24_large.bin", int 0, "rMat24";
-  "rmat27_large.bin", int 0, "rMat27";
+(*  "rmat27_large.bin", int 0, "rMat27";*)
 ]
 
 let mk_mis_infiles = mk_infiles "source" input_descriptor_mis
