@@ -648,7 +648,6 @@ public:
           return sampleSort3(st, pt, s.events[s.d], s.n*2, cmpVal());
         }),
         dc::stmt([] (sar& s, par& p) {
-            printf("s.d=%d\n",s.d);
           s.boundingBox[s.d] = range(s.events[s.d][0].v, s.events[s.d][2*s.n-1].v);
           s.d++;
         })
