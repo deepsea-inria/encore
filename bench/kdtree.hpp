@@ -659,6 +659,7 @@ public:
       }),
       dc::stmt([] (sar& s, par& p) {
         for (int d = 0; d < 3; d++) free(s.boxes[d]);
+        s.results = malloc_array<intT>(s.numRays);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numRays; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
