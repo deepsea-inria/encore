@@ -29,6 +29,7 @@
 #include "logging.hpp"
 #include "topology.hpp"
 #include "deterministichash.hpp"
+#include "logging.hpp"
 
 #ifndef _ENCORE_REFINE_H_
 #define _ENCORE_REFINE_H_
@@ -36,6 +37,8 @@
 namespace encorebench {
 
 using namespace std;
+
+  namespace logging = encore::logging;
 
 using vect2d = pasl::pctl::vect2d;
 
@@ -368,8 +371,14 @@ public:
         s.Triangs = malloc_array<tri>(s.totalTriangles);
         new (&s.empty) eType(hashTriangles().empty());
       }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
+      }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return encore_call<topologyFromTriangles>(st, pt, s.Tri, &s.vv, &s.Triangs);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
       }),
       //  set up extra triangles
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = s.m; p.hi = s.totalTriangles;},
@@ -381,7 +390,10 @@ public:
           Triangs[i].initialized = 0;
         }
       }),
-      //  set up extra vertices
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
+      }), 
+     //  set up extra vertices
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.totalVertices-s.n;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
                             [] (sar& s, par& p, int lo, int hi) {
@@ -402,6 +414,9 @@ public:
         s.num_points = s.n;
         s.workQ = TriangleTable(s.num_triangs, hashTriangles());
       }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
+      }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return sequence::fill3(st, pt, s.workQ.TA, s.workQ.TA + s.workQ.m, &s.empty);
       }),
@@ -416,6 +431,9 @@ public:
             Triangs[i].bad = 1;
           }
         }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
       }),
       // Each iteration processes all bad triangles from the workQ while
       // adding new bad triangles to a new queue
@@ -491,6 +509,9 @@ public:
         })
       })),
       dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
+      }),
+      dc::stmt([] (sar& s, par& p) {
         // Extract Vertices for result
         s.flags = malloc_array<bool>(s.num_triangs);
       }),
@@ -505,6 +526,9 @@ public:
       }),
       dc::spawn_join([] (sar& s, par&, plt pt, stt st) {
         return sequence::packIndex(st, pt, s.flags, s.num_points, &s.I);
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.nO = s.I.n;
@@ -525,6 +549,9 @@ public:
       dc::stmt([] (sar& s, par& p) {
         s.I.del();
       }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
+      }),
       // Extract Triangles for result
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.num_triangs;},
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
@@ -539,6 +566,9 @@ public:
         return sequence::packIndex(st, pt, s.flags, s.num_triangs, &s.I);
       }),
       dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
+      }),
+      dc::stmt([] (sar& s, par& p) {
         s.rt = malloc_array<triangle>(s.I.n);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.I.n;},
@@ -551,6 +581,9 @@ public:
           tri t = Triangs[I.A[i]];
           rt[i] = triangle(t.vtx[0]->id, t.vtx[1]->id, t.vtx[2]->id);
         }
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        logging::push_event(logging::algo_phase);
       }),
       dc::stmt([] (sar& s, par& p) {
         s.I.del();  free(s.flags);  free(s.Triangs);  free(s.v);  free(s.vv);
