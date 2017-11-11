@@ -337,11 +337,11 @@ let mk_mst_infiles = mk_infiles "source" input_descriptor_mst
 
 (*****************)
 (* Matching *)
-
+(*
 let input_descriptor_matching = input_descriptor_mis
 
 let mk_matching_infiles = mk_infiles "source" input_descriptor_matching
-
+*)
 (*****************)
 (* Spanning *)
 
@@ -436,11 +436,11 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "mst";
     bd_infiles = mk_mst_infiles;
     bd_input_descr = input_descriptor_mst;
-  }; 
+  }; (*
   { bd_name = "matching";
     bd_infiles = mk_matching_infiles;
     bd_input_descr = input_descriptor_matching;
-  }; 
+  }; *)
   { bd_name = "spanning";
     bd_infiles = mk_spanning_infiles;
     bd_input_descr = input_descriptor_spanning;
