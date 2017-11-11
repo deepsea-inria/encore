@@ -74,18 +74,21 @@ public:
     int lg_nb_iters_new = lg_nb_iters_predicted;
     auto nb_iters_predicted = 1 << lg_nb_iters_predicted;
     if (nb_iters_performed < nb_iters_predicted) {
+      // to handle the end of the loop
       return;
     } else if (elapsed < threshold_lower) {
       lg_nb_iters_new = std::min(max_lg_nb_iters, lg_nb_iters_new + 1);
-    } else if (elapsed > threshold_upper) {
-      lg_nb_iters_new = std::max(0, lg_nb_iters_new - 1);
-    } else {
+    } /*else if (elapsed > threshold_upper) {
+	lg_nb_iters_new = std::max(0, lg_nb_iters_new - 1); 
+	} */ else {
       return;
     }
     if (lg_nb_iters_new == lg_nb_iters_predicted) {
+      // no change
       return;
     }
     if (lg_nb_iters_predicted != predict_lg_nb_iterations()) {
+      // another core changed the value in the meantime
       return;
     }
 #if defined(ENCORE_ENABLE_LOGGING)
