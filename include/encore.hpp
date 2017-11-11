@@ -89,6 +89,7 @@ void initialize_runtime(int argc, char** argv) {
     promotion_threshold_usec = 10000000.0;
   }
   promotion_threshold_usec = cmdline::parse_or_default_double("promotion_threshold", promotion_threshold_usec);
+  printf("promotion_threshold_usec %.3f\n", promotion_threshold_usec);
   fuel::initialize(machine::cpu_frequency_ghz, promotion_threshold_usec * 1000.0);
   double grain_usec = promotion_threshold_usec / 4.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
