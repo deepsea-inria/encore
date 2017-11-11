@@ -230,7 +230,7 @@ public:
 
   vertex** v; intT n; intT nTotal; TriangleTable TT; intT* dest;
   intT maxR; Qs *qqs; Qs **qs; simplex *t; bool *flags; vertex** h;
-  intT cnt; vertex** vv; intT k; _seq<vertex*> tmp;
+  intT cnt; vertex** vv; intT k; _seq<vertex*> tmp; int lo; int hi;
  
   intT top; intT failed;  intT size;
   
@@ -246,17 +246,25 @@ public:
     return dc::stmts({
       dc::stmt([] (sar& s, par& p) { 
         auto maxR = s.maxR = (intT) (s.nTotal/500) + 1; // maximum number to try in parallel
-        auto qqs = s.qqs = malloc_array<Qs>(maxR);
-        auto qs = s.qs = malloc_array<Qs*>(maxR);
-        for (intT i=0; i < maxR; i++) {
+        s.qqs = malloc_array<Qs>(maxR);
+        s.qs = malloc_array<Qs*>(maxR);
+      }),
+      dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.maxR; },
+                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                          [] (sar& s, par&, int lo, int hi) {
+        auto qs = s.qs;
+        auto qqs = s.qqs;
+        for (int i = lo; i != hi; i++) {
           qs[i] = new (&qqs[i]) Qs;
         }
-        s.t = malloc_array<simplex>(maxR);
-        s.flags = malloc_array<bool>(maxR);
-        s.h = malloc_array<vertex*>(maxR);
+      }),
+      dc::stmt([] (sar& s, par& p) { 
+        s.t = malloc_array<simplex>(s.maxR);
+        s.flags = malloc_array<bool>(s.maxR);
+        s.h = malloc_array<vertex*>(s.maxR);
  
         s.top = s.n; s.failed = 0;
-        s.size = maxR;
+        s.size = s.maxR;
       }),
       dc::sequential_loop([] (sar& s, par&) { return s.top > 0; }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
