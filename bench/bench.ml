@@ -394,6 +394,16 @@ let input_descriptor_refine = List.map (fun (p, t, n) -> (path_to_infile p, t, n
 let mk_refine_infiles = mk_infiles "type" input_descriptor_refine    
 
 (*****************)
+(* Raycast *)
+
+let input_descriptor_raycast = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
+  "happy_ray_cast_dataset.bin", string "raycast", "happy";
+  "xyzrgb_manuscript_ray_cast_dataset.bin", string "raycast", "xyzrgb";
+]
+
+let mk_raycast_infiles = mk_infiles "type" input_descriptor_raycast    
+
+(*****************)
 (* Remove duplicates *)
 
 let input_descriptor_removeduplicates = List.map (fun (p, t, n) -> (path_to_infile p, t, n)) [
@@ -461,10 +471,15 @@ let benchmarks' : benchmark_descriptor list = [
     bd_infiles = mk_refine_infiles;
     bd_input_descr = input_descriptor_refine;
   };
+  { bd_name = "raycast";
+    bd_infiles = mk_raycast_infiles;
+    bd_input_descr = input_descriptor_raycast;
+  };
   { bd_name = "removeduplicates";
     bd_infiles = mk_removeduplicates_infiles;
     bd_input_descr = input_descriptor_removeduplicates;
   };
+  
 ]
 
 let benchmarks =

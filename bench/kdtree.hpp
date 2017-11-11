@@ -187,9 +187,8 @@ inline float inBox(pointT p, BoundingBox B) {
 	  p.z >= (B[2].min - epsilon) && p.z <= (B[2].max + epsilon));
 }
 
-  //timer cutTimer;
 // sequential version of best cut
-cutInfo bestCutSerial(event* E, range r, range r1, range r2, intT n) {
+cutInfo bestCutSerial0(event* E, range r, range r1, range r2, intT n) {
   if (r.max - r.min == 0.0) return cutInfo(FLT_MAX, r.min, n, n);
 #ifdef TIME_MEASURE
 //    cutTimer.start();
@@ -226,12 +225,91 @@ cutInfo bestCutSerial(event* E, range r, range r1, range r2, intT n) {
   return cutInfo(minCost, E[k].v, ln, rn);
 }
 
+class bestCutSerial : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  event* E; range r; range r1; range r2; intT n; cutInfo* dest;
+  float area; float diameter; intT inLeft; intT inRight; float minCost;
+  intT k; intT rn; intT ln; int lo; int hi;
+  
+  bestCutSerial(event* E, range r, range r1, range r2, intT n, cutInfo* dest)
+    : E(E), r(r), r1(r1), r2(r2), n(n), dest(dest) { }
+  
+  encore_dc_declare(encore::edsl, bestCutSerial, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::mk_if([] (sar& s, par&) { return s.r.max - s.r.min == 0.0; }, dc::stmts({
+        dc::stmt([] (sar& s, par&) {
+          *s.dest = cutInfo(FLT_MAX, s.r.min, s.n, s.n);
+        }),
+        dc::exit_function()
+      })),
+      dc::stmt([] (sar& s, par&) {
+        s.area = 2 * (s.r1.max-s.r1.min) * (s.r2.max-s.r2.min);
+        s.diameter = 2 * ((s.r1.max-s.r1.min) + (s.r2.max-s.r2.min));
+
+        // calculate cost of each possible split
+        s.inLeft = 0;
+        s.inRight = s.n/2;
+        s.minCost = FLT_MAX;
+        s.k = 0;
+        s.rn = s.inLeft;
+        s.ln = s.inRight;
+      }),
+      dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.n; },
+                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                          [] (sar& s, par&, int lo, int hi) {
+        auto E = s.E;
+        auto inRight = s.inRight;
+        auto r = s.r;
+        auto area = s.area;
+        auto diameter = s.diameter;
+        auto inLeft = s.inLeft;
+        auto k = s.k;
+        auto minCost = s.minCost;
+        auto rn = s.rn;
+        auto ln = s.ln;
+        for (int i = lo; i < hi; i++) {
+          float cost;
+          if (IS_END(E[i])) inRight--;
+          float leftLength = E[i].v - r.min;
+          float leftArea = area + diameter * leftLength;
+          float rightLength = r.max - E[i].v;
+          float rightArea = area + diameter * rightLength;
+          cost = (leftArea * inLeft + rightArea * inRight);
+          if (cost < minCost) {
+            rn = inRight;
+            ln = inLeft;
+            minCost = cost;
+            k = i;
+          }
+          if (IS_START(E[i])) inLeft++;
+        }
+        s.k = k;
+        s.inLeft = inLeft;
+        s.inRight = inRight;
+        s.minCost = minCost;
+        s.rn = rn;
+        s.ln = ln;
+      }),
+      dc::stmt([] (sar& s, par&) {
+        *s.dest = cutInfo(s.minCost, s.E[s.k].v, s.ln, s.rn);
+      })
+    });
+  }
+
+};
+
+encore_pcfg_allocate(bestCutSerial, get_cfg)
+
 class bestCut : public encore::edsl::pcfg::shared_activation_record {
 public:
 
   event* E; range r; range r1; range r2; intT n; cutInfo* dest;
   float orthogArea; float diameter; intT* upperC; intT u;
-  float* cost; intT k;
+  float* cost; intT k; int lg_lt;
   
   bestCut(event* E, range r, range r1, range r2, intT n, cutInfo* dest)
     : E(E), r(r), r1(r1), r2(r2), n(n), dest(dest) { }
@@ -243,9 +321,15 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::mk_if([] (sar& s, par& p) { return s.n < minParallelSize; }, dc::stmts({
+      dc::mk_if([] (sar& s, par& p) { return s.n < 1000; }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-          *s.dest = bestCutSerial(s.E, s.r, s.r1, s.r2, s.n);
+          *s.dest = bestCutSerial0(s.E, s.r, s.r1, s.r2, s.n);
+        }),
+        dc::exit_function()
+      })),
+      dc::mk_if([] (sar& s, par& p) { return s.n < minParallelSize; }, dc::stmts({
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<bestCutSerial>(st, pt, s.E, s.r, s.r1, s.r2, s.n, s.dest);
         }),
         dc::exit_function()
       })),
@@ -319,8 +403,8 @@ public:
 encore_pcfg_allocate(bestCut, get_cfg)
   
 typedef pair<_seq<event>, _seq<event> > eventsPair;
-  
-eventsPair splitEventsSerial(range* boxes, event* events, 
+
+eventsPair splitEventsSerial0(range* boxes, event* events, 
                              float cutOff, intT n) {
   intT l = 0;
   intT r = 0;
@@ -338,6 +422,59 @@ eventsPair splitEventsSerial(range* boxes, event* events,
 		    _seq<event>(eventsRight,r));
 }
 
+class splitEventsSerial : public encore::edsl::pcfg::shared_activation_record {
+public:
+
+  range* boxes; event* events; float cutOff; intT n; eventsPair* dest;
+  intT l; intT r; event* eventsLeft; event* eventsRight; int lo; int hi;
+  
+  splitEventsSerial(range* boxes, event* events, 
+                    float cutOff, intT n, eventsPair* dest)
+    : boxes(boxes), events(events), cutOff(cutOff), n(n), dest(dest) { }
+  
+  encore_dc_declare(encore::edsl, splitEventsSerial, sar, par, dc, get_dc)
+
+  static
+  dc get_dc() {
+    return dc::stmts({
+      dc::stmt([] (sar& s, par& p) {
+        s.l = 0;
+        s.r = 0;
+        s.eventsLeft = malloc_array<event>(s.n);
+        s.eventsRight = malloc_array<event>(s.n);
+      }),
+      dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.n; },
+                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                          [] (sar& s, par&, int lo, int hi) {
+        auto events = s.events;
+        auto boxes = s.boxes;
+        auto r = s.r;
+        auto l = s.l;
+        auto cutOff = s.cutOff;
+        auto eventsLeft = s.eventsLeft;
+        auto eventsRight = s.eventsRight;
+        for (int i = lo; i < hi; i++) {
+          intT b = GET_INDEX(events[i]);
+          if (boxes[b].min < cutOff) {
+            eventsLeft[l++] = events[i];
+            if (boxes[b].max > cutOff) 
+              eventsRight[r++] = events[i]; 
+          } else eventsRight[r++] = events[i]; 
+        }
+        s.r = r;
+        s.l = l;
+      }),
+      dc::stmt([] (sar& s, par& p) {
+        *s.dest = eventsPair(_seq<event>(s.eventsLeft,s.l), 
+                             _seq<event>(s.eventsRight,s.r));          
+      })
+    });
+  }
+
+};
+
+encore_pcfg_allocate(splitEventsSerial, get_cfg)
+
 class splitEvents : public encore::edsl::pcfg::shared_activation_record {
 public:
 
@@ -354,9 +491,15 @@ public:
   static
   dc get_dc() {
     return dc::stmts({
-      dc::mk_if([] (sar& s, par&) { return s.n < minParallelSize; }, dc::stmts({
+      dc::mk_if([] (sar& s, par&) { return s.n < 1000; }, dc::stmts({
         dc::stmt([] (sar& s, par& p) {
-          *s.dest = splitEventsSerial(s.boxes, s.events, s.cutOff, s.n);
+          *s.dest = splitEventsSerial0(s.boxes, s.events, s.cutOff, s.n);
+        }),
+        dc::exit_function()
+      })),
+      dc::mk_if([] (sar& s, par&) { return s.n < minParallelSize; }, dc::stmts({
+        dc::spawn_join([] (sar& s, par& p, plt pt, stt st) {
+          return encore_call<splitEventsSerial>(st, pt, s.boxes, s.events, s.cutOff, s.n, s.dest);
         }),
         dc::exit_function()
       })),
@@ -659,6 +802,7 @@ public:
       }),
       dc::stmt([] (sar& s, par& p) {
         for (int d = 0; d < 3; d++) free(s.boxes[d]);
+        s.results = malloc_array<intT>(s.numRays);
       }),
       dc::parallel_for_loop([] (sar& s, par& p) { p.lo = 0; p.hi = s.numRays; },
                             [] (par& p) { return std::make_pair(&p.lo, &p.hi); },
