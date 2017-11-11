@@ -249,15 +249,22 @@ public:
         s.qqs = malloc_array<Qs>(maxR);
         s.qs = malloc_array<Qs*>(maxR);
       }),
-      dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.maxR; },
-                          [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
-                          [] (sar& s, par&, int lo, int hi) {
-        auto qs = s.qs;
-        auto qqs = s.qqs;
-        for (int i = lo; i != hi; i++) {
-          qs[i] = new (&qqs[i]) Qs;
-        }
-      }),
+      dc::mk_if([] (sar& s, par&) { return s.maxR < 500; },
+        dc::stmt([] (sar& s, par& p) {
+          auto maxR = s.maxR;
+          auto qqs = s.qqs;
+          auto qs = s.qs;
+          for (intT i=0; i < maxR; i++) qs[i] = new (&qqs[i]) Qs;
+        }),
+        dc::sequential_loop([] (sar& s, par&) { s.lo = 0; s.hi = s.maxR; },
+                            [] (sar& s, par&) { return std::make_pair(&s.lo, &s.hi); },
+                            [] (sar& s, par&, int lo, int hi) {
+          auto qs = s.qs;
+          auto qqs = s.qqs;
+          for (int i = lo; i != hi; i++) {
+            qs[i] = new (&qqs[i]) Qs;
+          }
+        })),
       dc::stmt([] (sar& s, par& p) { 
         s.t = malloc_array<simplex>(s.maxR);
         s.flags = malloc_array<bool>(s.maxR);
