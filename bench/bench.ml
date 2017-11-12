@@ -706,14 +706,14 @@ let plot() =
   	        (sec, util, nb_threads)
             in
 	    let encore_rel_pbbs = string_of_percentage_change pbbs_sec encore_sec in
-	    let pbbs_utilization_str = string_of_percentage_value pbbs_utilization in
-	    let encore_utilization_str = string_of_percentage_value encore_utilization in
+	    let pbbs_utilization_str = string_of_percentage ~show_plus:false pbbs_utilization in
+	    let encore_utilization_str = string_of_percentage ~show_plus:false encore_utilization in
 	    let nb_threads_enc_by_pbbs = encore_multi_proc_nb_threads /. pbbs_multi_proc_nb_threads in
 	    let nb_threads_enc_by_pbbs_str = Printf.sprintf "%.3f" nb_threads_enc_by_pbbs in
 	    Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" pbbs_sec);
 	    Mk_table.cell ~escape:false ~last:false add encore_rel_pbbs;
 	    Mk_table.cell ~escape:false ~last:false add pbbs_utilization_str;
-	    Mk_table.cell ~escape:last ~last:false add encore_utilization_str;
+	    Mk_table.cell ~escape:false ~last:false add encore_utilization_str;
 	    Mk_table.cell ~escape:false ~last:last add nb_threads_enc_by_pbbs_str);
           add Latex.tabular_newline);
       );
