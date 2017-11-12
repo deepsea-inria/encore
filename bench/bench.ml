@@ -203,7 +203,7 @@ let all_benchmarks =
   | ["all"] -> [
     "convexhull"; "samplesort"; "radixsort"; "nearestneighbors";
     "suffixarray"; "removeduplicates"; "mis"; "mst"; "matching"; "spanning";
-    "delaunay"; "bfs"; "refine"; "raycast"; (*"pbfs";*)
+    "delaunay"; "bfs"; (*"refine"; *) "raycast"; (*"pbfs";*)
     ]
   | _ -> arg_benchmarks
     
