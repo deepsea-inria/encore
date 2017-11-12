@@ -419,10 +419,6 @@ let mk_removeduplicates_infiles = mk_infiles "type" input_descriptor_removedupli
 (* All benchmarks *)
 
 let benchmarks' : benchmark_descriptor list = [
-  { bd_name = "convexhull";
-    bd_infiles = mk_hull_infiles;
-    bd_input_descr = input_descriptor_hull;
-  };
   { bd_name = "samplesort";
     bd_infiles = mk_samplesort_infiles;
     bd_input_descr = input_descriptor_samplesort;
@@ -459,6 +455,14 @@ let benchmarks' : benchmark_descriptor list = [
     bd_infiles = mk_suffixarray_infiles;
     bd_input_descr = input_descriptor_suffixarray;
   };
+  { bd_name = "removeduplicates";
+    bd_infiles = mk_removeduplicates_infiles;
+    bd_input_descr = input_descriptor_removeduplicates;
+  };
+  { bd_name = "convexhull";
+    bd_infiles = mk_hull_infiles;
+    bd_input_descr = input_descriptor_hull;
+  };
   { bd_name = "nearestneighbors";
     bd_infiles = mk_nearestneighbors_infiles;
     bd_input_descr = input_descriptor_nearestneighbors;
@@ -474,10 +478,6 @@ let benchmarks' : benchmark_descriptor list = [
   { bd_name = "raycast";
     bd_infiles = mk_raycast_infiles;
     bd_input_descr = input_descriptor_raycast;
-  };
-  { bd_name = "removeduplicates";
-    bd_infiles = mk_removeduplicates_infiles;
-    bd_input_descr = input_descriptor_removeduplicates;
   };
   
 ]
