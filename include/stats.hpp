@@ -147,6 +147,7 @@ public:
     });
     double relative_idle = total_idle_time / cumulated_time;
     double utilization = 1.0 - relative_idle;
+    std::cout << "total_idle_time " << total_idle_time << std::endl;
     std::cout << "utilization " << utilization << std::endl;
   }
   
