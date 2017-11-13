@@ -420,13 +420,13 @@ let mk_removeduplicates_infiles = mk_infiles "type" input_descriptor_removedupli
 (* All benchmarks *)
 
 let benchmarks' : benchmark_descriptor list = [
-  { bd_name = "samplesort";
-    bd_infiles = mk_samplesort_infiles;
-    bd_input_descr = input_descriptor_samplesort;
-  };
   { bd_name = "radixsort";
     bd_infiles = mk_radixsort_infiles;
     bd_input_descr = input_descriptor_radixsort;
+  };
+  { bd_name = "samplesort";
+    bd_infiles = mk_samplesort_infiles;
+    bd_input_descr = input_descriptor_samplesort;
   };
   { bd_name = "suffixarray";
     bd_infiles = mk_suffixarray_infiles;
@@ -665,7 +665,7 @@ let plot() =
 	        in
 	        let encore_elision_rel_pbbs_elision = string_of_percentage_change pbbs_elision_sec encore_elision_sec in
 	        let _ = (
-            Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" pbbs_elision_sec);
+            Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.2f" pbbs_elision_sec);
             Mk_table.cell ~escape:false ~last:false add encore_elision_rel_pbbs_elision)
 	        in
 	        let pbbs_single_proc_sec =
@@ -718,7 +718,7 @@ let plot() =
 	    let encore_utilization_str = string_of_percentage ~show_plus:false encore_utilization in
 	    let idle_time_enc_by_pbbs_str = string_of_percentage_change pbbs_idle_time encore_idle_time in
 	    let nb_threads_enc_by_pbbs_str = string_of_percentage_change pbbs_multi_proc_nb_threads encore_multi_proc_nb_threads in
-	    Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" pbbs_sec);
+	    Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.2f" pbbs_sec);
 	    Mk_table.cell ~escape:false ~last:false add encore_rel_pbbs;
 	    if arg_show_utilization then begin
 	      Mk_table.cell ~escape:false ~last:false add pbbs_utilization_str;
