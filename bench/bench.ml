@@ -716,10 +716,8 @@ let plot() =
 	    let encore_rel_pbbs = string_of_percentage_change pbbs_sec encore_sec in
 	    let pbbs_utilization_str = string_of_percentage ~show_plus:false pbbs_utilization in
 	    let encore_utilization_str = string_of_percentage ~show_plus:false encore_utilization in
-	    let idle_time_enc_by_pbbs = encore_idle_time /. pbbs_idle_time in
-	    let idle_time_enc_by_pbbs_str = Printf.sprintf "%.3f" idle_time_enc_by_pbbs in
-	    let nb_threads_enc_by_pbbs = encore_multi_proc_nb_threads /. pbbs_multi_proc_nb_threads in
-	    let nb_threads_enc_by_pbbs_str = Printf.sprintf "%.3f" nb_threads_enc_by_pbbs in
+	    let idle_time_enc_by_pbbs_str = string_of_percentage_change pbbs_idle_time encore_idle_time in
+	    let nb_threads_enc_by_pbbs_str = string_of_percentage_change pbbs_multi_proc_nb_threads encore_multi_proc_nb_threads in
 	    Mk_table.cell ~escape:false ~last:false add (Printf.sprintf "%.3f" pbbs_sec);
 	    Mk_table.cell ~escape:false ~last:false add encore_rel_pbbs;
 	    if arg_show_utilization then begin
