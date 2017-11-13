@@ -94,6 +94,7 @@ void initialize_runtime(int argc, char** argv) {
   double grain_usec = promotion_threshold_usec / 4.0;
   grain_usec = cmdline::parse_or_default_double("grain", grain_usec);
   grain::initialize(machine::cpu_frequency_ghz, grain_usec * 1000.0, promotion_threshold_usec * 1000.0);
+  std::cout << "cpu_frequency_ghz " << machine::cpu_frequency_ghz << std::endl;
 }
   
 template <class Init>
