@@ -14,13 +14,19 @@ INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 INCS := $(shell find $(SRC_DIRS) -name '*.hpp' -or -name '*.h')
 
-CPPFLAGS_SHARED=$(INC_FLAGS) -I../bench/ -MMD -MP -pthread -std=gnu++11 -fpermissive -DENCORE_ENABLE_STATS -DTARGET_LINUX
+CPPFLAGS_SHARED=$(INC_FLAGS) -w -I../bench/ -MMD -MP -pthread -std=gnu++11 -fpermissive -DENCORE_ENABLE_STATS -DTARGET_LINUX
 
 CPPFLAGS_DBG ?= $(CPPFLAGS_SHARED) -O0 -g -DENCORE_ENABLE_LOGGING -DDEBUG_ENCORE_STACK -DENCORE_RANDOMIZE_SCHEDULE
 
 CC_DBG=g++ $(CPPFLAGS_DBG)
 
 ALLDEPS_DBG=$(OBJS_DBG) $(INCS)
+
+CPPFLAGS_OPT ?= $(CPPFLAGS_SHARED) -O2 -march=native -DNDEBUG
+
+CC_OPT=g++ $(CPPFLAGS_OPT)
+
+ALLDEPS_OPT=$(OBJS_OPT) $(INCS)
 
 # assembly
 $(BUILD_DBG_DIR)/%.s.o: %.s
@@ -40,6 +46,10 @@ $(BUILD_DBG_DIR)/%.cpp.o: %.cpp
 %.dbg: %.cpp $(ALLDEPS_DBG)
 	$(MKDIR_P) $(dir $@)
 	$(CC_DBG) $(OBJS_DBG) $< -o $@ $(LDFLAGS_DBG)
+
+%.opt: %.cpp $(ALLDEPS_OPT)
+	$(MKDIR_P) $(dir $@)
+	$(CC_OPT) $(OBJS_OPT) $< -o $@ $(LDFLAGS_OPT)
 
 .PHONY: clean
 
