@@ -167,16 +167,3 @@ For further comparison using the instrumented version of cilk
    make merge.cilk
    ./merge.cilk -algorithm pbbs -n 10000000 -proc 40  &> output.txt
    more output.txt
-
-
-
-Compiler flags
-==============
-
-The following flag disables the scalable incounter/outset data
-structures and uses instead the single-cell counter and Treiber
-stack. These latter two data structures may be useful for debugging
-purposes because they are simpler and may be faster in certain cases,
-in particular when in/out degree are low.
-
-`ENCORE_USE_SIMPLE_SYNCHRONIZATION`
