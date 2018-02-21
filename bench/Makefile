@@ -22,7 +22,12 @@ QUICKCHECK_INCLUDE_HOME=$(PACKAGE_PATH)/quickcheck/quickcheck
 
 HWLOC_FLAGS=`pkg-config --cflags hwloc`
 HWLOC_LIBS=`pkg-config --libs hwloc`
-HWLOC_DIRECTIVES=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
+HWLOC_PREFIX_ALL=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
+
+HWLOC_DIRECTIVES=
+ifeq ($(strip $(USE_HWLOC)),1)
+   HWLOC_DIRECTIVES=$(HWLOC_PREFIX_ALL)
+endif
 
 INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp) $(wildcard $(PCTL_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_INLCUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_TEST_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_BENCH_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_BENCH_GENERATORS_INCLUDE_HOME)/*.hpp) $(wildcard $(QUICKCHECK_INCLUDE_HOME)/*.hpp) $(wildcard $(CACTUS_HOME)/*.hpp) $(wildcard *.hpp)
 

@@ -34,7 +34,9 @@
 #include "sequence.hpp"
 #include "geometry.hpp"
 
+#if defined(TEST)
 #include "test.hpp"
+#endif
 #include "prandgen.hpp"
 #include "geometryio.hpp"
 #include "loaders.hpp"
@@ -327,6 +329,8 @@ encore_pcfg_allocate(hull, get_cfg)
 namespace pasl {
 namespace pctl {
 
+#if defined(TEST)
+
 /*---------------------------------------------------------------------*/
 /* Quickcheck IO */
 
@@ -462,6 +466,8 @@ public:
   
 };
 
+#endif
+
 /*---------------------------------------------------------------------*/
 /* Benchmarking */
 
@@ -485,9 +491,11 @@ void benchmark(std::string infile) {
     if (deepsea::cmdline::parse_or_default_bool("check", false)) {
       parray<intT> idxs2(idxs.A, idxs.A + idxs.n);
       idxs.del();
+#if defined(TEST)
       if (! check_hull(x, idxs2)) {
         assert(false);
       }
+#endif
     }
   });
   d.add("pbbs", [&] {
@@ -506,13 +514,17 @@ void benchmark(std::string infile) {
 
 int main(int argc, char** argv) {
   encorebench::initialize(argc, argv);
+#if defined(TEST)
   pasl::pctl::m = deepsea::cmdline::parse_or_default("m", pasl::pctl::m);
+#endif
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile != "") {
     pasl::pctl::benchmark(infile);
     return 0;
   }
+#if defined(TEST)
   int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
   checkit<pasl::pctl::consistent_hulls_property>(nb_tests, "quickhull is correct");
+#endif
   return 0;
 }
