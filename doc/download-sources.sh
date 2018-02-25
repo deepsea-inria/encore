@@ -17,3 +17,5 @@ cat <<'EOF'
 CUSTOM_CILKRTS_SETTINGS=-L ../../cilk-plus-rts/lib -I ../../cilk-plus-rts/include -DCUSTOM_CILK_PLUS_RUNTIME
 EOF
 ) > encore/bench/settings.sh
+
+mkdir encore/bench/_data

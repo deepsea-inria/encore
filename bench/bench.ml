@@ -8,6 +8,8 @@ let system = XSys.command_must_succeed_or_virtual
 
 let arg_virtual_run = XCmd.mem_flag "virtual_run"
 let arg_virtual_build = XCmd.mem_flag "virtual_build"
+let arg_virtual_get = XCmd.mem_flag "virtual_get"
+let arg_force_get = XCmd.mem_flag "force_get"
 let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
 let arg_mode = Mk_runs.mode_from_command_line "mode"
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
@@ -51,13 +53,14 @@ let multi_proc = List.filter (fun p -> p <> 1) arg_proc
 (*****************************************************************************)
 (** Steps *)
 
-let select make run check plot =
+let select get make run check plot =
    let arg_skips =
       if List.mem "run" arg_skips && not (List.mem "make" arg_skips)
          then "make"::arg_skips
          else arg_skips
       in
    Pbench.execute_from_only_skip arg_onlys arg_skips [
+      "get", get;
       "make", make;
       "run", run;
       "check", check;
@@ -130,6 +133,18 @@ let string_of_percentage ?(show_plus=true) v =
 let string_of_percentage_change ?(show_plus=true) vold vnew =
   string_of_percentage ~show_plus:show_plus (vnew /. vold -. 1.0)
 
+let ipfs_get hash outfile is_virtual =
+  system (sprintf "ipfs get %s -o=%s" hash outfile) is_virtual
+
+let ipfs_get_if_needed hash outfile force_get is_virtual =
+  if force_get || not (Sys.file_exists outfile) then
+    ipfs_get hash outfile is_virtual
+  else
+    ()
+
+let ipfs_get_files table force_get is_virtual =
+  List.iter (fun (h, p) -> ipfs_get_if_needed h p force_get is_virtual) table
+
 (*****************************************************************************)
 (** Sequence-library benchmark *)
 
@@ -156,6 +171,8 @@ let mk_operations = mk_list string "operation" [ "reduce"; "max_index"; "scan"; 
 let mk_input_sizes = mk_list int "n" [ 400000000 ]
 
 let mk_procs = mk_list int "proc" [ 1; (* 10; 20; 30; *) 40; ]
+
+let get() = ()
 
 let make() =
   build "." [prog_encore; prog_cilk] arg_virtual_build
@@ -188,7 +205,7 @@ let plot() =
       Results (Results.from_file (file_results name));
       ]))
 
-let all () = select make run check plot
+let all () = select get make run check plot
 
 end
 
@@ -483,6 +500,94 @@ let benchmarks' : benchmark_descriptor list = [
   
 ]
 
+let infiles_by_hash = [
+  "QmRbzUS4eaVyBrNMtSi2xk5bgu8Ka9xTcti1Xi2aVwz3oK", "array_point2d_in_circle_large.bin";
+  "QmP5g6Qwxuw34paLrvctLYR4GWvntraTaFwfqhbF2rfLtC", "array_point2d_in_circle_medium.bin";
+  "QmfWVA6G9HhfLSivV9nPF2kZLCqsW8hiViLkvaK7idjP1K", "array_point2d_in_circle_small.bin";
+  "QmaA4Jq23PEPL3dyv7F6soNQR15PDW8NhFdDZRzmuJapzJ", "array_point2d_in_square_delaunay_large.bin";
+  "QmaA4Jq23PEPL3dyv7F6soNQR15PDW8NhFdDZRzmuJapzJ", "array_point2d_in_square_delaunay_medium.bin";
+  "QmPYZumkzCVUeATptYKMNv5qEFgRpTPGYtZ35xkhc7BpJX", "array_point2d_in_square_delaunay_small.bin";
+  "QmNex8BfEQweJPeposH1NS8KkJ4UuKg17FvNvvmDN34oNn", "array_point2d_in_square_large.bin";
+  "QmaA4Jq23PEPL3dyv7F6soNQR15PDW8NhFdDZRzmuJapzJ", "array_point2d_in_square_medium.bin";
+  "QmPYZumkzCVUeATptYKMNv5qEFgRpTPGYtZ35xkhc7BpJX", "array_point2d_in_square_small.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_delaunay_large.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_delaunay_medium.bin";
+  "QmXYtFbsG6KRXmAZyuFiPaUKAQE7EQKH4y8gVMZg1KCACF", "array_point2d_kuzmin_delaunay_small.bin";
+  "QmZ9UTmjSmPcEFxmH441fqx6g1LLej4rpVWFYtKbzyZLq9", "array_point2d_kuzmin_large.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_medium.bin";
+  "QmXYtFbsG6KRXmAZyuFiPaUKAQE7EQKH4y8gVMZg1KCACF", "array_point2d_kuzmin_small.bin";
+  "Qma1oD5ojjSMgLdywLPzLJ5cBV8esUhcACWmN5SyUr9hFT", "array_point2d_on_circle_large.bin";
+  "Qmcz9JbR9piozbTwugioAymyb7w7HjybYrAhDss3n6QkMv", "array_point2d_on_circle_medium.bin";
+  "QmXJ3qDNgaFW6S2pFz8Td2ETVjUtDe8aaxDGYfeT2aQSsA", "array_point2d_on_circle_small.bin";
+  "QmXv2RnFr1H5S4ip3LQoZxQffL89LUjmrc93ehui21bkUw", "array_double_almost_sorted_10000_large.bin";
+  "Qmb3RJMbwQir2mVKYYSA3wzmD7ZeXTUFUXt7VDo5xkErKe", "array_double_exponential_large.bin";
+  "QmY5Rd9ovjc5NC5aZEQm6XMTsFPXuK5mcETQUtU3YT7vSv", "array_double_exponential_medium.bin";
+  "QmayPLeexUXd5CDU1toFEKD3GEN2RarR8rM6SYqETtGW2E", "array_double_exponential_small.bin";
+  "QmQAxEYwvdDeTtU6ReoGUSpJCgJ477WvCHs7YqayFKMjcm", "array_double_random_large.bin";
+  "QmabSxwMqL98tMZeaqBRxGUxyMVEpnq8ez8VCxQEp2geNb", "array_double_random_medium.bin";
+  "QmQoMHANBS4zEZZEDMmRcD8dkdtLmtuuaqCcBtmyfAEa9x", "array_double_random_small.bin";
+  "QmVDwFLa3USQMSVv3nfUBwjbsfo1SmATw9okjJT5AWrb4n", "array_int_exponential_large.bin";
+  "QmNyPhMzvF54BojTuGqrQEaJb9XSmc6bpq2TrtNa3wpr7u", "array_int_exponential_medium.bin";
+  "QmX5xninsAtQkJSSWJFWNF9yqwmDhmF9oCxFDKsia3jcrf", "array_int_exponential_small.bin";
+  "QmcZ42Suo1AynTmmB8zum8VJ3FNhb59gMi4VyA6tYWe6gE", "array_int_random_bounded_100000_large.bin";
+  "QmZY811Agj461by2Y1dqPuRaW8FeCDpZ62SwpxJub99KcE", "array_int_random_bounded_100000_medium.bin";
+  "QmZyk1owLgLBQNELsgN7c14rXqJzAyj1jyB2QjdtvFdpok", "array_int_random_bounded_100000_small.bin";
+  "QmUhvPaavdgMWGzFTpXRMaDwdRzNSrVSbdLHpMZsMnkrwG", "array_int_random_large.bin";
+  "QmT8c1EE9GPurEf1P3gHoBJParyK4dWs1nQ1E8r2BpXcXm", "array_int_random_medium.bin";
+  "QmPYB5cBdVLq4t84jU1MYcM5rZD3vwtqGU2uxmndUE7Jmv", "array_int_random_small.bin";
+  "QmZt4u8McsZFdkpg9jZnvD6bcRitoPCCXARXuKX1YA9efV", "array_pair_int_int_random_256_large.bin";
+  "QmSV3ofTHXJsHwkKAHabexZUdBPEXbDq7qTqRpDfhCZXuM", "array_pair_int_int_random_256_medium.bin";
+  "QmXxWH1qwYDuHNTyaTM1b65bzFruK6tc7edGYmHhfRtao9", "array_pair_int_int_random_256_small.bin";
+  "QmcACNqugJsNXrHK3wrsGedEV44tHEtdZXEn3zY1Eo9Qdj", "cube_large.bin";
+  "QmUSB64obRWFgBn7tayMYZdtcUnXo5wWXgUpAPUzLdHBWW", "cube_medium.bin";
+  "QmPDhVjgQQG7FJExGPyRdSmRPhbcdT1TyVzvXgedBWnKjX", "cube_small.bin";
+  "QmQvdBNowHoHCn5LXRtxLs3aaEs8GLuz9yZk3HzF6jBA6x", "rmat24_large.bin";
+  "QmUmE6UvxnxwNYAB1sgRx8RtRAzMYpBkbfagxomoJtNHZy", "rmat24_medium.bin";
+  "QmesvvU9bKJkHpKx93F47PLvuVGnjs7M9mqj6sW3ZKsJB2", "rmat24_small.bin";
+  "QmZv6vkPYwdoHimpDXBB9WrhomiyQ8asq1FyPKnwyzX53A", "rmat27_large.bin";
+  "QmPNPzj9jTifjUntnLi71LoPCfmPWMWgZwJg6rgW8fLutX", "rmat27_medium.bin";
+  "Qmdn85duXK1GsiQMRjQcdCaDopNqvLkitnY3T9abrkFNzE", "rmat27_small.bin";
+  "QmXVka2FKr6vHS5h8sr2L6wPjyD72EsQDbBDFghLn7sj9M", "chr22.dna.bin";
+  "QmfX2ZG8TqqzDjYMUWXFKQujzXhcc4hzQZqmuTaHF9eT8t", "etext99.bin";
+  "QmfYr68dj2CPKvf7Rg44Ae1yKXpUVTgyv2MJb3yhsX3UE2", "wikisamp.xml.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_delaunay_large.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_delaunay_medium.bin";
+  "QmXYtFbsG6KRXmAZyuFiPaUKAQE7EQKH4y8gVMZg1KCACF", "array_point2d_kuzmin_delaunay_small.bin";
+  "QmZ9UTmjSmPcEFxmH441fqx6g1LLej4rpVWFYtKbzyZLq9", "array_point2d_kuzmin_large.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_medium.bin";
+  "QmXYtFbsG6KRXmAZyuFiPaUKAQE7EQKH4y8gVMZg1KCACF", "array_point2d_kuzmin_small.bin";
+  "QmX6W5b8F5kae38Muy9yxaEfsiqb6gHhQgiQa1VgVt9jKQ", "array_point3d_plummer_large.bin";
+  "QmVZsRyDFRNECsxbrogSUdX5VrQwXCj7AMZPzizwuW1x4f", "array_point3d_plummer_medium.bin";
+  "Qmesw1McsjPdkENNYomTUsTbMrVKpF3NQec5tFtUBk6bvB", "array_point3d_plummer_small.bin";
+  "QmaA4Jq23PEPL3dyv7F6soNQR15PDW8NhFdDZRzmuJapzJ", "array_point2d_in_square_delaunay_large.bin";
+  "QmaA4Jq23PEPL3dyv7F6soNQR15PDW8NhFdDZRzmuJapzJ", "array_point2d_in_square_delaunay_medium.bin";
+  "QmPYZumkzCVUeATptYKMNv5qEFgRpTPGYtZ35xkhc7BpJX", "array_point2d_in_square_delaunay_small.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_delaunay_large.bin";
+  "QmSLAWyJ3kmFBmXSV7HvyRfiLgwkwfQm1JKKSYUMpQzpTi", "array_point2d_kuzmin_delaunay_medium.bin";
+  "QmXYtFbsG6KRXmAZyuFiPaUKAQE7EQKH4y8gVMZg1KCACF", "array_point2d_kuzmin_delaunay_small.bin";
+  "QmRDaaCrsRji15z2f7PhJTJpvS78L7MEtSuAnhtk5aMxHm", "happy_ray_cast_dataset.bin";
+  "QmT76cbeEP64rS617yXpXr3efaAtBXa8mUZ4PTBVNuUYMd", "xyzrgb_manuscript_ray_cast_dataset.bin";  
+]
+
+let row_of_infile path_to_infile infile =
+  let h, _ = List.find (fun (_, f) -> (path_to_infile f) = infile) infiles_by_hash in
+  (h, infile)
+
+let infile_of_input_descriptor (p, _, _) = p
+
+let fetch_infiles_of path_to_infile force_get is_virtual descrs =
+  let infiles = List.map infile_of_input_descriptor descrs in
+  let table = List.map (row_of_infile path_to_infile) infiles in
+  ipfs_get_files table force_get is_virtual
+
+let fetch_infiles_of_benchmark path_to_infile force_get is_virtual (benchmark : benchmark_descriptor) =
+  fetch_infiles_of path_to_infile force_get is_virtual benchmark.bd_input_descr
+
+let fetch_infiles_of_benchmarks path_to_infile force_get is_virtual all_benchmarks benchmarks =
+  let keep_benchmark (benchmark : benchmark_descriptor) = List.exists (fun n -> n = benchmark.bd_name) benchmarks in
+  let selected_benchmarks = List.filter keep_benchmark all_benchmarks in
+  List.iter (fetch_infiles_of_benchmark path_to_infile force_get is_virtual) selected_benchmarks
+
 let benchmarks =
   let p b =
     List.exists (fun a -> b.bd_name = a) all_benchmarks
@@ -496,6 +601,10 @@ let pretty_input_name n =
   match List.find_all (fun (m, _, _) -> m = n) input_descriptors with
   | (m, _, p) :: _ -> p
   | [] -> failwith ("pretty name: " ^ n)
+
+let get() = (
+  fetch_infiles_of_benchmarks path_to_infile arg_force_get arg_virtual_get benchmarks all_benchmarks;
+  ())
                   
 let make() =
   build "." all_progs arg_virtual_build
@@ -732,7 +841,7 @@ let plot() =
   add Latex.new_page;
   ())
 
-let all () = select make run check plot
+let all () = select get make run check plot
 
 end
     
