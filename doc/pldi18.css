@@ -63,7 +63,14 @@ h1.title {
 .warning {
         font-size: 100%;
 	      border-left-style: solid;
-	      border-left-color: pink;
+	      border-left-color: red;
+	      padding-left: 9px;
+}
+
+.note {
+        font-size: 100%;
+	      border-left-style: solid;
+	      border-left-color: lightgrey;
 	      padding-left: 9px;
 }
 
