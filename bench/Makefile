@@ -9,7 +9,7 @@ PBBS_INCLUDE_PATH=$(PACKAGE_PATH)/pbbs-include/
 PBBS_SPTL_PATH=$(PACKAGE_PATH)/pbbs-sptl/include
 PBBS_SPTL_BENCH_PATH=$(PACKAGE_PATH)/pbbs-sptl/bench
 CACTUS_PATH=$(PACKAGE_PATH)/cactus-stack/include
-ENCORE_INCLUDE_PATH=$(PACKAGE_PATH)/encore/include
+ENCORE_INCLUDE_PATH=../include/
 
 CUSTOM_MALLOC_PREFIX=
 
