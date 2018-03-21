@@ -29,7 +29,7 @@ void trigger_cilk() {
 
 template <class Function>
 void run_and_report_elapsed_time(const Function& f) {
-#ifdef CUSTOM_CILK_PLUS_RUNTIME
+#ifdef CILK_RUNTIME_WITH_STATS
   cilk_spawn trigger_cilk();
   cilk_sync;
   __cilkg_take_snapshot_for_stats();
@@ -43,7 +43,7 @@ void run_and_report_elapsed_time(const Function& f) {
    * environment variable as such:
    *   export LD_LIBRARY_PATH=/home/rainey/cilk-plus-rts/lib:$LD_LIBRARY_PATH
    */
-#ifdef CUSTOM_CILK_PLUS_RUNTIME
+#ifdef CILK_RUNTIME_WITH_STATS
   __cilkg_dump_encore_stats_to_stderr();
 #endif
 }
