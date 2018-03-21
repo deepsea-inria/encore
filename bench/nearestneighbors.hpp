@@ -68,13 +68,13 @@ struct kNearestNeighbor {
     vertex* operator[] (const int i) { return pn[k-i-1]; }
 
     kNN(vertex *p, int kk) {
-      if (kk > maxK) {cout << "k too large in kNN" << endl; abort();}
+      if (kk > maxK) {std::cout << "k too large in kNN" << std::endl; abort();}
       k = kk;
       quads = (1 << (p->pt).dimension());
       ps = p;
       for (int i=0; i<k; i++) {
         pn[i] = (vertex*) NULL; 
-        rn[i] = numeric_limits<double>::max();
+        rn[i] = std::numeric_limits<double>::max();
       }
     }
 

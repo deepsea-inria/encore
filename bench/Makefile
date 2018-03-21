@@ -1,63 +1,88 @@
-all: basic
-
-PBENCH_PATH=../../pbench
-
-include $(PBENCH_PATH)/Makefile_common
-
-CUSTOM_MALLOC_PREFIX=
-
--include settings.sh
 
 PACKAGE_PATH=../../
 
-CACTUS_HOME=$(PACKAGE_PATH)/cactus-stack/include
-CHUNKEDSEQ_HOME=$(PACKAGE_PATH)/chunkedseq/include
-ENCORE_INCLUDE_HOME=$(PACKAGE_PATH)/encore/include
-CMDLINE_HOME=$(PACKAGE_PATH)/cmdline/include
-PBBS_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-include
-PCTL_INCLUDE_HOME=$(PACKAGE_PATH)/pctl/include
-PBBS_PCTL_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-pctl/include
-PBBS_PCTL_TEST_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-pctl/test/include
-PBBS_PCTL_BENCH_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-pctl/bench/include
-PBBS_PCTL_BENCH_GENERATORS_INCLUDE_HOME=$(PACKAGE_PATH)/pbbs-pctl/bench/include/generators
-QUICKCHECK_INCLUDE_HOME=$(PACKAGE_PATH)/quickcheck/quickcheck
+PBENCH_PATH=$(PACKAGE_PATH)/pbench
+CMDLINE_PATH=$(PACKAGE_PATH)/cmdline/include
+CHUNKEDSEQ_PATH=$(PACKAGE_PATH)/chunkedseq/include
+SPTL_PATH=$(PACKAGE_PATH)/sptl/include
+PBBS_INCLUDE_PATH=$(PACKAGE_PATH)/pbbs-include/
+PBBS_SPTL_PATH=$(PACKAGE_PATH)/pbbs-sptl/include
+PBBS_SPTL_BENCH_PATH=$(PACKAGE_PATH)/pbbs-sptl/bench
+CACTUS_PATH=$(PACKAGE_PATH)/cactus-stack/include
+ENCORE_INCLUDE_PATH=$(PACKAGE_PATH)/encore/include
+
+CUSTOM_MALLOC_PREFIX=
 
 HWLOC_FLAGS=`pkg-config --cflags hwloc`
 HWLOC_LIBS=`pkg-config --libs hwloc`
-HWLOC_PREFIX_ALL=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
+HWLOC_PREFIX_ALL=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LI
 
-HWLOC_DIRECTIVES=
-ifeq ($(strip $(USE_HWLOC)),1)
-   HWLOC_DIRECTIVES=$(HWLOC_PREFIX_ALL)
+####################################################################
+# Makefile options
+
+# Create a file called "settings.sh" in this folder if you want to
+# configure particular options. See section below for options.
+
+-include settings.sh
+
+####################################
+# Example settings.sh 
+#
+# USE_HWLOC=1
+# USE_CILK=1
+# CUSTOM_MALLOC_PREFIX=-ltcmalloc 
+# CILK_EXTRAS_PREFIX=-L ../../../../cilk-plus-rts/lib -I ../../../../cilk-plus-rts/include -ldl -DCILK_RUNTIME_WITH_STATS
+####################################
+
+####################################################################
+
+include $(PBENCH_PATH)/Makefile_common
+
+HWLOC_FLAGS=`pkg-config --cflags hwloc`
+HWLOC_LIBS=`pkg-config --libs hwloc`
+ifeq ($(strip $(USE_MANUAL_HWLOC_PATH)),1)
+	HWLOC_FLAGS=$(MY_HWLOC_FLAGS)
+	HWLOC_LIBS=$(MY_HWLOC_LIBS)
 endif
 
-INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_HOME)/*.hpp) $(wildcard $(ENCORE_INCLUDE_HOME)/*.hpp) $(wildcard $(CMDLINE_HOME)/*.hpp) $(wildcard $(PBBS_INCLUDE_HOME)/*.hpp) $(wildcard $(PCTL_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_INLCUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_TEST_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_BENCH_INCLUDE_HOME)/*.hpp) $(wildcard $(PBBS_PCTL_BENCH_GENERATORS_INCLUDE_HOME)/*.hpp) $(wildcard $(QUICKCHECK_INCLUDE_HOME)/*.hpp) $(wildcard $(CACTUS_HOME)/*.hpp) $(wildcard *.hpp)
+HWLOC_PREFIX_ALL=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
 
-INCLUDE_DIRECTIVES= -I $(CHUNKEDSEQ_HOME) -I $(ENCORE_INCLUDE_HOME) -I $(CMDLINE_HOME) -I $(PBBS_INCLUDE_HOME) -I $(PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_INCLUDE_HOME) -I $(PBBS_PCTL_TEST_INCLUDE_HOME) -I $(PBBS_PCTL_BENCH_INCLUDE_HOME) -I $(PBBS_PCTL_BENCH_GENERATORS_INCLUDE_HOME) -I $(QUICKCHECK_INCLUDE_HOME) -I $(CACTUS_HOME)
+HWLOC_PREFIX=
+ifeq ($(strip $(USE_HWLOC)),1)
+   HWLOC_PREFIX=$(HWLOC_PREFIX_ALL)
+endif
 
-CILK_PLUS= -DUSE_CILK_PLUS -DUSE_CILK_PLUS_RUNTIME -fcilkplus -lcilkrts -ldl -DENCORE_BENCHMARK $(CUSTOM_CILKRTS_SETTINGS)
+INCLUDE_FILES=$(wildcard $(CHUNKEDSEQ_PATH)/*.hpp) $(wildcard $(ENCORE_INCLUDE_PATH)/*.hpp) $(wildcard $(CMDLINE_PATH)/*.hpp) $(wildcard $(PBBS_INCLUDE_PATH)/*.hpp) $(wildcard $(SPTL_PATH)/*.hpp) $(wildcard $(PBBS_SPTL_PATH)/*.hpp) $(wildcard $(PBBS_SPTL_BENCH_PATH)/*.hpp) $(wildcard $(CACTUS_PATH)/*.hpp) $(wildcard *.hpp)
 
-COMMON_PREFIX= -w -DHAVE_GCC_TLS -fpermissive -pthread -O2 -march=native -DNDEBUG -std=gnu++1y $(HWLOC_DIRECTIVES) -DTARGET_LINUX -m64 -DTARGET_X86_64 -DMANUAL_CONTROL #-DTIME_MEASURE
+INCLUDE_PREFIX= -I $(CHUNKEDSEQ_PATH) -I $(ENCORE_INCLUDE_PATH) -I $(CMDLINE_PATH) -I $(PBBS_INCLUDE_PATH) -I $(SPTL_PATH) -I $(PBBS_SPTL_PATH) -I $(PBBS_SPTL_BENCH_PATH) -I $(CACTUS_PATH)
+
+CILK_PREFIX=
+ifeq ($(strip $(USE_CILK)),1)
+	CILK_PREFIX= -fcilkplus -lcilkrts -ldl -DUSE_CILK_PLUS -DUSE_CILK_PLUS_RUNTIME -DENCORE_BENCHMARK
+	CILK_PREFIX+=$(CILK_EXTRAS_PREFIX)
+endif
+
+COMMON_PREFIX= -w -DHAVE_GCC_TLS -fpermissive -pthread -O2 -march=native -DNDEBUG -std=gnu++1y $(HWLOC_PREFIX) -DTARGET_LINUX -m64 -DTARGET_X86_64 -DMANUAL_CONTROL #-DTIME_MEASURE
 LOGGING_PREFIX=-DENCORE_ENABLE_LOGGING
 DEBUG_PREFIX= -w -fpermissive -pthread -O0 -std=gnu++11 -g $(LOGGING_PREFIX) -DTARGET_LINUX -DDEBUG_ENCORE_STACK -DENCORE_RANDOMIZE_SCHEDULE #-DENCORE_SEQUENCE_USE_PBBS_VERSIONS
 
 %.encore: %.cpp $(INCLUDE_FILES)
-	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_PREFIX) -o $@ $<
 
 %.log: %.cpp $(INCLUDE_FILES)
-	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_DIRECTIVES) $(LOGGING_PREFIX) -o $@ $<
+	g++ -DENCORE_ENABLE_STATS $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_PREFIX) $(LOGGING_PREFIX) -o $@ $<
 
 %.dbg: %.cpp $(INCLUDE_FILES)
-	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+	g++ -DENCORE_ENABLE_STATS $(DEBUG_PREFIX) $(INCLUDE_PREFIX) -o $@ $<
 
-%.cilk: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_HOME)
-	g++ $(CILK_PLUS) $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+%.cilk: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_PATH)
+	g++ $(CILK_PREFIX) $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_PREFIX) -o $@ $<
 
-%.cilk_debug: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_HOME)
-	g++ $(CILK_PLUS) $(DEBUG_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+%.cilk_debug: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_PATH)
+	g++ $(CILK_PREFIX) $(DEBUG_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_PREFIX) -o $@ $<
 
-%.cilk_elision: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_HOME)
-	g++ $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_DIRECTIVES) -o $@ $<
+%.cilk_elision: %.cpp $(INCLUDE_FILES) $(PBBS_INCLUDE_PATH)
+	g++ $(COMMON_PREFIX) $(CUSTOM_MALLOC_PREFIX) $(INCLUDE_PREFIX) -o $@ $<
 
 clean: pbench_clean
 	rm -f *.encore *.cilk *.dbg *.log *.cilk_elision *.cilk_debug

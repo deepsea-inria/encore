@@ -26,11 +26,10 @@
 
 #include "encorebench.hpp"
 #include "nearestneighbors.hpp"
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "nearestNeighbors.h"
 
-namespace pasl {
-namespace pctl {
+namespace sptl {
 
 parray<pbbs::_point2d<double>> to_pbbs(parray<_point2d<double>>& points) {
   parray<pbbs::_point2d<double>> result(points.size());
@@ -89,18 +88,17 @@ void benchmark(std::string infile) {
   int k = deepsea::cmdline::parse_or_default_int("k", 1);
   deepsea::cmdline::dispatcher d;
   d.add("array_point2d", [&] {
-    parray<_point2d<double>> x = io::load<parray<_point2d<double>>>(infile);
+    parray<_point2d<double>> x = sptl::read_from_file<parray<_point2d<double>>>(infile);
     benchmark<_point2d<double>, pbbs::_point2d<double>, 10>(x, k);
   });
   d.add("array_point3d", [&] {
-    parray<_point3d<double>> x = io::load<parray<_point3d<double>>>(infile);
+    parray<_point3d<double>> x = sptl::read_from_file<parray<_point3d<double>>>(infile);
     benchmark<_point3d<double>, pbbs::_point3d<double>, 10>(x, k);
   });                                                                           
   d.dispatch("type");
   encorebench::fnn1.reportTotal();
 }
 
-} // end namespace
 } // end namespace
 
 int main(int argc, char** argv) {
@@ -110,6 +108,6 @@ int main(int argc, char** argv) {
     std::cerr << "bogus input filename" << std::endl;
     exit(0);
   }
-  pasl::pctl::benchmark(infile);
+  sptl::benchmark(infile);
   return 0;
 }

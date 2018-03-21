@@ -37,9 +37,9 @@
 #if defined(TEST)
 #include "test.hpp"
 #endif
-#include "prandgen.hpp"
-#include "geometryio.hpp"
-#include "loaders.hpp"
+//#include "prandgen.hpp"
+#include "geometrydata.hpp"
+#include "readinputbinary.hpp"
 
 #include "hull.h"
 
@@ -50,7 +50,7 @@ namespace dsl = encore::edsl;
 using namespace std;
 using namespace sequence;
 
-using point2d = pasl::pctl::point2d;
+using point2d = sptl::point2d;
 
 template <class ET, class F>
 pair<intT,intT> split(ET* A, intT n, F lf, F rf) {
@@ -79,16 +79,16 @@ struct aboveLine {
   intT l, r;
   point2d* P;
   aboveLine(point2d* _P, intT _l, intT _r) : P(_P), l(_l), r(_r) {}
-  bool operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[i]) > 0.0;}
+  bool operator() (intT i) {return sptl::triangle_area(P[l], P[r], P[i]) > 0.0;}
 };
 
 intT serialQuickHull(intT* I, point2d* P, intT n, intT l, intT r) {
   if (n < 2) return n;
   intT maxP = I[0];
-  double maxArea = pasl::pctl::triangle_area(P[l],P[r],P[maxP]);
+  double maxArea = sptl::triangle_area(P[l],P[r],P[maxP]);
   for (intT i=1; i < n; i++) {
     intT j = I[i];
-    double a = pasl::pctl::triangle_area(P[l],P[r],P[j]);
+    double a = sptl::triangle_area(P[l],P[r],P[j]);
     if (a > maxArea) {
       maxArea = a;
       maxP = j;
@@ -112,7 +112,7 @@ struct triangArea {
   point2d* P;
   intT* I;
   triangArea(intT* _I, point2d* _P, intT _l, intT _r) : I(_I), P(_P), l(_l), r(_r) {}
-  double operator() (intT i) {return pasl::pctl::triangle_area(P[l], P[r], P[I[i]]);}
+  double operator() (intT i) {return sptl::triangle_area(P[l], P[r], P[I[i]]);}
 };
 
 template <class ET, class intT, class PRED> 
@@ -326,8 +326,7 @@ public:
 
 encore_pcfg_allocate(hull, get_cfg)
 
-namespace pasl {
-namespace pctl {
+namespace sptl {
 
 #if defined(TEST)
 
@@ -335,7 +334,7 @@ namespace pctl {
 /* Quickcheck IO */
 
 template <class Container>
-std::ostream& operator<<(std::ostream& out, const pasl::pctl::container_wrapper<Container>& c) {
+std::ostream& operator<<(std::ostream& out, const sptl::container_wrapper<Container>& c) {
   out << c.c;
   return out;
 }
@@ -471,7 +470,7 @@ public:
 /*---------------------------------------------------------------------*/
 /* Benchmarking */
 
-parray<pbbs::_point2d<double>> to_pbbs(parray<pasl::pctl::_point2d<double>>& points) {
+parray<pbbs::_point2d<double>> to_pbbs(parray<sptl::_point2d<double>>& points) {
   parray<pbbs::_point2d<double>> result(points.size());
   for (int i = 0; i < points.size(); i++) {
     result[i] = pbbs::_point2d<double>(points[i].x, points[i].y);
@@ -481,7 +480,7 @@ parray<pbbs::_point2d<double>> to_pbbs(parray<pasl::pctl::_point2d<double>>& poi
 
 
 void benchmark(std::string infile) {
-  parray<point2d> x = io::load<parray<point2d>>(infile);
+  parray<sptl::_point2d<double>> x = sptl::read_from_file<parray<sptl::_point2d<double>>>(infile);
   std::string algorithm = cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
   d.add("encore", [&] {
@@ -510,21 +509,13 @@ void benchmark(std::string infile) {
 }
 
 } // end namespace
-} // end namespace
 
 int main(int argc, char** argv) {
   encorebench::initialize(argc, argv);
-#if defined(TEST)
-  pasl::pctl::m = deepsea::cmdline::parse_or_default("m", pasl::pctl::m);
-#endif
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile != "") {
-    pasl::pctl::benchmark(infile);
+    sptl::benchmark(infile);
     return 0;
   }
-#if defined(TEST)
-  int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
-  checkit<pasl::pctl::consistent_hulls_property>(nb_tests, "quickhull is correct");
-#endif
   return 0;
 }

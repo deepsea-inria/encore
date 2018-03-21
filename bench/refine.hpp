@@ -40,7 +40,7 @@ using namespace std;
 
   namespace logging = encore::logging;
 
-using vect2d = pasl::pctl::vect2d;
+using vect2d = sptl::vect2d;
 
 // *************************************************************
 //   PARALLEL HASH TABLE TO STORE WORK QUEUE OF SKINNY TRIANGLES

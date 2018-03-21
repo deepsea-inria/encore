@@ -12,17 +12,20 @@
 #include "sequence.hpp"
 #include "samplesort.hpp"
 
+#ifdef TEST
 #include "test.hpp"
 #include "prandgen.hpp"
 #include "sequencedata.hpp"
+#endif 
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
 
-namespace pasl {
-namespace pctl {
+namespace sptl {
 
+#ifdef TEST
+  
 /*---------------------------------------------------------------------*/
 /* Quickcheck IO */
 
@@ -81,19 +84,20 @@ public:
   
 };
 
-} // end namespace
+#endif
+  
 } // end namespace
 
 /*---------------------------------------------------------------------*/
 /* Benchmarking */
 
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "sampleSort.h"
 
 namespace pbbs {
 
 template <class Item>
-using parray = pasl::pctl::parray<Item>;
+using parray = sptl::parray<Item>;
 
 template <class Item, class Compare_fn>
 void benchmark(parray<Item>& xs, const Compare_fn& compare_fn) {
@@ -110,22 +114,22 @@ void benchmark(parray<Item>& xs, const Compare_fn& compare_fn) {
   if (deepsea::cmdline::parse_or_default_bool("check", false)) {
     parray<Item> ys(xs);
     std::sort(ys.begin(), ys.end(), compare_fn);
-    assert(pasl::pctl::same_sequence(xs.begin(), xs.end(), ys.begin(), ys.end()));
+    assert(sptl::same_sequence(xs.begin(), xs.end(), ys.begin(), ys.end()));
   }
 }
 
 void benchmark(std::string infile) {
   deepsea::cmdline::dispatcher d;
   d.add("double", [&] {
-    auto xs = pasl::pctl::io::load<parray<double>>(infile);
+    auto xs = sptl::read_from_file<parray<double>>(infile);
     benchmark(xs, std::less<double>());
   });
   d.add("int", [&] {
-    auto xs = pasl::pctl::io::load<parray<int>>(infile);
+    auto xs = sptl::read_from_file<parray<int>>(infile);
     benchmark(xs, std::less<int>());
   });
   d.add("string", [&] {
-    parray<char*> xs = pasl::pctl::io::load<parray<char*>>(infile);
+    parray<char*> xs = sptl::read_from_file<parray<char*>>(infile);
     benchmark(xs, [&] (char* a, char* b) {
       return std::strcmp(a, b) < 0;
     });
@@ -145,9 +149,11 @@ int main(int argc, char** argv) {
   if (infile != "") {
     pbbs::benchmark(infile);
   } else { // run unit tests
-    pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);
+#ifdef TEST
+    sptl::m = cmdline::parse_or_default("m", sptl::m);
     int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
-    checkit<pasl::pctl::sorted_property>(nb_tests, "samplesort is correct");
+    checkit<sptl::sorted_property>(nb_tests, "samplesort is correct");
+#endif
   }
   return 0;
 }

@@ -30,7 +30,7 @@
 namespace encorebench {
 using namespace std;
 
-using point2d = pasl::pctl::point2d;
+using point2d = sptl::point2d;
 
 // *************************************************************
 //    TOPOLOGY
@@ -251,9 +251,9 @@ typedef Table<hashEdges,intT> EdgeTable;
 EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
 
 template <class point>
-using triangles = pasl::pctl::triangles<point>;
+using triangles = sptl::triangles<point>;
 
-using triangle = pasl::pctl::triangle;
+using triangle = sptl::triangle;
   
 class topologyFromTriangles : public encore::edsl::pcfg::shared_activation_record {
 public:

@@ -49,6 +49,7 @@ public:
   intT n;
   intT m;
   intT** table;
+
   intT depth;
 
   myRMQ() { }
@@ -624,13 +625,12 @@ encore_pcfg_allocate(suffix_array, get_cfg)
 #include "pks.h"
 #undef blocked_for
 #undef parallel_for
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 
-namespace pasl {
-namespace pctl {
+namespace sptl {
 
 void benchmark(std::string infile) {
-  std::string x = pasl::pctl::io::load<std::string>(infile);
+  std::string x = sptl::read_from_file<std::string>(infile);
   std::string algorithm = deepsea::cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
   std::pair<intT*, intT*> res;
@@ -653,7 +653,6 @@ void benchmark(std::string infile) {
 }
 
 } // end namespace
-} // end namespace
 
 int main(int argc, char** argv) {
   encorebench::initialize(argc, argv);
@@ -663,6 +662,6 @@ int main(int argc, char** argv) {
     std::cerr << "bogus input filename" << std::endl;
     exit(0);
   }
-  pasl::pctl::benchmark(infile);
+  sptl::benchmark(infile);
   return 0;
 }

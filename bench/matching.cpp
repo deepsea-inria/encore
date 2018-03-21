@@ -125,9 +125,9 @@ encore_pcfg_allocate(maximalMatching, get_cfg)
 
 } // end namespace
 
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "graphio.hpp"
-#include "graphutils.hpp"
+//#include "graphutils.hpp"
 
 #include "matching.h"
 #include "gettime.h"
@@ -135,7 +135,7 @@ encore_pcfg_allocate(maximalMatching, get_cfg)
 
 namespace pbbs {
 
-pbbs::graph::edgeArray<int> to_pbbs(pasl::pctl::graph::edgeArray<int>& g) {
+pbbs::graph::edgeArray<int> to_pbbs(sptl::graph::edgeArray<int>& g) {
   pbbs::graph::edge<int>* e = (pbbs::graph::edge<int>*) malloc(sizeof(pbbs::graph::edge<int>) * g.nonZeros);
   for (int i = 0; i < g.nonZeros; i++) {
     e[i] = pbbs::graph::edge<int>(g.E[i].u, g.E[i].v);
@@ -145,8 +145,8 @@ pbbs::graph::edgeArray<int> to_pbbs(pasl::pctl::graph::edgeArray<int>& g) {
   
 void benchmark(std::string infile) {
   int grain = deepsea::cmdline::parse_or_default_int("speculative_for_grain", 150);
-  pasl::pctl::graph::graph<int> x = pasl::pctl::io::load<pasl::pctl::graph::graph<int>>(infile);
-  pasl::pctl::graph::edgeArray<int> edges = pasl::pctl::graph::to_edge_array(x);
+  sptl::graph::graph<int> x = sptl::read_from_file<sptl::graph::graph<int>>(infile);
+  sptl::graph::edgeArray<int> edges = sptl::graph::to_edge_array(x);
   auto edges2 = to_pbbs(edges);
   std::pair<intT*, intT> result;
   deepsea::cmdline::dispatcher d;

@@ -296,9 +296,9 @@ encore_pcfg_allocate(mst, get_cfg)
 
 } // end namespace
 
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "graphio.hpp"
-#include "graphutils.hpp"
+//#include "graphutils.hpp"
 
 #include "mst.h"
 #include "gettime.h"
@@ -306,7 +306,7 @@ encore_pcfg_allocate(mst, get_cfg)
 
 namespace pbbs {
   
-graph::wghEdgeArray<int> to_pbbs(pasl::pctl::graph::wghEdgeArray<int>& g) {
+graph::wghEdgeArray<int> to_pbbs(sptl::graph::wghEdgeArray<int>& g) {
   graph::wghEdge<int>* e = (graph::wghEdge<int>*) malloc(sizeof(graph::wghEdge<int>) * g.m);
   for (int i = 0; i < g.m; i++) {
     e[i] = graph::wghEdge<int>(g.E[i].u, g.E[i].v, g.E[i].weight);
@@ -315,8 +315,8 @@ graph::wghEdgeArray<int> to_pbbs(pasl::pctl::graph::wghEdgeArray<int>& g) {
 }
 
 void benchmark(std::string infile) {
-  pasl::pctl::graph::graph<int> x = pasl::pctl::io::load<pasl::pctl::graph::graph<int>>(infile);
-  pasl::pctl::graph::wghEdgeArray<int> edges = to_weighted_edge_array(x);
+  sptl::graph::graph<int> x = sptl::read_from_file<sptl::graph::graph<int>>(infile);
+  sptl::graph::wghEdgeArray<int> edges = to_weighted_edge_array(x);
   auto edges2 = to_pbbs(edges);
   std::pair<intT*, intT> result;
   deepsea::cmdline::dispatcher d;

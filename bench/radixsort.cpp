@@ -10,13 +10,13 @@
 
 #include "encorebench.hpp"
 #include "blockradixsort.hpp"
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "blockRadixSort.h"
 
 namespace pbbs {
 
 template <class Item>
-using parray = pasl::pctl::parray<Item>;
+using parray = sptl::parray<Item>;
 
 void benchmark(parray<int>& x) {
   bool should_check = deepsea::cmdline::parse_or_default_bool("check", false);
@@ -63,11 +63,11 @@ void benchmark(parray<std::pair<int, int>>& x) {
 void benchmark(std::string infile) {
   deepsea::cmdline::dispatcher d;
   d.add("int", [&] {
-    parray<int> x = pasl::pctl::io::load<parray<int>>(infile);
+    parray<int> x = sptl::read_from_file<parray<int>>(infile);      
     benchmark(x);
   });
   d.add("pair_int_int", [&]  {
-    parray<std::pair<int, int>> x = pasl::pctl::io::load<parray<std::pair<int, int>>>(infile);
+    parray<std::pair<int, int>> x = sptl::read_from_file<parray<std::pair<int, int>>>(infile);            
     benchmark(x);
   });
   d.dispatch("type");
@@ -75,16 +75,19 @@ void benchmark(std::string infile) {
 
 } // end namespace
 
+#ifdef TEST
 #include "test.hpp"
 #include "prandgen.hpp"
 #include "sequencedata.hpp"
+#endif
 
 namespace sched = encore::sched;
 namespace cmdline = deepsea::cmdline;
 namespace dsl = encore::edsl;
 
-namespace pasl {
-namespace pctl {
+namespace sptl {
+
+#ifdef TEST
 
 /*---------------------------------------------------------------------*/
 /* Quickcheck IO */
@@ -146,16 +149,18 @@ public:
   
 };
 
-} // end namespace
+#endif
+
 } // end namespace
 
 int main(int argc, char** argv) {
   encorebench::initialize(argc, argv);
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
   if (infile == "") {
-    pasl::pctl::m = cmdline::parse_or_default("m", pasl::pctl::m);
     int nb_tests = cmdline::parse_or_default_int("nb_tests", 1000);
+#ifdef TEST
     checkit<pasl::pctl::sorted_property>(nb_tests, "radixsort is correct");
+#endif
     return 0;
   }
   pbbs::benchmark(infile);

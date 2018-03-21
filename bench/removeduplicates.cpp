@@ -14,7 +14,7 @@
 
 #include "encorebench.hpp"
 #include "deterministichash.hpp"
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "deterministicHash.h"
 #undef parallel_for
 /***********************************************************************/
@@ -22,7 +22,7 @@
 /*---------------------------------------------------------------------*/
 
 template <class Item>
-using parray = pasl::pctl::parray<Item>;
+using parray = sptl::parray<Item>;
 
 template <class Item>
 void encore_bench(parray<Item>& x) {
@@ -49,15 +49,15 @@ int main(int argc, char** argv) {
   if (infile != "") {
     deepsea::cmdline::dispatcher d;
     d.add("array_int", [&] {
-      parray<int> x = pasl::pctl::io::load<parray<int>>(infile);
+      parray<int> x = sptl::read_from_file<parray<int>>(infile);
       encore_bench(x);
     });
     d.add("array_string", [&] {
-      parray<char*> x = pasl::pctl::io::load<parray<char*>>(infile);
+      parray<char*> x = sptl::read_from_file<parray<char*>>(infile);
       encore_bench(x);
     });
     d.add("array_pair_string_int", [&] {
-      parray<std::pair<char*, int>*> x = pasl::pctl::io::load<parray<std::pair<char*, int>*>>(infile);
+      parray<std::pair<char*, int>*> x = sptl::read_from_file<parray<std::pair<char*, int>*>>(infile);
       encore_bench(x);
     });
     d.dispatch("type");

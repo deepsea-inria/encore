@@ -1,14 +1,13 @@
 
 #include "encorebench.hpp"
-#include "geometryio.hpp"
+#include "geometrydata.hpp"
 #include "refine.hpp"
-#include "loaders.hpp"
+#include "readinputbinary.hpp" 
 #include "refine.h"
 
-namespace pasl {
-namespace pctl {
+namespace sptl {
 
-pbbs::triangles<pbbs::_point2d<double>> to_pbbs(pasl::pctl::triangles<pasl::pctl::_point2d<double>>& x) {
+pbbs::triangles<pbbs::_point2d<double>> to_pbbs(sptl::triangles<sptl::_point2d<double>>& x) {
   pbbs::triangles<pbbs::_point2d<double>> result;
   result.numPoints = x.num_points;
   result.P = (pbbs::_point2d<double>*) malloc(sizeof(pbbs::_point2d<double>) * x.num_points);
@@ -25,7 +24,7 @@ pbbs::triangles<pbbs::_point2d<double>> to_pbbs(pasl::pctl::triangles<pasl::pctl
 
 void benchmark() {
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
-  auto x = pasl::pctl::io::load<pasl::pctl::triangles<pasl::pctl::_point2d<double>>>(infile);
+  auto x = sptl::read_from_file<sptl::triangles<sptl::_point2d<double>>>(infile);
   std::string algorithm = deepsea::cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
   encorebench::triangles<_point2d<double>> res;
@@ -42,11 +41,10 @@ void benchmark() {
 }
   
 } // end namespace
-} // end namespace
 
 int main(int argc, char** argv) {
   encorebench::initialize(argc, argv);
-  pasl::pctl::benchmark();
+  sptl::benchmark();
   return 0;
 }
 

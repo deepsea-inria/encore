@@ -35,7 +35,7 @@
 
 namespace encorebench {
 
-using namespace pasl::pctl;
+using namespace sptl;
 
 // *************************************************************
 //    QUAD/OCT TREE NODES
@@ -54,8 +54,8 @@ using namespace pasl::pctl;
 // return the index of the quadrant for the point p
 int ptFindBlock(point2d minpt, double blocksize, int log_numblocks, point2d p) {
   int numblocks = (1 << log_numblocks);
-  int xindex = min((int)((p.x - minpt.x)/blocksize),numblocks-1);  
-  int yindex = min((int)((p.y - minpt.y)/blocksize),numblocks-1);  
+  int xindex = std::min((int)((p.x - minpt.x)/blocksize),numblocks-1);  
+  int yindex = std::min((int)((p.y - minpt.y)/blocksize),numblocks-1);  
   int result = 0;
   for (int i = 0; i < log_numblocks; i++) {
     int mask = (1 << i);
@@ -72,9 +72,9 @@ int ptFindBlock(point2d minpt, double blocksize, int log_numblocks, point2d p) {
 // return the index of the quadrant for the point p
 int ptFindBlock(point3d minpt, double blocksize, int log_numblocks, point3d p) {
   int numblocks = (1 << log_numblocks);
-  int xindex = min((int)((p.x - minpt.x)/blocksize),numblocks-1);  
-  int yindex = min((int)((p.y - minpt.y)/blocksize),numblocks-1);  
-  int zindex = min((int)((p.z - minpt.z)/blocksize),numblocks-1);  
+  int xindex = std::min((int)((p.x - minpt.x)/blocksize),numblocks-1);  
+  int yindex = std::min((int)((p.y - minpt.y)/blocksize),numblocks-1);  
+  int zindex = std::min((int)((p.z - minpt.z)/blocksize),numblocks-1);  
   int result = 0;
   for (int i = 0; i < log_numblocks; i++) {
     int mask = (1 << i);
@@ -203,7 +203,7 @@ public :
       sz = count;
       for (int i=0; i < count; i++) 
         if (vertices[i] < ((vertex*) NULL)+1000) 
-          cout << "oops: " << vertices[i] << "," << count << "," << i << endl;
+          std::cout << "oops: " << vertices[i] << "," << count << "," << i << std::endl;
     }
     else {
       sz = 0;
