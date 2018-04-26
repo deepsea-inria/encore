@@ -22,7 +22,7 @@ parray<pbbs::_point2d<double>> to_pbbs(parray<sptl::_point2d<double>>& points) {
 
 void benchmark() {
   std::string infile = deepsea::cmdline::parse_or_default_string("infile", "");
-  parray<sptl::_point2d<double>> x = sptl::read_from_file<parray<sptl::_point2d<double>>>(infile);o
+  parray<sptl::_point2d<double>> x = sptl::read_from_file<parray<sptl::_point2d<double>>>(infile);
   std::string algorithm = deepsea::cmdline::parse<std::string>("algorithm");
   deepsea::cmdline::dispatcher d;
   encorebench::triangles<_point2d<double>> res;
